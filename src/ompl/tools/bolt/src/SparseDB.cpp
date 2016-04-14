@@ -171,31 +171,6 @@ SparseDB::SparseDB(base::SpaceInformationPtr si, DenseDB *denseDB, base::Visuali
   , vertexPopularity_(boost::get(vertex_popularity_t(), g_))
   // Disjoint set accessors
   , disjointSets_(boost::get(boost::vertex_rank, g_), boost::get(boost::vertex_predecessor, g_))
-  // Remember what round we're on
-  , secondSparseInsertionAttempt_(false)
-  // Derived properties
-  , sparseDelta_(2.0)
-  , specialMode_(false)
-  , visualizeOverlayNodes_(false)
-  , numNodesOpened_(0)
-  , numNodesClosed_(0)
-  // Sparse properites
-  , denseDeltaFraction_(.05)
-  , sparseDeltaFraction_(.25)
-  , stretchFactor_(3.)
-  , percentMaxExtentUnderestimate_(0.01)
-  // Visualization settings
-  , checksVerbose_(false)
-  , disjointVerbose_(true)
-  , fourthCheckVerbose_(true)
-  , visualizeAstar_(false)
-  , visualizeSparsGraph_(false)
-  , visualizeSparsGraphSpeed_(0.0)
-  , visualizeDenseRepresentatives_(false)
-  , visualizeAstarSpeed_(0.1)
-  , sparseCreationInsertionOrder_(0)
-  , numGraphGenerations_(0)
-  , numSamplesAddedForDisjointSets_(0)
 {
   // Add search state
   initializeQueryState();
@@ -239,7 +214,8 @@ bool SparseDB::setup()
 {
   // Calculate variables for the graph
   maxExtent_ = si_->getMaximumExtent();
-  sparseDelta_ = sparseDeltaFraction_ * maxExtent_;
+  // sparseDelta_ = sparseDeltaFraction_ * maxExtent_;
+  sparseDelta_ = sparseDeltaFraction_;  // Just a pass-through
   denseDelta_ = denseDeltaFraction_ * maxExtent_;
   // OMPL_INFORM("sparseDelta_ = %f", sparseDelta_);
   // OMPL_INFORM("denseDelta_ = %f", denseDelta_);
@@ -453,6 +429,7 @@ void SparseDB::createSPARS()
 
   // Reset fractions
   setup();
+  visualizeOverlayNodes_ = false;  // DO NOT visualize all added nodes in a separate window
 
   // Get the ordering to insert vertices
   std::vector<WeightedVertex> vertexInsertionOrder;
@@ -471,6 +448,7 @@ void SparseDB::createSPARS()
   std::size_t loopAttempt = 0;
   while (succeededInInserting)
   {
+    OMPL_INFORM("Beginning while loop of SPARS insertion");
     if (checksVerbose_)
       std::cout << std::string(coutIndent, ' ') << "Attempting to insert " << vertexInsertionOrder.size()
                 << " vertices for the " << loopAttempt << " loop" << std::endl;
@@ -482,6 +460,8 @@ void SparseDB::createSPARS()
     // Attempt to insert each vertex using the first 3 criteria
     succeededInInserting = false;
     std::size_t sucessfulInsertions = 0;
+    std::size_t originalVertexInsertion = vertexInsertionOrder.size();
+    std::size_t debugFrequency = static_cast<std::size_t>(originalVertexInsertion / 20);
     for (std::size_t i = 0; i < vertexInsertionOrder.size(); ++i)
     {
       // Customize the sparse delta fraction
@@ -493,6 +473,16 @@ void SparseDB::createSPARS()
       //     sparseDelta_ = invertedPopularity * (maxDelta - minDelta) / 100.0 + minDelta;
       //     OMPL_INFORM("sparseDelta_ is now %f", sparseDelta_);
       // }
+
+      // User feedback
+      if (i % debugFrequency == 0)
+      {
+        std::cout << std::fixed << std::setprecision(1)
+                  << "Sparse graph generation: " << (static_cast<double>(i + 1) / originalVertexInsertion) * 100.0
+                  << "% " << std::flush;
+        if (visualizeSparsGraph_)
+          visual_->viz2Trigger();
+      }
 
       // Run SPARS checks
       GuardType addReason;         // returns why the state was added
@@ -1012,9 +1002,6 @@ bool SparseDB::addStateToRoadmap(DenseVertex denseV, SparseVertex &newVertex, Gu
     std::cout << std::string(coutIndent, ' ') << "addStateToRoadmap() DenseV: " << denseV << std::endl;
 
   bool stateAdded = false;
-
-  // Deep copy
-  // base::State *workState = si_->allocState();     // TODO(davetcoleman): do i need this state?
 
   // Nodes near our input state
   std::vector<SparseVertex> graphNeighborhood;

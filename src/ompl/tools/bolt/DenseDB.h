@@ -350,7 +350,8 @@ public:
   DenseVertex addVertex(base::State* state, const GuardType& type);
 
   /** \brief Helper for creating/loading graph edges */
-  DenseEdge addEdge(const DenseVertex& v1, const DenseVertex& v2, const double weight, const EdgeCollisionState collisionState = NOT_CHECKED);
+  DenseEdge addEdge(const DenseVertex& v1, const DenseVertex& v2, const double weight,
+                    const EdgeCollisionState collisionState = NOT_CHECKED);
 
   /** \brief Get whether to bias search using popularity of edges */
   bool getPopularityBiasEnabled()

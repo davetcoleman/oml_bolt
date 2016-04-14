@@ -62,7 +62,6 @@ namespace tools
 {
 namespace bolt
 {
-
 // TODO(davetcoleman): maybe make all popularity use ints instead of doubles for memory efficiency?
 static const double MAX_POPULARITY_WEIGHT = 100.0;  // 100 means the edge is very unpopular
 // Everytime an edge is used, it is reduced by this amount (becomes more popular)
@@ -75,13 +74,13 @@ static const double POPULARITY_WEIGHT_REDUCTION = 5;
 /** \brief Enumeration which specifies the reason a guard is added to the spanner. */
 enum GuardType
 {
-    START,
-    GOAL,
-    COVERAGE,
-    CONNECTIVITY,
-    INTERFACE,
-    QUALITY,
-    CARTESIAN
+  START,
+  GOAL,
+  COVERAGE,
+  CONNECTIVITY,
+  INTERFACE,
+  QUALITY,
+  CARTESIAN
 };
 
 /** \brief The type used internally for representing vertex IDs */
@@ -90,12 +89,12 @@ typedef unsigned long int VertexIndexType;  // TODO(davetcoleman): just use size
 /** \brief Boost vertex properties */
 struct vertex_state_t
 {
-    typedef boost::vertex_property_tag kind;
+  typedef boost::vertex_property_tag kind;
 };
 
 struct vertex_dense_pointer_t
 {
-    typedef boost::vertex_property_tag kind;
+  typedef boost::vertex_property_tag kind;
 };
 
 // struct vertex_list_t
@@ -110,17 +109,17 @@ struct vertex_dense_pointer_t
 
 struct vertex_sparse_rep_t
 {
-    typedef boost::vertex_property_tag kind;
+  typedef boost::vertex_property_tag kind;
 };
 
 struct vertex_type_t
 {
-    typedef boost::vertex_property_tag kind;
+  typedef boost::vertex_property_tag kind;
 };
 
 struct vertex_popularity_t
 {
-    typedef boost::vertex_property_tag kind;
+  typedef boost::vertex_property_tag kind;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -128,15 +127,15 @@ struct vertex_popularity_t
 
 struct edge_collision_state_t
 {
-    typedef boost::edge_property_tag kind;
+  typedef boost::edge_property_tag kind;
 };
 
 /** \brief Possible collision states of an edge */
 enum EdgeCollisionState
 {
-    NOT_CHECKED,
-    IN_COLLISION,
-    FREE
+  NOT_CHECKED,
+  IN_COLLISION,
+  FREE
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -152,12 +151,12 @@ typedef boost::unordered_map<VertexIndexType, std::set<VertexIndexType>, boost::
 // Remove this struct when the minimum Boost requirement is > v1.48.
 struct InterfaceHashStruct
 {
-    InterfaceHashStruct &operator=(const InterfaceHashStruct &rhs)
-    {
-        interfaceHash = rhs.interfaceHash;
-        return *this;
-    }
-    InterfaceHash interfaceHash;
+  InterfaceHashStruct &operator=(const InterfaceHashStruct &rhs)
+  {
+    interfaceHash = rhs.interfaceHash;
+    return *this;
+  }
+  InterfaceHash interfaceHash;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -297,26 +296,24 @@ typedef boost::property_map<DenseGraph, edge_collision_state_t>::type DenseEdgeC
 /** \brief Custom storage class */
 class WeightedVertex
 {
-  public:
-    WeightedVertex(DenseVertex v, double weight) : v_(v), weight_(weight)
-    {
-    }
+public:
+  WeightedVertex(DenseVertex v, double weight) : v_(v), weight_(weight)
+  {
+  }
 
-    DenseVertex v_;
-    double weight_;
+  DenseVertex v_;
+  double weight_;
 };
 
-    /** \brief Custom comparator class */
-    class CompareWeightedVertex
-    {
-      public:
-        bool operator()(WeightedVertex a, WeightedVertex b)
-        {
-            return a.weight_ < b.weight_;  // TODO(davetcoleman): which direction should the sign go?
-        }
-    };
-
-
+/** \brief Custom comparator class */
+class CompareWeightedVertex
+{
+public:
+  bool operator()(WeightedVertex a, WeightedVertex b)
+  {
+    return a.weight_ < b.weight_;  // TODO(davetcoleman): which direction should the sign go?
+  }
+};
 
 }  // namespace bolt
 }  // namespace tools

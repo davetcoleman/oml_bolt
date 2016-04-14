@@ -58,215 +58,218 @@ BoltStorage::BoltStorage(const base::SpaceInformationPtr &si, DenseDB *denseDB) 
 
 void BoltStorage::save(std::ostream &out)
 {
-    if (!out.good())
-    {
-        OMPL_ERROR("Failed to save PlannerData: output stream is invalid");
-        return;
-    }
+  if (!out.good())
+  {
+    OMPL_ERROR("Failed to save PlannerData: output stream is invalid");
+    return;
+  }
 
-    try
-    {
-        boost::archive::binary_oarchive oa(out);
+  try
+  {
+    boost::archive::binary_oarchive oa(out);
 
-        // Writing the header
-        Header h;
-        h.marker = OMPL_PLANNER_DATA_ARCHIVE_MARKER;
-        // Note: we increment all vertex indexes by 1 because the queryVertex_ is vertex id 0
-        h.vertex_count = denseDB_->getNumVertices() - INCREMENT_VERTEX_COUNT;
-        h.edge_count = denseDB_->getNumEdges();
-        OMPL_INFORM("Computing state space signuture");
-        si_->getStateSpace()->computeSignature(h.signature);
-        OMPL_INFORM("Writing header");
-        oa << h;
+    // Writing the header
+    Header h;
+    h.marker = OMPL_PLANNER_DATA_ARCHIVE_MARKER;
+    // Note: we increment all vertex indexes by 1 because the queryVertex_ is vertex id 0
+    h.vertex_count = denseDB_->getNumVertices() - INCREMENT_VERTEX_COUNT;
+    h.edge_count = denseDB_->getNumEdges();
+    OMPL_INFORM("Computing state space signuture");
+    si_->getStateSpace()->computeSignature(h.signature);
+    OMPL_INFORM("Writing header");
+    oa << h;
 
-        OMPL_INFORM("Saving vertices");
-        saveVertices(oa);
-        OMPL_INFORM("Saving edges");
-        saveEdges(oa);
-    }
-    catch (boost::archive::archive_exception &ae)
-    {
-        OMPL_ERROR("Failed to save PlannerData: %s", ae.what());
-    }
+    OMPL_INFORM("Saving vertices");
+    saveVertices(oa);
+    OMPL_INFORM("Saving edges");
+    saveEdges(oa);
+  }
+  catch (boost::archive::archive_exception &ae)
+  {
+    OMPL_ERROR("Failed to save PlannerData: %s", ae.what());
+  }
 }
 
 void BoltStorage::save(const char *filename)
 {
-    std::ofstream out(filename, std::ios::binary);
-    save(out);
-    out.close();
+  std::ofstream out(filename, std::ios::binary);
+  save(out);
+  out.close();
 }
 
 void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
 {
-    const base::StateSpacePtr &space = si_->getStateSpace();
+  const base::StateSpacePtr &space = si_->getStateSpace();
 
-    std::vector<unsigned char> state(space->getSerializationLength());
-    std::size_t feedbackFrequency = denseDB_->getNumVertices() / 10;
+  std::vector<unsigned char> state(space->getSerializationLength());
+  std::size_t feedbackFrequency = denseDB_->getNumVertices() / 10;
 
-    std::cout << "Saving vertices: " << std::flush;
-    std::size_t count = 0;
-    std::size_t errorCheckNumQueryVertices = 0;
-    foreach (const DenseVertex v, boost::vertices(denseDB_->g_))
+  std::cout << "Saving vertices: " << std::flush;
+  std::size_t count = 0;
+  std::size_t errorCheckNumQueryVertices = 0;
+  foreach (const DenseVertex v, boost::vertices(denseDB_->g_))
+  {
+    // Skip the query vertex that is NULL
+    if (v == denseDB_->queryVertex_)
     {
-        // Skip the query vertex that is NULL
-        if (v == denseDB_->queryVertex_)
-        {
-            errorCheckNumQueryVertices++;
-            continue;
-        }
-
-        // Convert to new structure
-        BoltVertexData vertexData;
-
-        // Record the type of the vertex
-        vertexData.type_ = denseDB_->typeProperty_[v];
-
-        // Serializing the state contained in this vertex
-        space->serialize(&state[0], denseDB_->stateProperty_[v]);
-        vertexData.stateSerialized_ = state;
-
-        // Save to file
-        oa << vertexData;
-
-        // Feedback
-        if ((++count) % feedbackFrequency == 0)
-            std::cout << std::fixed << std::setprecision(0) << (count / double(denseDB_->getNumVertices())) * 100.0 << "% " << std::flush;
+      errorCheckNumQueryVertices++;
+      continue;
     }
-    BOOST_ASSERT_MSG(errorCheckNumQueryVertices == 1, "There should only be one query vertex that was skipped while saving");
 
-    std::cout << std::endl;
+    // Convert to new structure
+    BoltVertexData vertexData;
+
+    // Record the type of the vertex
+    vertexData.type_ = denseDB_->typeProperty_[v];
+
+    // Serializing the state contained in this vertex
+    space->serialize(&state[0], denseDB_->stateProperty_[v]);
+    vertexData.stateSerialized_ = state;
+
+    // Save to file
+    oa << vertexData;
+
+    // Feedback
+    if ((++count) % feedbackFrequency == 0)
+      std::cout << std::fixed << std::setprecision(0) << (count / double(denseDB_->getNumVertices())) * 100.0 << "% "
+                << std::flush;
+  }
+  BOOST_ASSERT_MSG(errorCheckNumQueryVertices == 1, "There should only be one query vertex that was skipped while "
+                                                    "saving");
+
+  std::cout << std::endl;
 }
 
 void BoltStorage::saveEdges(boost::archive::binary_oarchive &oa)
 {
-    std::size_t feedbackFrequency = denseDB_->getNumEdges() / 10;
+  std::size_t feedbackFrequency = denseDB_->getNumEdges() / 10;
 
-    std::cout << "Saving edges: " << std::flush;
-    std::size_t count = 0;
-    foreach (const DenseEdge e, boost::edges(denseDB_->g_))
-    {
-        const DenseVertex v1 = boost::source(e, denseDB_->g_);
-        const DenseVertex v2 = boost::target(e, denseDB_->g_);
+  std::cout << "Saving edges: " << std::flush;
+  std::size_t count = 0;
+  foreach (const DenseEdge e, boost::edges(denseDB_->g_))
+  {
+    const DenseVertex v1 = boost::source(e, denseDB_->g_);
+    const DenseVertex v2 = boost::target(e, denseDB_->g_);
 
-        // Convert to new structure
-        BoltEdgeData edgeData;
-        // Note: we increment all vertex indexes by 1 because the queryVertex_ is vertex id 0
-        edgeData.endpoints_.first = v1 - INCREMENT_VERTEX_COUNT;
-        edgeData.endpoints_.second = v2 - INCREMENT_VERTEX_COUNT;
-        edgeData.weight_ = denseDB_->edgeWeightProperty_[e];
-        oa << edgeData;
+    // Convert to new structure
+    BoltEdgeData edgeData;
+    // Note: we increment all vertex indexes by 1 because the queryVertex_ is vertex id 0
+    edgeData.endpoints_.first = v1 - INCREMENT_VERTEX_COUNT;
+    edgeData.endpoints_.second = v2 - INCREMENT_VERTEX_COUNT;
+    edgeData.weight_ = denseDB_->edgeWeightProperty_[e];
+    oa << edgeData;
 
-        // Feedback
-        if ((++count + 1) % feedbackFrequency == 0)
-            std::cout << std::fixed << std::setprecision(0) << (count / double(denseDB_->getNumEdges())) * 100.0 << "% " << std::flush;
+    // Feedback
+    if ((++count + 1) % feedbackFrequency == 0)
+      std::cout << std::fixed << std::setprecision(0) << (count / double(denseDB_->getNumEdges())) * 100.0 << "% "
+                << std::flush;
 
-    }  // for each edge
-    std::cout << std::endl;
+  }  // for each edge
+  std::cout << std::endl;
 }
 
 void BoltStorage::load(const char *filename)
 {
-    std::ifstream in(filename, std::ios::binary);
-    load(in);
-    in.close();
+  std::ifstream in(filename, std::ios::binary);
+  load(in);
+  in.close();
 }
 
 void BoltStorage::load(std::istream &in)
 {
-    if (!in.good())
+  if (!in.good())
+  {
+    OMPL_ERROR("Failed to load PlannerData: input stream is invalid");
+    return;
+  }
+
+  // Loading the planner data:
+  try
+  {
+    boost::archive::binary_iarchive ia(in);
+
+    // Read the header
+    Header h;
+    ia >> h;
+
+    // Checking the archive marker
+    if (h.marker != OMPL_PLANNER_DATA_ARCHIVE_MARKER)
     {
-        OMPL_ERROR("Failed to load PlannerData: input stream is invalid");
-        return;
+      OMPL_ERROR("Failed to load PlannerData: PlannerData archive marker not found");
+      return;
     }
 
-    // Loading the planner data:
-    try
+    // Verify that the state space is the same
+    std::vector<int> sig;
+    si_->getStateSpace()->computeSignature(sig);
+    if (h.signature != sig)
     {
-        boost::archive::binary_iarchive ia(in);
-
-        // Read the header
-        Header h;
-        ia >> h;
-
-        // Checking the archive marker
-        if (h.marker != OMPL_PLANNER_DATA_ARCHIVE_MARKER)
-        {
-            OMPL_ERROR("Failed to load PlannerData: PlannerData archive marker not found");
-            return;
-        }
-
-        // Verify that the state space is the same
-        std::vector<int> sig;
-        si_->getStateSpace()->computeSignature(sig);
-        if (h.signature != sig)
-        {
-            OMPL_ERROR("Failed to load PlannerData: StateSpace signature mismatch");
-            return;
-        }
-
-        // File seems ok... loading vertices and edges
-        loadVertices(h.vertex_count, ia);
-        loadEdges(h.edge_count, ia);
+      OMPL_ERROR("Failed to load PlannerData: StateSpace signature mismatch");
+      return;
     }
-    catch (boost::archive::archive_exception &ae)
-    {
-        OMPL_ERROR("Failed to load PlannerData: %s", ae.what());
-    }
+
+    // File seems ok... loading vertices and edges
+    loadVertices(h.vertex_count, ia);
+    loadEdges(h.edge_count, ia);
+  }
+  catch (boost::archive::archive_exception &ae)
+  {
+    OMPL_ERROR("Failed to load PlannerData: %s", ae.what());
+  }
 }
 
 void BoltStorage::loadVertices(unsigned int numVertices, boost::archive::binary_iarchive &ia)
 {
-    OMPL_INFORM("Loading %u verticies from file", numVertices);
+  OMPL_INFORM("Loading %u verticies from file", numVertices);
 
-    const base::StateSpacePtr &space = si_->getStateSpace();
-    std::size_t feedbackFrequency = numVertices / 10;
+  const base::StateSpacePtr &space = si_->getStateSpace();
+  std::size_t feedbackFrequency = numVertices / 10;
 
-    std::cout << "Vertices loaded: ";
-    for (unsigned int i = 0; i < numVertices; ++i)
-    {
-        // Copy in data from file
-        BoltVertexData vertexData;
-        ia >> vertexData;
+  std::cout << "Vertices loaded: ";
+  for (unsigned int i = 0; i < numVertices; ++i)
+  {
+    // Copy in data from file
+    BoltVertexData vertexData;
+    ia >> vertexData;
 
-        // Allocating a new state and deserializing it from the buffer
-        base::State *state = space->allocState();
-        space->deserialize(state, &vertexData.stateSerialized_[0]);
+    // Allocating a new state and deserializing it from the buffer
+    base::State *state = space->allocState();
+    space->deserialize(state, &vertexData.stateSerialized_[0]);
 
-        vertexData.state_ = state;
+    vertexData.state_ = state;
 
-        // Add to Dense graph
-        denseDB_->addVertexFromFile(vertexData);
+    // Add to Dense graph
+    denseDB_->addVertexFromFile(vertexData);
 
-        // Feedback
-        if ((i + 1) % feedbackFrequency == 0)
-            std::cout << std::fixed << std::setprecision(0) << (i / double(numVertices)) * 100.0 << "% " << std::flush;
-    }
-    std::cout << std::endl;
+    // Feedback
+    if ((i + 1) % feedbackFrequency == 0)
+      std::cout << std::fixed << std::setprecision(0) << (i / double(numVertices)) * 100.0 << "% " << std::flush;
+  }
+  std::cout << std::endl;
 }
 
 void BoltStorage::loadEdges(unsigned int numEdges, boost::archive::binary_iarchive &ia)
 {
-    OMPL_INFORM("Loading %u edges from file", numEdges);
-    std::size_t feedbackFrequency = numEdges / 10;
+  OMPL_INFORM("Loading %u edges from file", numEdges);
+  std::size_t feedbackFrequency = numEdges / 10;
 
-    std::cout << "Edges loaded: ";
-    for (unsigned int i = 0; i < numEdges; ++i)
-    {
-        BoltEdgeData edgeData;
-        ia >> edgeData;
-        // pd.addEdge(edgeData.endpoints_.first, edgeData.endpoints_.second, *edgeData.e_, Cost(edgeData.weight_));
-        denseDB_->addEdgeFromFile(edgeData);
+  std::cout << "Edges loaded: ";
+  for (unsigned int i = 0; i < numEdges; ++i)
+  {
+    BoltEdgeData edgeData;
+    ia >> edgeData;
+    // pd.addEdge(edgeData.endpoints_.first, edgeData.endpoints_.second, *edgeData.e_, Cost(edgeData.weight_));
+    denseDB_->addEdgeFromFile(edgeData);
 
-        // We deserialized the edge object pointer, and we own it.
-        // Since addEdge copies the object, it is safe to free here.
-        //delete edgeData.e_;
+    // We deserialized the edge object pointer, and we own it.
+    // Since addEdge copies the object, it is safe to free here.
+    // delete edgeData.e_;
 
-        // Feedback
-        if ((i + 1) % feedbackFrequency == 0)
-            std::cout << std::setprecision(0) << (i / double(numEdges)) * 100.0 << "% " << std::flush;
-    }
-    std::cout << std::endl;
+    // Feedback
+    if ((i + 1) % feedbackFrequency == 0)
+      std::cout << std::setprecision(0) << (i / double(numEdges)) * 100.0 << "% " << std::flush;
+  }
+  std::cout << std::endl;
 }
 
 }  // namespace bolt

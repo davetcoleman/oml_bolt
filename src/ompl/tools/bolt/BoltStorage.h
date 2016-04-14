@@ -81,94 +81,93 @@ static const std::size_t INCREMENT_VERTEX_COUNT = 1;
 
 class BoltStorage
 {
-  public:
+public:
+  /// \brief Information stored at the beginning of the BoltStorage archive
+  struct Header
+  {
+    /// \brief OMPL specific marker (fixed value)
+    boost::uint32_t marker;
 
-    /// \brief Information stored at the beginning of the BoltStorage archive
-    struct Header
+    /// \brief Number of vertices stored in the archive
+    std::size_t vertex_count;
+
+    /// \brief Number of edges stored in the archive
+    std::size_t edge_count;
+
+    /// \brief Signature of state space that allocated the saved states in the vertices (see
+    /// ompl::base::StateSpace::computeSignature()) */
+    std::vector<int> signature;
+
+    /// \brief boost::serialization routine
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int /*version*/)
     {
-        /// \brief OMPL specific marker (fixed value)
-        boost::uint32_t marker;
+      ar &marker;
+      ar &vertex_count;
+      ar &edge_count;
+      ar &signature;
+    }
+  };
 
-        /// \brief Number of vertices stored in the archive
-        std::size_t vertex_count;
-
-        /// \brief Number of edges stored in the archive
-        std::size_t edge_count;
-
-        /// \brief Signature of state space that allocated the saved states in the vertices (see
-        /// ompl::base::StateSpace::computeSignature()) */
-        std::vector<int> signature;
-
-        /// \brief boost::serialization routine
-        template <typename Archive>
-        void serialize(Archive &ar, const unsigned int /*version*/)
-        {
-            ar &marker;
-            ar &vertex_count;
-            ar &edge_count;
-            ar &signature;
-        }
-    };
-
-    /// \brief The object containing all vertex data that will be stored
-    struct BoltVertexData
+  /// \brief The object containing all vertex data that will be stored
+  struct BoltVertexData
+  {
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int /*version*/)
     {
-        template <typename Archive>
-        void serialize(Archive &ar, const unsigned int /*version*/)
-        {
-            //ar &v_;
-            ar &stateSerialized_;
-            ar &type_;
-        }
+      // ar &v_;
+      ar &stateSerialized_;
+      ar &type_;
+    }
 
-        /// \brief The state represented by this vertex
-        base::State *state_;
+    /// \brief The state represented by this vertex
+    base::State *state_;
 
-        std::vector<unsigned char> stateSerialized_;
-        int type_;
-    };
+    std::vector<unsigned char> stateSerialized_;
+    int type_;
+  };
 
-    /// \brief The object containing all edge data that will be stored
-    struct BoltEdgeData
+  /// \brief The object containing all edge data that will be stored
+  struct BoltEdgeData
+  {
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int /*version*/)
     {
-        template <typename Archive>
-        void serialize(Archive &ar, const unsigned int /*version*/)
-        {
-            ar &endpoints_;
-            ar &weight_;
-        }
+      ar &endpoints_;
+      ar &weight_;
+    }
 
-        std::pair<unsigned int, unsigned int> endpoints_;
-        double weight_;
-    };
+    std::pair<unsigned int, unsigned int> endpoints_;
+    double weight_;
+  };
 
-    /** \brief Constructor */
-    BoltStorage(const base::SpaceInformationPtr &si, DenseDB *denseDB);
+  /** \brief Constructor */
+  BoltStorage(const base::SpaceInformationPtr &si, DenseDB *denseDB);
 
-    void save(const char *filename);
+  void save(const char *filename);
 
-    void save(std::ostream &out);
+  void save(std::ostream &out);
 
-    /// \brief Serialize and save all vertices in \e pd to the binary archive.
-    void saveVertices(boost::archive::binary_oarchive &oa);
+  /// \brief Serialize and save all vertices in \e pd to the binary archive.
+  void saveVertices(boost::archive::binary_oarchive &oa);
 
-    /// \brief Serialize and store all edges in \e pd to the binary archive.
-    void saveEdges(boost::archive::binary_oarchive &oa);
+  /// \brief Serialize and store all edges in \e pd to the binary archive.
+  void saveEdges(boost::archive::binary_oarchive &oa);
 
-    void load(const char *filename);
+  void load(const char *filename);
 
-    void load(std::istream &in);
+  void load(std::istream &in);
 
-    /// \brief Read \e numVertices from the binary input \e ia and store them as BoltStorage
-    void loadVertices(unsigned int numVertices, boost::archive::binary_iarchive &ia);
+  /// \brief Read \e numVertices from the binary input \e ia and store them as BoltStorage
+  void loadVertices(unsigned int numVertices, boost::archive::binary_iarchive &ia);
 
-    /// \brief Read \e numEdges from the binary input \e ia and store them as BoltStorage
-    void loadEdges(unsigned int numEdges, boost::archive::binary_iarchive &ia);
+  /// \brief Read \e numEdges from the binary input \e ia and store them as BoltStorage
+  void loadEdges(unsigned int numEdges, boost::archive::binary_iarchive &ia);
 
-    /// \brief The space information instance for this data.
-    base::SpaceInformationPtr si_;
+  /// \brief The space information instance for this data.
+  base::SpaceInformationPtr si_;
 
-    DenseDB *denseDB_;
+  DenseDB *denseDB_;
 
 };  // end of class BoltStorage
 

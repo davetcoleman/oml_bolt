@@ -124,11 +124,14 @@ void Discretizer::generateGrid()
   OMPL_INFORM("   Edge generation time:   %f seconds (%f min)", edgeDuration, edgeDuration / 60.0);
   OMPL_INFORM("   Average degree:         %f", averageDegree);
   OMPL_INFORM("   Connected Components:   %u", numSets);
+  OMPL_INFORM("   Edge connection method: %u", edgeConnectionStrategy_);
   OMPL_INFORM("------------------------------------------------------");
 
   // Display
   // if (visualizeGridGeneration_)
   // visual_->viz1Trigger();
+
+  denseDB_->graphUnsaved_ = true;
 }
 
 void Discretizer::generateVertices()
@@ -164,8 +167,8 @@ void Discretizer::generateVertices()
   }
 
   // Warn
-  //if (numThreads > 1 && visualizeGridGeneration_)
-  //OMPL_WARN("Multiple threads are trying to visualize, could cause race conditions");
+  // if (numThreads > 1 && visualizeGridGeneration_)
+  // OMPL_WARN("Multiple threads are trying to visualize, could cause race conditions");
 
   // Setup threading
   std::vector<boost::thread *> threads(numThreads);
@@ -246,13 +249,13 @@ void Discretizer::createVertexThread(std::size_t threadID, double startJointValu
   else if (dim == 6)
   {
     maxDiscretizationLevel = dim - 2;  // don't discretize the wrist rotation
-    values[5] = 0.0;             // middle rotation of wrist
+    values[5] = 0.0;                   // middle rotation of wrist
   }
   else if (dim == 12)
   {
     maxDiscretizationLevel = dim - 2;  // don't discretize the wrist rotation
-    values[5] = 0.0;             // middle rotation of wrist
-    values[11] = 0.0;             // middle rotation of wrist
+    values[5] = 0.0;                   // middle rotation of wrist
+    values[11] = 0.0;                  // middle rotation of wrist
   }
   else
   {
@@ -313,7 +316,7 @@ void Discretizer::recursiveDiscretization(std::size_t threadID, std::vector<doub
       std::copy(values.begin(), values.end(), std::ostream_iterator<double>(std::cout, ", "));
       std::cout << std::endl;
     }
-        //<< " low: " << bounds.low[jointID] << " high " << bounds.high[jointID] << std::endl;
+    //<< " low: " << bounds.low[jointID] << " high " << bounds.high[jointID] << std::endl;
 
     if (jointID < maxDiscretizationLevel)
     {
@@ -325,7 +328,7 @@ void Discretizer::recursiveDiscretization(std::size_t threadID, std::vector<doub
         // skip joint id 5 (joint 6)
         recursiveDiscretization(threadID, values, jointID + 2, si, candidateState, maxDiscretizationLevel);
       }
-      else // regular treatment
+      else  // regular treatment
       {
         recursiveDiscretization(threadID, values, jointID + 1, si, candidateState, maxDiscretizationLevel);
       }
@@ -368,8 +371,8 @@ void Discretizer::recursiveDiscretization(std::size_t threadID, std::vector<doub
       if (visualizeGridGeneration_)
       {
         // Candidate node has already (just) been added
-        //visual_->viz1State(candidateState, /*red arrow*/ 6, 1);
-        //visual_->viz1State(candidateState, /*green arm*/ 1, 1);
+        // visual_->viz1State(candidateState, /*red arrow*/ 6, 1);
+        // visual_->viz1State(candidateState, /*green arm*/ 1, 1);
         // if (threadID == 0)
         // {
         //   visual_->viz1Trigger();
@@ -381,8 +384,8 @@ void Discretizer::recursiveDiscretization(std::size_t threadID, std::vector<doub
           // Candidate node has already (just) been added
           if (threadID < 6)
           {
-            visual_->vizState(threadID+1, candidateState, /*green arm*/ 1, 1);
-            visual_->vizTrigger(threadID+1);
+            visual_->vizState(threadID + 1, candidateState, /*green arm*/ 1, 1);
+            visual_->vizTrigger(threadID + 1);
           }
         }
       }
@@ -423,7 +426,7 @@ void Discretizer::generateEdges()
   std::size_t startVertex = 0;
   std::size_t endVertex;
   std::size_t errorCheckTotalVertices = 0;
-  numEdgesInCollision_ = 0; // stats for later use
+  numEdgesInCollision_ = 0;  // stats for later use
 
   // Cache certain values
   getVertexNeighborsPreprocess();
@@ -448,8 +451,8 @@ void Discretizer::generateEdges()
     si->setStateValidityChecker(si_->getStateValidityChecker());
     si->setMotionValidator(si_->getMotionValidator());
 
-    threads[threadID] = new boost::thread(
-        boost::bind(&Discretizer::generateEdgesThread, this, threadID, startVertex, endVertex, si));
+    threads[threadID] =
+        new boost::thread(boost::bind(&Discretizer::generateEdgesThread, this, threadID, startVertex, endVertex, si));
     startVertex += verticesPerThread;
   }
 
@@ -495,7 +498,8 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
     if (threadID == 0 && (v1) % feedbackFrequency == 0)
     {
       std::cout << "Generating edges progress: " << std::setprecision(1)
-                << (v1 - startVertex) / static_cast<double>(endVertex - startVertex) * 100.0 << " %" << std::endl;
+                << (v1 - startVertex) / static_cast<double>(endVertex - startVertex) * 100.0
+                << " % Total edges: " << denseDB_->getNumEdges() << std::endl;
     }
 
     // Add edges
@@ -528,7 +532,7 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
 
       // Check if these vertices already share an edge
       {
-        boost::unique_lock<boost::mutex> scoped_lock(edgeMutex_); // TODO make this a read-only mutex
+        boost::unique_lock<boost::mutex> scoped_lock(edgeMutex_);  // TODO make this a read-only mutex
         if (boost::edge(v1, v2, denseDB_->g_).second)
           continue;
       }
@@ -562,7 +566,7 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
     // Make sure one and only one vertex is returned from the NN search that is the same as parent vertex
     assert(errorCheckNumSameVerticies == 1);
 
-  } // for each v1
+  }  // for each v1
 
   // Re-use mutex (we could create a new one though)
   {
@@ -604,7 +608,7 @@ void Discretizer::getVertexNeighbors(DenseVertex v1, std::vector<DenseVertex> &g
 {
   const std::size_t numSameVerticiesFound = 1;  // add 1 to the end because the NN tree always returns itself
 
-  //std::cout << "getVertexNeighbors: " << v1 << std::endl;
+  // std::cout << "getVertexNeighbors: " << v1 << std::endl;
 
   // Search
   denseDB_->stateProperty_[denseDB_->queryVertex_] = denseDB_->stateProperty_[v1];
