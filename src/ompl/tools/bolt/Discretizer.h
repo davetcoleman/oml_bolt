@@ -96,15 +96,12 @@ private:
   void generateEdges();
 
   /** \brief Collision check edges using threading */
-  void checkEdgesThreaded(const std::vector<DenseEdge>& unvalidatedEdges);
-
-  /** \brief Collision check edges in vector from [startEdge, endEdge] inclusive */
-  void checkEdgesThread(std::size_t threadID, std::size_t startEdge, std::size_t endEdge, base::SpaceInformationPtr si,
-                        const std::vector<DenseEdge>& unvalidatedEdges);
+  void generateEdgesThread(std::size_t threadID, DenseVertex startVertex, DenseVertex endVertex,
+                           base::SpaceInformationPtr si);
 
   void getVertexNeighborsPreprocess();
 
-  void getVertexNeighbors(std::size_t v1, std::vector<DenseVertex>& graphNeighborhood);
+  void getVertexNeighbors(DenseVertex v1, std::vector<DenseVertex>& graphNeighborhood);
 
   /** \brief The created space information */
   base::SpaceInformationPtr si_;
@@ -118,11 +115,19 @@ private:
   // Prevent two vertices from being added to graph at same time
   boost::mutex vertexMutex_;
 
+  // Allow only one thread to search the NearestNeighbor graph
+  boost::mutex edgeNnMutex_;
+
+  // Allow only one thread to add edges to graph at a time
+  boost::mutex edgeMutex_;
+
   /** \brief Constant used by k-PRM* to determine now many neighbors to connect to milestones */
   double findNearestKNeighbors_;
   double radiusNeighbors_;
 
   std::size_t edgeConnectionStrategy_;
+
+  std::size_t numEdgesInCollision_;
 
 public:
   /** \brief Various options for visualizing the algorithmns performance */

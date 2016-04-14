@@ -1212,7 +1212,7 @@ otb::DenseVertex DenseDB::addVertex(base::State *state, const GuardType &type)
     return v;
 }
 
-otb::DenseEdge DenseDB::addEdge(const DenseVertex &v1, const DenseVertex &v2, const double weight)
+otb::DenseEdge DenseDB::addEdge(const DenseVertex &v1, const DenseVertex &v2, const double weight, const EdgeCollisionState collisionState)
 {
     // Error check
     BOOST_ASSERT_MSG(v1 <= getNumVertices(), "Vertex 1 out of range of possible verticies");
@@ -1227,7 +1227,7 @@ otb::DenseEdge DenseDB::addEdge(const DenseVertex &v1, const DenseVertex &v2, co
     edgeWeightProperty_[e] = weight;
     // edgeWeightProperty_[e] = distanceFunction2(v1, v2);
     // edgeWeightProperty_[e] = distanceFunction(v1, v2);
-    edgeCollisionStateProperty_[e] = NOT_CHECKED;
+    edgeCollisionStateProperty_[e] = collisionState;
 
     // Add the edge to the incrementeal connected components datastructure
     disjointSets_.union_set(v1, v2);
@@ -1673,7 +1673,7 @@ std::size_t DenseDB::getDisjointSetsCount(bool verbose)
     return numSets;
 }
 
-bool DenseDB::checkConnectedComponents()
+std::size_t DenseDB::checkConnectedComponents()
 {
     // Check how many disjoint sets are in the dense graph (should be none)
     std::size_t numSets = getDisjointSetsCount();
@@ -1681,9 +1681,8 @@ bool DenseDB::checkConnectedComponents()
     {
         OMPL_ERROR("More than 1 connected component is in the dense graph: %u", numSets);
     }
-    else
-        OMPL_INFORM("Number of connected components %u", numSets);
-    return true;
+
+    return numSets;
 }
 
 }  // namespace bolt
