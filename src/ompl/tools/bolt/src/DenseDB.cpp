@@ -1685,6 +1685,7 @@ std::size_t DenseDB::checkConnectedComponents()
     return numSets;
 }
 
+
 }  // namespace bolt
 }  // namespace tools
 }  // namespace ompl

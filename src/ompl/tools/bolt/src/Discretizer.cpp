@@ -178,13 +178,13 @@ void Discretizer::generateVertices()
     std::cout << "-------------------------------------------------------" << std::endl;
     std::cout << std::fixed << std::setprecision(4);
     std::cout << "Discretization Setup: " << std::endl;
-    std::cout << "  Dimensions: " << si_->getStateSpace()->getDimension() << std::endl;
-    std::cout << "  Discretization: " << discretization_ << std::endl;
-    std::cout << "  Joint 0 Low: " << bounds.low[jointID] << std::endl;
-    std::cout << "  Joint 0 High: " << bounds.high[jointID] << std::endl;
-    std::cout << "  Joint 0 range is: " << range << std::endl;
-    std::cout << "  JointIncrements: " << jointIncrements << std::endl;
-    std::cout << "  JointIncrementsPerThread: " << jointIncrementsPerThread << std::endl;
+    std::cout << "  Dimensions:             " << si_->getStateSpace()->getDimension() << std::endl;
+    std::cout << "  Discretization:         " << discretization_ << std::endl;
+    std::cout << "  J0 Low:                 " << bounds.low[jointID] << std::endl;
+    std::cout << "  J0 High:                " << bounds.high[jointID] << std::endl;
+    std::cout << "  J0 range is:            " << range << std::endl;
+    std::cout << "  J0 Increments:          " << jointIncrements << std::endl;
+    std::cout << "  J0 IncrementsPerThread: " << jointIncrementsPerThread << std::endl;
     std::cout << "  NumThreads: " << numThreads << std::endl;
     std::cout << "-------------------------------------------------------" << std::endl;
   }
@@ -379,8 +379,11 @@ void Discretizer::recursiveDiscretization(std::size_t threadID, std::vector<doub
         if (visualizeGridGeneration_)
         {
           // Candidate node has already (just) been added
-          visual_->vizState(threadID+1, candidateState, /*green arm*/ 1, 1);
-          visual_->vizTrigger(threadID+1);
+          if (threadID < 6)
+          {
+            visual_->vizState(threadID+1, candidateState, /*green arm*/ 1, 1);
+            visual_->vizTrigger(threadID+1);
+          }
         }
       }
     }
