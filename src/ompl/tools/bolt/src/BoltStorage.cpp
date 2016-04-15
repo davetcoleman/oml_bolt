@@ -74,14 +74,14 @@ void BoltStorage::save(std::ostream &out)
     // Note: we increment all vertex indexes by 1 because the queryVertex_ is vertex id 0
     h.vertex_count = denseDB_->getNumVertices() - INCREMENT_VERTEX_COUNT;
     h.edge_count = denseDB_->getNumEdges();
-    OMPL_INFORM("Computing state space signuture");
+    //OMPL_INFORM("Computing state space signuture");
     si_->getStateSpace()->computeSignature(h.signature);
-    OMPL_INFORM("Writing header");
+    //OMPL_INFORM("Writing header");
     oa << h;
 
-    OMPL_INFORM("Saving vertices");
+    //OMPL_INFORM("Saving vertices");
     saveVertices(oa);
-    OMPL_INFORM("Saving edges");
+    //OMPL_INFORM("Saving edges");
     saveEdges(oa);
   }
   catch (boost::archive::archive_exception &ae)

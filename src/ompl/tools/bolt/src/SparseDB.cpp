@@ -38,7 +38,6 @@
 
 // OMPL
 #include <ompl/tools/bolt/SparseDB.h>
-//#include <ompl/base/ScopedState.h>
 #include <ompl/util/Time.h>
 #include <ompl/util/Console.h>
 #include <ompl/datastructures/NearestNeighborsGNATNoThreadSafety.h>
@@ -53,6 +52,10 @@
 // C++
 #include <limits>
 #include <queue>
+#include <algorithm>    // std::random_shuffle
+
+// Profiling
+#include <valgrind/callgrind.h>
 
 #define foreach BOOST_FOREACH
 
@@ -191,19 +194,6 @@ SparseDB::~SparseDB(void)
 
 void SparseDB::freeMemory()
 {
-  // Do not unload any states because they are all owned by the DenseDB
-  /*
-  foreach (SparseVertex v, boost::vertices(g_))
-  {
-      // foreach (InterfaceData &d, interfaceDataProperty_[v].interfaceHash |
-      // boost::adaptors::map_values)
-      // d.clear(si_);
-      if (getSparseState(v) != NULL)
-          si_->freeState(getSparseState(v));
-      // getSparseState(v) = NULL;  // TODO(davetcoleman): is this needed??
-  }
-  */
-
   g_.clear();
 
   if (nn_)
@@ -215,14 +205,15 @@ bool SparseDB::setup()
   // Calculate variables for the graph
   maxExtent_ = si_->getMaximumExtent();
   // sparseDelta_ = sparseDeltaFraction_ * maxExtent_;
-  sparseDelta_ = sparseDeltaFraction_;  // Just a pass-through
+  sparseDelta_ = sparseDeltaFraction_ * discretization_; // sparseDelta should be a multiple of discretization
   denseDelta_ = denseDeltaFraction_ * maxExtent_;
-  // OMPL_INFORM("sparseDelta_ = %f", sparseDelta_);
+  OMPL_INFORM("sparseDelta_ = %f", sparseDelta_);
   // OMPL_INFORM("denseDelta_ = %f", denseDelta_);
 
   assert(maxExtent_ > 0);
   assert(denseDelta_ > 0);
   assert(sparseDelta_ > 0);
+  assert(sparseDelta_ > 0.000000001); // Sanity check
 
   return true;
 }
@@ -408,114 +399,96 @@ void SparseDB::clearEdgeCollisionStates()
 
 void SparseDB::createSPARS()
 {
+  // Benchmark runtime
+  time::point startTime = time::now();
+
+  // Create SPARS
+  CALLGRIND_TOGGLE_COLLECT;
+  createSPARSOuterLoop();
+  CALLGRIND_TOGGLE_COLLECT;
+  CALLGRIND_DUMP_STATS;
+
+  // Benchmark runtime
+  double duration = time::seconds(time::now() - startTime);
+
+  // Statistics
+  numGraphGenerations_++;
+
+  // Check how many connected components exist, possibly throw error
+  std::size_t numSets = getDisjointSetsCount();
+
+  double percentCachedCollisionChecks = static_cast<double>(totalCollisionChecksFromCache_) / totalCollisionChecks_ * 100.0;
+  OMPL_INFORM("-----------------------------------------");
+  OMPL_INFORM("Created SPARS graph                      ");
+  OMPL_INFORM("  Vertices:                  %u", getNumVertices());
+  OMPL_INFORM("  Edges:                     %u", getNumEdges());
+  OMPL_INFORM("  Generation time:           %f", duration);
+  OMPL_INFORM("  Total generations:         %u", numGraphGenerations_);
+  OMPL_INFORM("  Disjoint sets:             %u", numSets);
+  OMPL_INFORM("  Edge collision cache:      %u", collisionCheckEdgeCache_.size());
+  OMPL_INFORM("  Total collision checks:    %u", totalCollisionChecks_);
+  OMPL_INFORM("  Cached collision checks:   %u (%f %)", totalCollisionChecksFromCache_, percentCachedCollisionChecks);
+  OMPL_INFORM("-----------------------------------------");
+
+  if (numSets > 1)
+  {
+    OMPL_INFORM("Disjoint sets: %u, attempting to random sample until fully connected", numSets);
+
+    // TODO(davetcoleman): temp
+    std::cout << "stopping early " << std::endl;
+    exit(0);
+    eliminateDisjointSets();
+    denseDB_->displayDatabase();
+  }
+
+  OMPL_INFORM("Finished creating sparse database");
+}
+
+void SparseDB::createSPARSOuterLoop()
+{
   std::size_t coutIndent = 2;
 
   // Clear the old spars graph
   if (getNumVertices() > 1)
   {
-    OMPL_INFORM("Resetting sparse database, currently has %u states", getNumVertices());
-    g_.clear();
+    OMPL_INFORM("Resetting sparse database");
+    freeMemory();
+    initializeQueryState(); // Re-add search state
 
-    // Clear the nearest neighbor search
-    if (nn_)
-      nn_->clear();
-
-    // Re-add search state
-    initializeQueryState();
-
-    // Clear visuals
-    visual_->viz2State(NULL, /*deleteAllMarkers*/ 0, 0);
+    if (visualizeSparsGraph_) // Clear visuals
+      visual_->viz2State(NULL, /*deleteAllMarkers*/ 0, 0);
   }
 
-  // Reset fractions
+  // Reset parameters
   setup();
   visualizeOverlayNodes_ = false;  // DO NOT visualize all added nodes in a separate window
+  totalCollisionChecks_ = 0;
+  totalCollisionChecksFromCache_ = 0;
 
   // Get the ordering to insert vertices
-  std::vector<WeightedVertex> vertexInsertionOrder;
+  std::list<WeightedVertex> vertexInsertionOrder;
   getVertexInsertionOrdering(vertexInsertionOrder);
 
   // Error check order creation
   assert(vertexInsertionOrder.size() == denseDB_->getNumVertices() - 1);  // subtract 1 for query vertex
 
-  // Limit amount of time generating TODO(davetcoleman): remove this feature
-  double seconds = 1000;
-  ob::PlannerTerminationCondition ptc = ob::timedPlannerTerminationCondition(seconds, 0.1);
-
   // Attempt to insert the verticies multiple times until no more succesful insertions occur
-  bool succeededInInserting = true;
   secondSparseInsertionAttempt_ = false;
   std::size_t loopAttempt = 0;
-  while (succeededInInserting)
+  std::size_t sucessfulInsertions = 1; // start with one so that while loop works
+  while (sucessfulInsertions > 0)
   {
-    OMPL_INFORM("Beginning while loop of SPARS insertion");
-    if (checksVerbose_)
-      std::cout << std::string(coutIndent, ' ') << "Attempting to insert " << vertexInsertionOrder.size()
-                << " vertices for the " << loopAttempt << " loop" << std::endl;
+    //if (checksVerbose_)
+    std::cout << std::string(coutIndent, ' ') << "Attempting to insert " << vertexInsertionOrder.size()
+              << " vertices for the " << loopAttempt << " loop" << std::endl;
 
     // Sanity check
     if (loopAttempt > 3)
       OMPL_WARN("Suprising number of loop when attempting to insert nodes into SPARS graph: %u", loopAttempt);
 
+    // ----------------------------------------------------------------------
     // Attempt to insert each vertex using the first 3 criteria
-    succeededInInserting = false;
-    std::size_t sucessfulInsertions = 0;
-    std::size_t originalVertexInsertion = vertexInsertionOrder.size();
-    std::size_t debugFrequency = static_cast<std::size_t>(originalVertexInsertion / 20);
-    for (std::size_t i = 0; i < vertexInsertionOrder.size(); ++i)
-    {
-      // Customize the sparse delta fraction
-      // if (!secondSparseInsertionAttempt_)
-      // {
-      //     std::size_t minDelta = 2;
-      //     std::size_t maxDelta = 6;
-      //     double invertedPopularity = 100 - vertexInsertionOrder[i].weight_;
-      //     sparseDelta_ = invertedPopularity * (maxDelta - minDelta) / 100.0 + minDelta;
-      //     OMPL_INFORM("sparseDelta_ is now %f", sparseDelta_);
-      // }
-
-      // User feedback
-      if (i % debugFrequency == 0)
-      {
-        std::cout << std::fixed << std::setprecision(1)
-                  << "Sparse graph generation: " << (static_cast<double>(i + 1) / originalVertexInsertion) * 100.0
-                  << "% " << std::flush;
-        if (visualizeSparsGraph_)
-          visual_->viz2Trigger();
-      }
-
-      // Run SPARS checks
-      GuardType addReason;         // returns why the state was added
-      SparseVertex newVertex = 0;  // the newly generated sparse vertex
-      if (!addStateToRoadmap(vertexInsertionOrder[i].v_, newVertex, addReason))
-      {
-        // std::cout << "Failed AGAIN to add state to roadmap------" << std::endl;
-
-        // Visualize the failed vertex as a small red dot
-        if (visualizeSparsGraph_)
-        {
-          visual_->viz2State(getDenseState(vertexInsertionOrder[i].v_), /*small red*/ 3, 0);
-        }
-      }
-      else
-      {
-        // If a new vertex was created, update its popularity property
-        if (newVertex)  // value is not null, so it was created
-        {
-          // std::cout << "SETTING POPULARITY of vertex " << newVertex << " to value "
-          //<< vertexInsertionOrder[i].weight_ << std::endl;
-
-          // Update popularity
-          vertexPopularity_[newVertex] = vertexInsertionOrder[i].weight_;
-        }
-
-        // Remove this state from the candidates for insertion vector
-        vertexInsertionOrder.erase(vertexInsertionOrder.begin() + i);
-        i--;
-        sucessfulInsertions++;
-        succeededInInserting = true;
-      }
-    }  // end for
+    createSPARSInnerLoop(vertexInsertionOrder, sucessfulInsertions);
 
     // Visualize
     if (visualizeSparsGraph_)
@@ -534,7 +507,7 @@ void SparseDB::createSPARS()
       secondSparseInsertionAttempt_ = true;
     }
 
-    bool debugOverRideJustTwice = false;
+    bool debugOverRideJustTwice = true;
     if (debugOverRideJustTwice && loopAttempt == 2)
     {
       OMPL_WARN("Only attempting to add nodes twice for speed");
@@ -542,56 +515,75 @@ void SparseDB::createSPARS()
     }
   }
 
-  /*
-  // Determine every dense node's representative on the sparse graph
-  findSparseRepresentatives();
-
-  // Check 4th criteria - are we within our stated asymptotic bounds?
-  std::size_t coutIndent = 0;
-  OMPL_INFORM("Checking remaining vertices for 4th critera test");
-  for (std::size_t i = 0; i < vertexInsertionOrder.size(); ++i)
-  {
-  if (!checkAsymptoticOptimal(vertexInsertionOrder[i].v_, coutIndent + 4))
-  {
-  std::cout << "Vertex " << vertexInsertionOrder[i].v_ << " failed asymptotic optimal test " << std::endl;
-  }
-  }
-  */
-
   // If we haven't animated the creation, just show it all at once
   if (!visualizeSparsGraph_)
   {
-    displayDatabase();
+    displaySparseDatabase();
   }
   else if (visualizeSparsGraphSpeed_ < std::numeric_limits<double>::epsilon())
   {
     visual_->viz2Trigger();
     usleep(0.001 * 1000000);
   }
-
-  // Statistics
-  numGraphGenerations_++;
-  std::cout << std::endl;
-  OMPL_INFORM("Created SPARS graph:");
-  OMPL_INFORM("  Vertices:  %u", getNumVertices());
-  OMPL_INFORM("  Edges:  %u", getNumEdges());
-
-  // Check how many connected components exist, possibly throw error
-  std::size_t numSets = getDisjointSetsCount();
-  if (numSets > 1)
-  {
-    OMPL_INFORM("  Number of disjoint sets: %u, attempting to random sample until fully connected", numSets);
-    eliminateDisjointSets();
-    denseDB_->displayDatabase();
-  }
-  else
-    OMPL_INFORM("  Disjoint sets: %u", numSets);
-
-  OMPL_INFORM("Finished creating sparse database ----------------------");
-  std::cout << std::endl;
 }
 
-void SparseDB::getVertexInsertionOrdering(std::vector<WeightedVertex> &vertexInsertionOrder)
+bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOrder, std::size_t &sucessfulInsertions)
+{
+  sucessfulInsertions = 0;
+  std::size_t loopCount = 0;
+  std::size_t originalVertexInsertion = vertexInsertionOrder.size();
+  std::size_t debugFrequency = static_cast<std::size_t>(originalVertexInsertion / 20);
+
+  for (std::list<WeightedVertex>::iterator vertexIt = vertexInsertionOrder.begin();
+       vertexIt != vertexInsertionOrder.end(); /* will manually progress since there are erases*/)
+  {
+    // User feedback
+    if (loopCount++ % debugFrequency == 0)
+    {
+      std::cout << std::fixed << std::setprecision(1)
+      << "Sparse graph generation: " << (static_cast<double>(loopCount) / originalVertexInsertion) * 100.0
+                << "% Cache size: " << collisionCheckEdgeCache_.size() << std::endl;
+      if (visualizeSparsGraph_)
+        visual_->viz2Trigger();
+    }
+
+    // Run SPARS checks
+    GuardType addReason;         // returns why the state was added
+    SparseVertex newVertex = 0;  // the newly generated sparse vertex
+    if (!addStateToRoadmap(vertexIt->v_, newVertex, addReason))
+    {
+      // std::cout << "Failed AGAIN to add state to roadmap------" << std::endl;
+
+      // Visualize the failed vertex as a small red dot
+      if (visualizeSparsGraph_)
+      {
+        visual_->viz2State(getDenseState(vertexIt->v_), /*small red*/ 3, 0);
+      }
+      vertexIt++; // increment since we didn't remove anything from the list
+    }
+    else
+    {
+      // If a new vertex was created, update its popularity property
+      if (newVertex)  // value is not null, so it was created
+      {
+        // std::cout << "SETTING POPULARITY of vertex " << newVertex << " to value "
+        //<< vertexInsertionOrder[i].weight_ << std::endl;
+
+        // Update popularity
+        vertexPopularity_[newVertex] = vertexIt->weight_;
+      }
+
+      // Remove this state from the candidates for insertion vector
+      vertexIt = vertexInsertionOrder.erase(vertexIt);
+
+      sucessfulInsertions++;
+    }
+  }  // end for
+
+  return true;
+}
+
+void SparseDB::getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInsertionOrder)
 {
   if (sparseCreationInsertionOrder_ == 0)
   {
@@ -762,77 +754,7 @@ std::size_t SparseDB::getDisjointSetsCount(bool verbose)
   return numSets;
 }
 
-bool SparseDB::findSparseRepresentatives()
-{
-  bool verbose = false;
-
-  OMPL_INFORM("Calculating representative nodes for each dense vertex");
-  foreach (DenseVertex denseV, boost::vertices(denseDB_->g_))
-  {
-    std::vector<SparseVertex> graphNeighborhood;
-    base::State *state = getDenseState(denseV);
-
-    // Skip the query vertex 0
-    if (denseV == denseDB_->queryVertex_)
-      continue;
-    assert(denseV);
-
-    if (verbose)
-      std::cout << "Searching for denseV: " << denseV << std::endl;
-
-    // Search
-    getSparseState(queryVertex_) = state;
-    nn_->nearestR(queryVertex_, sparseDelta_, graphNeighborhood);
-    getSparseState(queryVertex_) = NULL;
-
-    // Find the closest sparse node that has a local free path
-    bool foundRepresentative = false;
-    for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
-    {
-      if (verbose)
-        std::cout << "  Checking motion for neighbor " << i << std::endl;
-      if (si_->checkMotion(state, getSparseState(graphNeighborhood[i])))
-      {
-        if (verbose)
-          std::cout << "   Found valid sparse vertex that is near: " << graphNeighborhood[i] << std::endl;
-
-        // Assign the dense vertex its representative sparse node
-        denseDB_->representativesProperty_[denseV] = graphNeighborhood[i];
-        foundRepresentative = true;
-        break;
-      }
-    }
-
-    // Error check
-    if (!foundRepresentative)
-    {
-      OMPL_WARN("Unable to find sparse representative for dense vertex %u", denseV);
-      exit(-1);
-    }
-
-    // Visualize
-    if (visualizeDenseRepresentatives_)
-    {
-      // Ensure that states are not the same
-      SparseVertex &sparseV = denseDB_->representativesProperty_[denseV];
-      if (denseV == denseVertexProperty_[sparseV])
-      {
-        if (verbose)
-          OMPL_WARN("Not visualizing because the dense vertex's representative sparse vertex are the same");
-      }
-      else
-      {
-        double visualColor = 100;
-        visual_->viz2Edge(state, getSparseState(denseDB_->representativesProperty_[denseV]), visualColor);
-      }
-    }
-  }
-  visual_->viz2Trigger();
-
-  return true;
-}
-
-bool SparseDB::getPopularityOrder(std::vector<WeightedVertex> &vertexInsertionOrder)
+bool SparseDB::getPopularityOrder(std::list<WeightedVertex> &vertexInsertionOrder)
 {
   bool verbose = false;
 
@@ -898,17 +820,20 @@ bool SparseDB::getPopularityOrder(std::vector<WeightedVertex> &vertexInsertionOr
     // Remove from priority queue
     pqueue.pop();
   }
-  visual_->viz3Trigger();
-  usleep(0.001 * 1000000);
+
+  if (visualizeNodePopularity_)
+  {
+    visual_->viz3Trigger();
+    usleep(0.001 * 1000000);
+  }
 
   return true;
 }
 
-bool SparseDB::getDefaultOrder(std::vector<WeightedVertex> &vertexInsertionOrder)
+bool SparseDB::getDefaultOrder(std::list<WeightedVertex> &vertexInsertionOrder)
 {
   bool verbose = false;
   double largestWeight = -1 * std::numeric_limits<double>::infinity();
-  std::vector<double> weights;
 
   // Loop through each popular edge in the dense graph
   foreach (DenseVertex v, boost::vertices(denseDB_->g_))
@@ -962,24 +887,22 @@ bool SparseDB::getDefaultOrder(std::vector<WeightedVertex> &vertexInsertionOrder
   return true;
 }
 
-bool SparseDB::getRandomOrder(std::vector<WeightedVertex> &vertexInsertionOrder)
+bool SparseDB::getRandomOrder(std::list<WeightedVertex> &vertexInsertionOrder)
 {
-  std::vector<WeightedVertex> defaultVertexInsertionOrder;
+  std::list<WeightedVertex> defaultVertexInsertionOrder;
   getDefaultOrder(defaultVertexInsertionOrder);
 
-  for (std::size_t i = 0; i < defaultVertexInsertionOrder.size(); ++i)
-  {
-    // Choose a random vertex to pick out of default structure
-    std::size_t randVertex = static_cast<std::size_t>(iRand(0, defaultVertexInsertionOrder.size() - 1));
-    assert(randVertex < defaultVertexInsertionOrder.size());
+  // Create vector and copy list into it
+  std::vector<WeightedVertex> tempVector(defaultVertexInsertionOrder.size());
+  std::copy(defaultVertexInsertionOrder.begin(), defaultVertexInsertionOrder.end(), tempVector.begin());
 
-    // Copy random vertex to new structure
-    vertexInsertionOrder.push_back(defaultVertexInsertionOrder[randVertex]);
+  // Randomize
+  std::random_shuffle(tempVector.begin(), tempVector.end());
 
-    // Delete that vertex
-    defaultVertexInsertionOrder.erase(defaultVertexInsertionOrder.begin() + randVertex);
-    i--;
-  }
+  // Convert back to list
+  vertexInsertionOrder.resize(tempVector.size());
+  std::copy(tempVector.begin(), tempVector.end(), vertexInsertionOrder.begin());
+
   return true;
 }
 
@@ -1289,13 +1212,15 @@ void SparseDB::getInterfaceNeighborhood(const DenseVertex &denseV, std::vector<D
     }
   }
 }
-void SparseDB::findGraphNeighbors(const DenseVertex &denseV, std::vector<SparseVertex> &graphNeighborhood,
+void SparseDB::findGraphNeighbors(const DenseVertex &v1, std::vector<SparseVertex> &graphNeighborhood,
                                   std::vector<SparseVertex> &visibleNeighborhood, std::size_t coutIndent)
 {
-  if (checksVerbose_)
-    std::cout << std::string(coutIndent, ' ') << "findGraphNeighbors() DenseV: " << denseV << std::endl;
+  const bool verbose = false;
 
-  base::State *state = getDenseState(denseV);
+  if (checksVerbose_)
+    std::cout << std::string(coutIndent, ' ') << "findGraphNeighbors() DenseV: " << v1 << std::endl;
+
+  base::State *state = getDenseState(v1);
 
   // Search
   getSparseState(queryVertex_) = state;
@@ -1305,10 +1230,36 @@ void SparseDB::findGraphNeighbors(const DenseVertex &denseV, std::vector<SparseV
   // Now that we got the neighbors from the NN, we must remove any we can't see
   for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
   {
-    if (si_->checkMotion(state, getSparseState(graphNeighborhood[i])))
+    DenseVertex v2 = denseVertexProperty_[graphNeighborhood[i]];
+    // Don't collision check if they are the same dense vertex
+    if (v1 != v2)
     {
-      visibleNeighborhood.push_back(graphNeighborhood[i]);
+      // Only collision check motion if they don't already share an edge in the dense graph
+      if (!boost::edge(v1, v2, denseDB_->g_).second)
+      {
+        //if (!si_->checkMotion(state, getSparseState(graphNeighborhood[i])))
+        if (!checkMotionWithCache(v1, v2))
+        {
+          continue;
+        }
+      }
+      else if (verbose)
+      {
+        std::cout << "Skipping check motion because already share an edge in dense graph! " << std::endl;
+
+        // Visualize for checking that this is true
+        visual_->viz3State(NULL, /* type = deleteAllMarkers */ 0, 0);
+        visual_->viz3State(state, 2/*small blue*/, 0);
+        visual_->viz3State(getSparseState(graphNeighborhood[i]), 2/*small blue*/, 0);
+        visual_->viz3Trigger();
+        usleep(1*1000000);
+      }
     }
+    else if (verbose)
+      std::cout << " ---- Skipping collision checking because same vertex " << std::endl;
+
+    // The two are visible to each other!
+    visibleNeighborhood.push_back(graphNeighborhood[i]);
   }
 
   if (checksVerbose_)
@@ -1316,9 +1267,37 @@ void SparseDB::findGraphNeighbors(const DenseVertex &denseV, std::vector<SparseV
               << " | Visible neighborhood: " << visibleNeighborhood.size() << std::endl;
 }
 
-bool SparseDB::sameComponent(SparseVertex m1, SparseVertex m2)
+bool SparseDB::checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v2)
 {
-  return boost::same_component(m1, m2, disjointSets_);
+  // Statistics
+  totalCollisionChecks_++;
+
+  // Only store pairs in one direction
+  std::pair<DenseVertex,DenseVertex> key;
+  if (v1 < v2)
+    key = std::pair<DenseVertex,DenseVertex>(v1, v2);
+  else
+    key = std::pair<DenseVertex,DenseVertex>(v2, v1);
+
+  std::map<std::pair<DenseVertex,DenseVertex>,bool>::const_iterator it = collisionCheckEdgeCache_.find(key);
+
+  if (it == collisionCheckEdgeCache_.end()) // no cache available
+  {
+    bool result = si_->checkMotion(getDenseState(v1), getDenseState(v2));
+    collisionCheckEdgeCache_[key] = result;
+    //std::cout << "No cache: Edge " << v1 << ", " << v2 << " collision: " << result << std::endl;
+    return result;
+  }
+
+  // Cache available
+  totalCollisionChecksFromCache_++;
+  //std::cout << "Cache: Edge " << v1 << ", " << v2 << " collision: " << it->second << std::endl;
+  return it->second;
+}
+
+bool SparseDB::sameComponent(const SparseVertex &v1, const SparseVertex &v2)
+{
+  return boost::same_component(v1, v2, disjointSets_);
 }
 
 SparseVertex SparseDB::addVertex(DenseVertex denseV, const GuardType &type)
@@ -1451,7 +1430,7 @@ base::State *&SparseDB::getDenseState(const DenseVertex &denseV)
   return denseDB_->stateProperty_[denseV];
 }
 
-void SparseDB::displayDatabase(bool showVertices)
+void SparseDB::displaySparseDatabase(bool showVertices)
 {
   OMPL_INFORM("Displaying Sparse database");
 
@@ -1465,19 +1444,17 @@ void SparseDB::displayDatabase(bool showVertices)
   // Clear previous visualization
   visual_->viz2State(NULL, /*deleteAllMarkers=*/0, 1);
 
+  if (visualizeDatabaseEdges_)
   {
     // Loop through each edge
     std::size_t count = 0;
     std::size_t debugFrequency = getNumEdges() / 10;
-    std::cout << "Displaying database: " << std::flush;
+    std::cout << "Displaying sparse edges: " << std::flush;
     foreach (SparseEdge e, boost::edges(g_))
     {
       // Add edge
       const SparseVertex &v1 = boost::source(e, g_);
       const SparseVertex &v2 = boost::target(e, g_);
-
-      // std::cout << "edgeWeightPropertySparse_[e]: " << std::setprecision(4) << edgeWeightPropertySparse_[e]
-      //<< std::endl;
 
       // TODO(davetcoleman): currently the weight property is not normalized for 0-100 scale so not using for
       // visualization
@@ -1497,19 +1474,19 @@ void SparseDB::displayDatabase(bool showVertices)
     std::cout << std::endl;
   }
 
-  // if (true || showVertices)
+  if (visualizeDatabaseVertices_)
   {
     // Loop through each vertex
     std::size_t count = 0;
     std::size_t debugFrequency = getNumVertices() / 10;
-    std::cout << "Displaying database: " << std::flush;
+    std::cout << "Displaying sparse vertices: " << std::flush;
     foreach (SparseVertex v, boost::vertices(g_))
     {
       // Check for null states
       if (getSparseStateConst(v))
       {
-        // visual_->viz2State(getSparseStateConst(v), /*large, black*/ 6, 1);
-        visual_->viz2State(getSparseStateConst(v), /*popularity0-100*/ 7, vertexPopularity_[v]);
+        visual_->viz2State(getSparseStateConst(v), /*small blue*/ 2, 1);
+        //visual_->viz2State(getSparseStateConst(v), /*popularity0-100*/ 7, vertexPopularity_[v]);
       }
       else if (v != queryVertex_)  // query vertex should always be null, actually
         OMPL_WARN("Null sparse state found on vertex %u", v);
@@ -1529,6 +1506,65 @@ void SparseDB::displayDatabase(bool showVertices)
 
   // Publish remaining edges
   visual_->viz2Trigger();
+}
+
+void SparseDB::checkMotionCacheBenchmark()
+{
+  std::cout << std::endl;
+  std::cout << "-------------------------------------------------------" << std::endl;
+  OMPL_WARN("Running check motion cache benchmark");
+  std::cout << std::endl;
+
+  // Test new checkMotionWithCache
+  DenseVertex v1 = 2;
+  DenseVertex v2 = 3;
+  std::size_t numRuns = 100000;
+  bool baselineResult = si_->checkMotion(getDenseState(v1), getDenseState(v2));
+
+  // Benchmark collision check without cache
+  {
+    // Benchmark runtime
+    time::point startTime = time::now();
+
+    for (std::size_t i = 0; i < numRuns; ++i)
+    {
+      if (si_->checkMotion(getDenseState(v1), getDenseState(v2)) != baselineResult)
+      {
+        OMPL_ERROR("benchmark checkmotion does not match baseline result");
+        exit(-1);
+      }
+    }
+
+    // Benchmark runtime
+    double duration = time::seconds(time::now() - startTime);
+    OMPL_INFORM(" - no cache took %f seconds (%f hz)", duration, 1.0/duration);
+  }
+
+  // Benchmark collision check with cache
+  {
+    // Benchmark runtime
+    time::point startTime = time::now();
+
+    for (std::size_t i = 0; i < numRuns/2; ++i)
+    {
+      if (checkMotionWithCache(v1, v2) != baselineResult)
+      {
+        OMPL_ERROR("benchmark checkmotion does not match baseline result");
+        exit(-1);
+      }
+
+      if (checkMotionWithCache(v2, v1) != baselineResult)
+      {
+        OMPL_ERROR("benchmark checkmotion does not match baseline result");
+        exit(-1);
+      }
+    }
+    OMPL_INFORM("Cache size: %u", collisionCheckEdgeCache_.size());
+
+    // Benchmark runtime
+    double duration = time::seconds(time::now() - startTime);
+    OMPL_INFORM(" - with cache took %f seconds (%f hz)", duration, 1.0/duration);
+  }
 }
 
 }  // namespace bolt

@@ -297,6 +297,10 @@ typedef boost::property_map<DenseGraph, edge_collision_state_t>::type DenseEdgeC
 class WeightedVertex
 {
 public:
+  WeightedVertex()
+  {
+  }
+
   WeightedVertex(DenseVertex v, double weight) : v_(v), weight_(weight)
   {
   }

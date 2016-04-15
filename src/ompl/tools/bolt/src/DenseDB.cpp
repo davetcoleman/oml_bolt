@@ -255,7 +255,9 @@ bool DenseDB::load(const std::string &fileName)
 
   BoltStorage storage_(si_, this);
   storage_.load(fileName.c_str());
-  OMPL_INFORM("DenseDB: Loaded planner data with %d vertices, %d edges", getNumVertices(), getNumEdges());
+
+  // Benchmark
+  double duration = time::seconds(time::now() - start);
 
   // Visualize
   visual_->viz1Trigger();
@@ -268,12 +270,20 @@ bool DenseDB::load(const std::string &fileName)
     return false;
   }
 
-  // Checks
-  checkConnectedComponents();
+  // Get the average vertex degree (number of connected edges)
+  double averageDegree = (getNumEdges() * 2) / static_cast<double>(getNumVertices());
 
-  // Benchmark
-  double loadTime = time::seconds(time::now() - start);
-  OMPL_INFORM("Loading from file took %f sec", loadTime);
+  // Check how many disjoint sets are in the dense graph (should be none)
+  std::size_t numSets = checkConnectedComponents();
+
+  OMPL_INFORM("------------------------------------------------------");
+  OMPL_INFORM("Loaded graph stats:");
+  OMPL_INFORM("   Total valid vertices:   %u", getNumVertices());
+  OMPL_INFORM("   Total valid edges:      %u", getNumEdges());
+  OMPL_INFORM("   Average degree:         %f", averageDegree);
+  OMPL_INFORM("   Connected Components:   %u", numSets);
+  OMPL_INFORM("   Loading time:           %f", duration);
+  OMPL_INFORM("------------------------------------------------------");
 
   return true;
 }

@@ -1,9 +1,100 @@
+  /*
+  // Determine every dense node's representative on the sparse graph
+  findSparseRepresentatives();
+
+  // Check 4th criteria - are we within our stated asymptotic bounds?
+  std::size_t coutIndent = 0;
+  OMPL_INFORM("Checking remaining vertices for 4th critera test");
+  for (std::size_t i = 0; i < vertexInsertionOrder.size(); ++i)
+  {
+  if (!checkAsymptoticOptimal(vertexInsertionOrder[i].v_, coutIndent + 4))
+  {
+  std::cout << "Vertex " << vertexInsertionOrder[i].v_ << " failed asymptotic optimal test " << std::endl;
+  }
+  }
+  */
+
+
     bool checkAsymptoticOptimal(const DenseVertex& denseV, std::size_t coutIndent);
     bool checkAddPath(DenseVertex q, const std::vector<DenseVertex>& neigh, std::size_t coutIndent);
     void computeVPP(SparseVertex v, SparseVertex vp, std::vector<SparseVertex>& VPPs);
     void computeX(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::vector<SparseVertex>& Xs);
     bool addPathToSpanner(const DensePath& densePath, SparseVertex vp, SparseVertex vpp);
     void connectSparsePoints(SparseVertex v, SparseVertex vp);
+
+  /** \brief Calculate representative nodes for each dense verte */
+  bool findSparseRepresentatives();
+
+
+bool SparseDB::findSparseRepresentatives()
+{
+  bool verbose = false;
+
+  OMPL_INFORM("Calculating representative nodes for each dense verte");
+  foreach (DenseVertex denseV, boost::vertices(denseDB_->g_))
+  {
+    std::vector<SparseVertex> graphNeighborhood;
+    base::State *state = getDenseState(denseV);
+
+    // Skip the query vertex 0
+    if (denseV == denseDB_->queryVertex_)
+      continue;
+    assert(denseV);
+
+    if (verbose)
+      std::cout << "Searching for denseV: " << denseV << std::endl;
+
+    // Search
+    getSparseState(queryVertex_) = state;
+    nn_->nearestR(queryVertex_, sparseDelta_, graphNeighborhood);
+    getSparseState(queryVertex_) = NULL;
+
+    // Find the closest sparse node that has a local free path
+    bool foundRepresentative = false;
+    for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
+    {
+      if (verbose)
+        std::cout << "  Checking motion for neighbor " << i << std::endl;
+      if (si_->checkMotion(state, getSparseState(graphNeighborhood[i])))
+      {
+        if (verbose)
+          std::cout << "   Found valid sparse vertex that is near: " << graphNeighborhood[i] << std::endl;
+
+        // Assign the dense vertex its representative sparse node
+        denseDB_->representativesProperty_[denseV] = graphNeighborhood[i];
+        foundRepresentative = true;
+        break;
+      }
+    }
+
+    // Error check
+    if (!foundRepresentative)
+    {
+      OMPL_WARN("Unable to find sparse representative for dense vertex %u", denseV);
+      exit(-1);
+    }
+
+    // Visualize
+    if (visualizeDenseRepresentatives_)
+    {
+      // Ensure that states are not the same
+      SparseVertex &sparseV = denseDB_->representativesProperty_[denseV];
+      if (denseV == denseVertexProperty_[sparseV])
+      {
+        if (verbose)
+          OMPL_WARN("Not visualizing because the dense vertex's representative sparse vertex are the same");
+      }
+      else
+      {
+        double visualColor = 100;
+        visual_->viz2Edge(state, getSparseState(denseDB_->representativesProperty_[denseV]), visualColor);
+      }
+    }
+  }
+  visual_->viz2Trigger();
+
+  return true;
+}
 
 bool SparseDB::checkAsymptoticOptimal(const DenseVertex &denseV, std::size_t coutIndent)
 {

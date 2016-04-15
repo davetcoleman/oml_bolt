@@ -54,6 +54,9 @@
 // Boost
 #include <boost/function.hpp>
 
+// C++
+#include <list>
+
 namespace ompl
 {
 namespace tools
@@ -237,10 +240,11 @@ public:
 
   /** \brief Create a SPARS graph from the discretized dense graph and its popularity metric */
   void createSPARS();
-  bool findSparseRepresentatives();
+  void createSPARSOuterLoop();
+  bool createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOrder, std::size_t &sucessfulInsertions);
 
   /** \brief Helper function for choosing the correct method for vertex insertion ordering */
-  void getVertexInsertionOrdering(std::vector<WeightedVertex>& vertexInsertionOrder);
+  void getVertexInsertionOrdering(std::list<WeightedVertex>& vertexInsertionOrder);
 
   /** \brief Add random samples until graph is fully connected */
   void eliminateDisjointSets();
@@ -251,9 +255,9 @@ public:
   /** \brief Helper for counting the number of disjoint sets in the sparse graph */
   std::size_t getDisjointSetsCount(bool verbose = false);
 
-  bool getPopularityOrder(std::vector<WeightedVertex>& vertexInsertionOrder);
-  bool getDefaultOrder(std::vector<WeightedVertex>& vertexInsertionOrder);
-  bool getRandomOrder(std::vector<WeightedVertex>& vertexInsertionOrder);
+  bool getPopularityOrder(std::list<WeightedVertex>& vertexInsertionOrder);
+  bool getDefaultOrder(std::list<WeightedVertex>& vertexInsertionOrder);
+  bool getRandomOrder(std::list<WeightedVertex>& vertexInsertionOrder);
 
   /** \brief Helper function for random integer creation */
   int iRand(int min, int max);
@@ -289,13 +293,18 @@ public:
                           std::vector<SparseVertex>& visibleNeighborhood, std::size_t coutIndent);
 
   DenseVertex getInterfaceNeighbor(DenseVertex q, SparseVertex rep);
-  bool sameComponent(SparseVertex m1, SparseVertex m2);
+
+  /** \brief Returns true if motion is valid, false if in collision. Checks cache first and also stores result  */
+  bool checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v2);
+
+  bool sameComponent(const SparseVertex &v1, const SparseVertex &v2);
+
   SparseVertex addVertex(DenseVertex denseV, const GuardType& type);
   std::size_t getVizVertexType(const GuardType& type);
   void addEdge(SparseVertex v1, SparseVertex v2, std::size_t visualColor, std::size_t coutIndent);
 
   /** \brief Show in visualizer the sparse graph */
-  void displayDatabase(bool showVertices = false);
+  void displaySparseDatabase(bool showVertices = false);
 
   /** \brief Custom A* visitor statistics */
   void recordNodeOpened()  // discovered
@@ -306,6 +315,9 @@ public:
   {
     numNodesClosed_++;
   }
+
+  /** \brief Test for benchmarking cache */
+  void checkMotionCacheBenchmark();
 
 public:
   /** \brief Shortcut function for getting the state of a vertex */
@@ -363,6 +375,9 @@ protected:
   /** \brief A path simplifier used to simplify dense paths added to S */
   geometric::PathSimplifierPtr psimp_;
 
+  /** \brief Cache previously performed collision checks */
+  std::map<std::pair<DenseVertex,DenseVertex>,bool> collisionCheckEdgeCache_;
+
   /** \brief Special flag for tracking mode when inserting into sparse graph */
   bool secondSparseInsertionAttempt_ = false;
 
@@ -377,6 +392,10 @@ protected:
 
   /** \brief Cache the maximum extent for later re-use */
   double maxExtent_;
+
+  /** \brief Stats for the checkMotionWithCache feature */
+  std::size_t totalCollisionChecks_;
+  std::size_t totalCollisionChecksFromCache_;
 
 public:
   /** \brief Astar statistics */
@@ -409,6 +428,8 @@ public:
   /** \brief Show the sparse graph being generated */
   bool visualizeSparsGraph_ = false;
   double visualizeSparsGraphSpeed_ = 0.0;
+  bool visualizeDatabaseVertices_ = true;
+  bool visualizeDatabaseEdges_ = true;
   bool visualizeDenseRepresentatives_ = false;
   bool visualizeNodePopularity_ = false;
 
@@ -421,6 +442,9 @@ public:
   /** \brief For statistics */
   int numGraphGenerations_ = 0;
   int numSamplesAddedForDisjointSets_ = 0;
+
+  /** \brief Same discretization used in Discretizer */
+  double discretization_;
 };  // end of class SparseDB
 
 }  // namespace bolt
