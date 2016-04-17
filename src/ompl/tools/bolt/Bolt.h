@@ -42,8 +42,8 @@
 
 #include <ompl/tools/bolt/DenseDB.h>
 #include <ompl/tools/bolt/Visualizer.h>
-#include <ompl/tools/bolt/Discretizer.h>
 #include <ompl/tools/bolt/BoltRetrieveRepair.h>
+#include <ompl/tools/bolt/Discretizer.h>
 
 #include <ompl/base/Planner.h>
 #include <ompl/base/PlannerData.h>
@@ -142,6 +142,11 @@ public:
   /** \brief Sanity check for solution paths */
   bool checkRepeatedStates(const geometric::PathGeometric &path);
 
+  /** \brief Set the database file to load. Actual loading occurs when setup() is called
+   *  \param filePath - full absolute path to a experience database to load
+   */
+  bool setFilePath(const std::string &filePath);
+
   /** \brief Save the experience database to file */
   bool save();
 
@@ -172,12 +177,6 @@ public:
   /** \brief Hook for getting access to dense db */
   DenseDBPtr getDenseDB();
 
-  /** \brief Hook for getting access to discretizer */
-  DiscretizerPtr getDiscretizer()
-  {
-    return discretizer_;
-  }
-
   /** \brief Allow accumlated experiences to be processed */
   bool doPostProcessing();
 
@@ -186,6 +185,8 @@ public:
   {
     return visual_;
   }
+
+  void benchmarkStateCheck();
 
 protected:
   /** \brief Class for managing various visualization features */
@@ -196,9 +197,6 @@ protected:
 
   /** \brief A shared object between all the planners for saving and loading previous experience */
   DenseDBPtr denseDB_;
-
-  /** \brief Tool for gridding state space */
-  DiscretizerPtr discretizer_;
 
   /** \brief Accumulated experiences to be later added to experience database */
   std::vector<geometric::PathGeometric> queuedSolutionPaths_;

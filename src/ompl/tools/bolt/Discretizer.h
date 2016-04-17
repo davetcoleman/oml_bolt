@@ -67,7 +67,7 @@ public:
   /** \brief Constructor needs the state space used for planning.
    *  \param space - state space
    */
-  Discretizer(base::SpaceInformationPtr si, DenseDBPtr denseDB, base::VisualizerPtr visual);
+  Discretizer(base::SpaceInformationPtr si, DenseDB* denseDB, base::VisualizerPtr visual);
 
   /** \brief Deconstructor */
   virtual ~Discretizer(void);
@@ -75,10 +75,14 @@ public:
   /**
    * \brief Discretize the space into a simple grid
    */
-  void generateGrid();
+  bool generateGrid();
 
   /** \brief Helper function to calculate connectivity based on dimensionality */
   static std::size_t getEdgesPerVertex(base::SpaceInformationPtr si);
+
+  void getVertexNeighborsPreprocess();
+
+  void getVertexNeighbors(base::State* state, std::vector<DenseVertex>& graphNeighborhood);
 
 private:
   void generateVertices();
@@ -99,15 +103,11 @@ private:
   void generateEdgesThread(std::size_t threadID, DenseVertex startVertex, DenseVertex endVertex,
                            base::SpaceInformationPtr si);
 
-  void getVertexNeighborsPreprocess();
-
-  void getVertexNeighbors(DenseVertex v1, std::vector<DenseVertex>& graphNeighborhood);
-
   /** \brief The created space information */
   base::SpaceInformationPtr si_;
 
   /** \brief Class for storing the dense graph */
-  DenseDBPtr denseDB_;
+  DenseDB* denseDB_;
 
   /** \brief Class for managing various visualization features */
   base::VisualizerPtr visual_;

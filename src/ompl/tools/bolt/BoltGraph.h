@@ -151,7 +151,7 @@ typedef boost::unordered_map<VertexIndexType, std::set<VertexIndexType>, boost::
 // Remove this struct when the minimum Boost requirement is > v1.48.
 struct InterfaceHashStruct
 {
-  InterfaceHashStruct &operator=(const InterfaceHashStruct &rhs)
+  InterfaceHashStruct& operator=(const InterfaceHashStruct& rhs)
   {
     interfaceHash = rhs.interfaceHash;
     return *this;
@@ -284,7 +284,7 @@ typedef boost::graph_traits<DenseGraph>::vertex_descriptor DenseVertex;
 typedef boost::graph_traits<DenseGraph>::edge_descriptor DenseEdge;
 
 /** \brief Internal representation of a dense path */
-typedef std::deque<base::State *> DensePath;
+typedef std::deque<base::State*> DensePath;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Typedefs for property maps
@@ -317,6 +317,83 @@ public:
   {
     return a.weight_ < b.weight_;  // TODO(davetcoleman): which direction should the sign go?
   }
+};
+
+////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * Used to artifically supress edges during A* search.
+ * \implements ReadablePropertyMapConcept
+ */
+class DenseEdgeWeightMap
+{
+private:
+  const DenseGraph& g_;  // Graph used
+  const DenseEdgeCollisionStateMap& collisionStates_;
+  const double popularityBias_;
+  const bool popularityBiasEnabled_;
+
+public:
+  /** Map key type. */
+  typedef DenseEdge key_type;
+  /** Map value type. */
+  typedef double value_type;
+  /** Map auxiliary value type. */
+  typedef double& reference;
+  /** Map type. */
+  typedef boost::readable_property_map_tag category;
+
+  /**
+   * Construct map for certain constraints.
+   * \param graph         Graph to use
+   */
+  DenseEdgeWeightMap(const DenseGraph& graph, const DenseEdgeCollisionStateMap& collisionStates,
+                     const double& popularityBias, const bool popularityBiasEnabled)
+    : g_(graph)
+    , collisionStates_(collisionStates)
+    , popularityBias_(popularityBias)
+    , popularityBiasEnabled_(popularityBiasEnabled)
+  {
+  }
+
+  /**
+   * Get the weight of an edge.
+   * \param e the edge
+   * \return infinity if \a e lies in a forbidden neighborhood; actual weight of \a e otherwise
+   */
+  double get(DenseEdge e) const
+  {
+    // Get the status of collision checking for this edge
+    if (collisionStates_[e] == IN_COLLISION)
+      return std::numeric_limits<double>::infinity();
+
+    double weight;
+    if (popularityBiasEnabled_)
+    {
+      // static const double popularityBias = 10;
+      weight = boost::get(boost::edge_weight, g_, e) / MAX_POPULARITY_WEIGHT * popularityBias_;
+      // std::cout << "getting popularity weight of edge " << e << " with value " << weight << std::endl;
+    }
+    else
+    {
+      weight = boost::get(boost::edge_weight, g_, e);
+    }
+
+    // Method 3 - less optimal but faster planning time
+    // const double weighted_astar = 0.8;
+    // const double weight = boost::get(boost::edge_weight, g_, e) * weighted_astar;
+
+    // std::cout << "getting weight of edge " << e << " with value " << weight << std::endl;
+
+    return weight;
+  }
+};
+
+////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * Thrown to stop the A* search when finished.
+ */
+class FoundGoalException
+{
 };
 
 }  // namespace bolt

@@ -64,53 +64,65 @@ namespace ot = ompl::tools;
 namespace ob = ompl::base;
 namespace otb = ompl::tools::bolt;
 
-// edgeWeightMap methods ////////////////////////////////////////////////////////////////////////////
+// DenseEdgeWeightMap methods ////////////////////////////////////////////////////////////////////////////
 
-BOOST_CONCEPT_ASSERT((boost::ReadablePropertyMapConcept<otb::DenseDB::edgeWeightMap, otb::DenseEdge>));
+// BOOST_CONCEPT_ASSERT((boost::ReadablePropertyMapConcept<otb::DenseDB::DenseEdgeWeightMap, otb::DenseEdge>));
 
-otb::DenseDB::edgeWeightMap::edgeWeightMap(const DenseGraph &graph, const DenseEdgeCollisionStateMap &collisionStates,
-                                           const double &popularityBias, const bool popularityBiasEnabled)
-  : g_(graph)
-  , collisionStates_(collisionStates)
-  , popularityBias_(popularityBias)
-  , popularityBiasEnabled_(popularityBiasEnabled)
-{
-}
+// otb::DenseDB::DenseEdgeWeightMap::DenseEdgeWeightMap(const DenseGraph &graph, const DenseEdgeCollisionStateMap &collisionStates,
+//                                            const double &popularityBias, const bool popularityBiasEnabled)
+//   : g_(graph)
+//   , collisionStates_(collisionStates)
+//   , popularityBias_(popularityBias)
+//   , popularityBiasEnabled_(popularityBiasEnabled)
+// {
+// }
 
-double otb::DenseDB::edgeWeightMap::get(DenseEdge e) const
-{
-  // Get the status of collision checking for this edge
-  if (collisionStates_[e] == IN_COLLISION)
-    return std::numeric_limits<double>::infinity();
+// double otb::DenseDB::DenseEdgeWeightMap::get(DenseEdge e) const
+// {
+//   // Get the status of collision checking for this edge
+//   if (collisionStates_[e] == IN_COLLISION)
+//     return std::numeric_limits<double>::infinity();
 
-  double weight;
-  if (popularityBiasEnabled_)
+//   double weight;
+//   if (popularityBiasEnabled_)
+//   {
+//     // static const double popularityBias = 10;
+//     weight = boost::get(boost::edge_weight, g_, e) / MAX_POPULARITY_WEIGHT * popularityBias_;
+//     // std::cout << "getting popularity weight of edge " << e << " with value " << weight << std::endl;
+//   }
+//   else
+//   {
+//     weight = boost::get(boost::edge_weight, g_, e);
+//   }
+
+//   // Method 3 - less optimal but faster planning time
+//   // const double weighted_astar = 0.8;
+//   // const double weight = boost::get(boost::edge_weight, g_, e) * weighted_astar;
+
+//   // std::cout << "getting weight of edge " << e << " with value " << weight << std::endl;
+
+//   return weight;
+// }
+
+// namespace boost
+// {
+// double get(const otb::DenseDB::DenseEdgeWeightMap &m, const otb::DenseEdge &e)
+// {
+//   return m.get(e);
+// }
+// }
+
+  namespace boost
   {
-    // static const double popularityBias = 10;
-    weight = boost::get(boost::edge_weight, g_, e) / MAX_POPULARITY_WEIGHT * popularityBias_;
-    // std::cout << "getting popularity weight of edge " << e << " with value " << weight << std::endl;
-  }
-  else
+  double get(const ompl::tools::bolt::DenseEdgeWeightMap& m, const ompl::tools::bolt::DenseEdge& e)
   {
-    weight = boost::get(boost::edge_weight, g_, e);
+    return m.get(e);
+  }
   }
 
-  // Method 3 - less optimal but faster planning time
-  // const double weighted_astar = 0.8;
-  // const double weight = boost::get(boost::edge_weight, g_, e) * weighted_astar;
+  BOOST_CONCEPT_ASSERT(
+      (boost::ReadablePropertyMapConcept<ompl::tools::bolt::DenseEdgeWeightMap, ompl::tools::bolt::DenseEdge>));
 
-  // std::cout << "getting weight of edge " << e << " with value " << weight << std::endl;
-
-  return weight;
-}
-
-namespace boost
-{
-double get(const otb::DenseDB::edgeWeightMap &m, const otb::DenseEdge &e)
-{
-  return m.get(e);
-}
-}
 
 // CustomAstarVisitor methods ////////////////////////////////////////////////////////////////////////////
 
@@ -136,7 +148,7 @@ void otb::DenseDB::CustomAstarVisitor::examine_vertex(DenseVertex v, const Dense
   }
 
   if (v == goal_)
-    throw foundGoalException();
+    throw FoundGoalException();
 }
 
 // Actual class ////////////////////////////////////////////////////////////////////////////
@@ -150,36 +162,15 @@ namespace bolt
 DenseDB::DenseDB(base::SpaceInformationPtr si, base::VisualizerPtr visual)
   : si_(si)
   , visual_(visual)
-  , graphUnsaved_(false)
-  // Property accessors of edges
+    // Property accessors of edges
   , edgeWeightProperty_(boost::get(boost::edge_weight, g_))
   , edgeCollisionStateProperty_(boost::get(edge_collision_state_t(), g_))
-  // Property accessors of vertices
+    // Property accessors of vertices
   , stateProperty_(boost::get(vertex_state_t(), g_))
-  //, state3Property_(boost::get(vertex_state3_t(), g_))
   , typeProperty_(boost::get(vertex_type_t(), g_))
   , representativesProperty_(boost::get(vertex_sparse_rep_t(), g_))
-  // Disjoint set accessors
+    // Disjoint set accessors
   , disjointSets_(boost::get(boost::vertex_rank, g_), boost::get(boost::vertex_predecessor, g_))
-  // Settings
-  , distanceAcrossCartesian_(0.0)
-  // public
-  , savingEnabled_(true)
-  , popularityBiasEnabled_(false)
-  , popularityBias_(0)  // value TODO
-  , verbose_(true)
-  , useTaskPlanning_(false)
-  , snapPathVerbose_(false)
-  , visualizeAstar_(false)
-  , visualizeCartNeighbors_(false)
-  , visualizeCartPath_(false)
-  , visualizeSnapPath_(false)
-  , visualizeSnapPathSpeed_(0.001)
-  , visualizeAddSample_(false)
-  , visualizeDatabaseVertices_(true)
-  , visualizeDatabaseEdges_(true)
-  , visualizeAstarSpeed_(0.1)
-  , desiredAverageCost_(90)
 {
   // Add search state
   initializeQueryState();
@@ -190,6 +181,9 @@ DenseDB::DenseDB(base::SpaceInformationPtr si, base::VisualizerPtr visual)
   // Initialize nearest neighbor datastructure
   nn_.reset(new NearestNeighborsGNATNoThreadSafety<DenseVertex>());
   nn_->setDistanceFunction(boost::bind(&DenseDB::distanceFunction, this, _1, _2));
+
+  // Initialize the discretize grid tool
+  discretizer_.reset(new Discretizer(si_, this, visual_));
 }
 
 DenseDB::~DenseDB(void)
@@ -286,6 +280,11 @@ bool DenseDB::load(const std::string &fileName)
   OMPL_INFORM("------------------------------------------------------");
 
   return true;
+}
+
+bool DenseDB::generateGrid()
+{
+  return discretizer_->generateGrid();
 }
 
 bool DenseDB::postProcessPath(og::PathGeometric &solutionPath)
@@ -479,7 +478,7 @@ bool DenseDB::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<Den
   // Loop through each neighbor until one is found that connects to the previous vertex
   bool foundValidConnToPrevious = false;
   bool addedToRoadmapPath =
-      false;  // track if we added a vertex to the roadmapPath, so that we can remove it later if needed
+    false;  // track if we added a vertex to the roadmapPath, so that we can remove it later if needed
   DenseVertex candidateVertex;
   for (std::size_t neighborID = 0; neighborID < graphNeighborhood.size(); ++neighborID)
   {
@@ -496,7 +495,7 @@ bool DenseDB::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<Den
       foundValidConnToPrevious = true;
       if (verbose)
         std::cout << std::string(currVertexIndex, ' ') << "Previous vertex is same as current vertex, skipping "
-                                                          "current vertex" << std::endl;
+          "current vertex" << std::endl;
 
       isValid = true;
       isRepeatOfPrevWaypoint = true;
@@ -534,7 +533,7 @@ bool DenseDB::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<Den
       {
         if (verbose)
           std::cout << std::string(currVertexIndex + 2, ' ') << "Found case where double loop fixed the "
-                                                                "problem - loop " << neighborID << std::endl;
+            "problem - loop " << neighborID << std::endl;
         // visual_->viz5Trigger();
         // usleep(6*1000000);
       }
@@ -597,7 +596,7 @@ bool DenseDB::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<Den
   if (!foundValidConnToPrevious)
   {
     std::cout << std::string(currVertexIndex, ' ') << "Unable to find valid connection to previous, backing up a "
-                                                      "level and trying again" << std::endl;
+      "level and trying again" << std::endl;
     allValid = false;
 
     if (visualizeSnapPath_)  // Visualize
@@ -617,7 +616,7 @@ bool DenseDB::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<Den
     return false;
   }
   std::cout << std::string(currVertexIndex, ' ') << "This loop found a valid connection, but higher recursive loop "
-                                                    "(one that has already returned) did not" << std::endl;
+    "(one that has already returned) did not" << std::endl;
 
   return false;  // this loop found a valid connection, but lower recursive loop did not
 }
@@ -699,27 +698,27 @@ bool DenseDB::astarSearch(const DenseVertex start, const DenseVertex goal, std::
   {
     // Note: could not get astar_search to compile within BoltRetrieveRepair.cpp class because of namespacing issues
     boost::astar_search(
-        g_,     // graph
-        start,  // start state
-        // boost::bind(&DenseDB::distanceFunction2, this, _1, goal),  // the heuristic
-        // boost::bind(&DenseDB::distanceFunction, this, _1, goal),  // the heuristic
-        boost::bind(&DenseDB::distanceFunctionTasks, this, _1, goal),  // the heuristic
-        // ability to disable edges (set cost to inifinity):
-        boost::weight_map(edgeWeightMap(g_, edgeCollisionStateProperty_, popularityBias_, popularityBiasEnabled_))
-            .predecessor_map(vertexPredecessors)
-            .distance_map(&vertexDistances[0])
-            .visitor(CustomAstarVisitor(goal, this)));
+                        g_,     // graph
+                        start,  // start state
+                        // boost::bind(&DenseDB::distanceFunction2, this, _1, goal),  // the heuristic
+                        // boost::bind(&DenseDB::distanceFunction, this, _1, goal),  // the heuristic
+                        boost::bind(&DenseDB::distanceFunctionTasks, this, _1, goal),  // the heuristic
+                        // ability to disable edges (set cost to inifinity):
+                        boost::weight_map(DenseEdgeWeightMap(g_, edgeCollisionStateProperty_, popularityBias_, popularityBiasEnabled_))
+                        .predecessor_map(vertexPredecessors)
+                        .distance_map(&vertexDistances[0])
+                        .visitor(CustomAstarVisitor(goal, this)));
   }
-  catch (foundGoalException &)
+  catch (FoundGoalException &)
   {
     // the custom exception from CustomAstarVisitor
     OMPL_INFORM("astarSearch: Astar found goal vertex. distance to goal: %f", vertexDistances[goal]);
 
     if (vertexDistances[goal] > 1.7e+308)  // TODO(davetcoleman): fix terrible hack for detecting infinity
                                            // double diff = d[goal] - std::numeric_limits<double>::infinity();
-    // if ((diff < std::numeric_limits<double>::epsilon()) && (-diff < std::numeric_limits<double>::epsilon()))
-    // check if the distance to goal is inifinity. if so, it is unreachable
-    // if (d[goal] >= std::numeric_limits<double>::infinity())
+      // if ((diff < std::numeric_limits<double>::epsilon()) && (-diff < std::numeric_limits<double>::epsilon()))
+      // check if the distance to goal is inifinity. if so, it is unreachable
+      // if (d[goal] >= std::numeric_limits<double>::infinity())
     {
       if (verbose_)
         OMPL_INFORM("Distance to goal is infinity");
@@ -787,7 +786,7 @@ void DenseDB::computeDensePath(const DenseVertex start, const DenseVertex goal, 
                         boost::bind(&DenseDB::distanceFunctionTasks, this, _1, goal),  // the heuristic
                         boost::predecessor_map(prev).visitor(CustomAstarVisitor(goal, this)));
   }
-  catch (foundGoalException &)
+  catch (FoundGoalException &)
   {
   }
 
@@ -852,7 +851,7 @@ double DenseDB::distanceFunctionTasks(const DenseVertex a, const DenseVertex b) 
     return distanceFunctionTasks(b, a);
   }
 
-  double dist;                                // the result
+  double dist = 0;                                // the result
   static const double TASK_LEVEL_COST = 1.0;  // cost to change levels/tasks
 
   // Error check
@@ -874,15 +873,15 @@ double DenseDB::distanceFunctionTasks(const DenseVertex a, const DenseVertex b) 
       if (verbose)
         std::cout << "b ";
       dist = si_->distance(stateProperty_[a], stateProperty_[startConnectorVertex_]) + TASK_LEVEL_COST +
-             si_->distance(stateProperty_[startConnectorVertex_], stateProperty_[b]);
+        si_->distance(stateProperty_[startConnectorVertex_], stateProperty_[b]);
     }
     else if (taskLevelB == 2)
     {
       if (verbose)
         std::cout << "c ";
       dist = si_->distance(stateProperty_[a], stateProperty_[startConnectorVertex_]) + TASK_LEVEL_COST +
-             distanceAcrossCartesian_ + TASK_LEVEL_COST +
-             si_->distance(stateProperty_[endConnectorVertex_], stateProperty_[b]);
+        distanceAcrossCartesian_ + TASK_LEVEL_COST +
+        si_->distance(stateProperty_[endConnectorVertex_], stateProperty_[b]);
     }
     else
     {
@@ -908,7 +907,7 @@ double DenseDB::distanceFunctionTasks(const DenseVertex a, const DenseVertex b) 
       if (verbose)
         std::cout << "e ";
       dist = si_->distance(stateProperty_[a], stateProperty_[endConnectorVertex_]) + TASK_LEVEL_COST +
-             si_->distance(stateProperty_[endConnectorVertex_], stateProperty_[b]);
+        si_->distance(stateProperty_[endConnectorVertex_], stateProperty_[b]);
     }
     else
     {
@@ -1420,12 +1419,13 @@ void DenseDB::findGraphNeighbors(base::State *state, std::vector<DenseVertex> &g
   nn_->nearestR(queryVertex_, searchRadius, graphNeighborhood);
   stateProperty_[queryVertex_] = NULL;
 
-  // Now that we got the neighbors from the NN, we must remove any we can't see
-  for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
+  // Now that we got the neighbors from the NN, remove any we can't see
+  for (DenseVertex &denseV : graphNeighborhood)
+    //for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
   {
-    if (si_->checkMotion(state, stateProperty_[graphNeighborhood[i]]))
+    if (si_->checkMotion(state, stateProperty_[denseV]))
     {
-      visibleNeighborhood.push_back(graphNeighborhood[i]);
+      visibleNeighborhood.push_back(denseV);
     }
   }
 
@@ -1585,7 +1585,7 @@ void DenseDB::connectNewVertex(DenseVertex v1)
     visual_->viz1State(stateProperty_[v1], /*mode=*/1, 1);
   }
 
-  // Now connect to nearby vertices
+  // Connect to nearby vertices
   std::vector<DenseVertex> graphNeighborhood;
   std::size_t findNearestKNeighbors = Discretizer::getEdgesPerVertex(si_);
   OMPL_INFORM("DenseDB.connectNewVertex(): Finding %u nearest neighbors for new vertex", findNearestKNeighbors);
@@ -1656,6 +1656,55 @@ void DenseDB::connectNewVertex(DenseVertex v1)
   graphUnsaved_ = true;
 }
 
+void DenseDB::connectNewVertex(base::State *state, std::vector<DenseVertex> visibleNeighborhood)
+{
+  DenseVertex v1 = addVertex(state, COVERAGE); // TODO GuardType is meaningless
+
+  // Visualize new vertex
+  if (visualizeAddSample_)
+  {
+    visual_->viz1State(state, /*mode=*/1, 1);
+  }
+
+  // For each visible neighbor vertex, add an edge
+  std::size_t numEdgesAdded = 0; // sanity check
+  //for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
+  for (DenseVertex &v2 : visibleNeighborhood)
+  {
+    // Check if these vertices are the same STATE
+    if (si_->getStateSpace()->equalStates(state, stateProperty_[v2]))
+    {
+      OMPL_ERROR("This state has already been added, this is low probabilty event TODO");
+      exit(-1);
+    }
+
+    addEdge(v1, v2, desiredAverageCost_);
+    numEdgesAdded++;
+
+    if (visualizeAddSample_)  // Debug: display edge
+    {
+      double popularity = 100;  // TODO: maybe make edge really popular so we can be sure its added to the
+                                // spars graph since we need it
+      visual_->viz1Edge(state, stateProperty_[v2], popularity);
+    }
+  }  // for each neighbor
+
+  // Make sure one and only one vertex is returned from the NN search that is the same as parent vertex
+  BOOST_ASSERT_MSG(numEdgesAdded > 2, "Too few edges added from new DenseVertex connectivity node");
+
+  std::cout << "Connected new vertex to " << numEdgesAdded << " neighbors" << std::endl;
+
+  // Visualize
+  if (visualizeAddSample_)
+  {
+    visual_->viz1Trigger();
+    usleep(0.001 * 1000000);
+  }
+
+  // Record this new addition
+  graphUnsaved_ = true;
+}
+
 std::size_t DenseDB::getDisjointSetsCount(bool verbose)
 {
   std::size_t numSets = 0;
@@ -1685,6 +1734,115 @@ std::size_t DenseDB::checkConnectedComponents()
   }
 
   return numSets;
+}
+
+void DenseDB::eliminateDisjointSets()
+{
+  OMPL_INFORM("Eliminating disjoint sets in Dense Graph");
+  numSamplesAddedForDisjointSets_ = 0;
+
+  discretizer_->getVertexNeighborsPreprocess(); // prepare the constants
+  sparseDB_->setup(); // make sure sparse delta is chosen
+
+
+  std::size_t coutIndent = 2;
+  if (disjointVerbose_)
+    std::cout << std::string(coutIndent, ' ') << "eliminateDisjointSets()" << std::endl;
+
+  //visualizeOverlayNodes_ = true;  // visualize all added nodes in a separate window, also
+  bool verbose = true;
+
+  /** \brief Sampler user for generating valid samples in the state space */
+  base::StateSamplerPtr sampler = si_->allocStateSampler();
+
+  // Add dense vertex
+  base::State *candidateState = si_->allocState();
+
+  // For each dense vertex we add
+  std::size_t numSets = 2;        // dummy value that will be updated at first loop
+  std::size_t sampleCount = 0;
+  while (numSets > 1)
+  {
+    bool sampleAdded = false;
+
+    // For each random sample
+    while (!sampleAdded)
+    {
+      // Sample randomly
+      sampler->sampleUniform(candidateState);
+      // TODO(davetcoleman): ensure task level is 0
+
+      sampleCount++;
+      if (sampleCount % 100 == 0)
+        std::cout << "sampleCount: " << sampleCount << std::endl;
+
+      if (verbose) // Visualize
+      {
+        visual_->viz4State(candidateState, /*med purple*/4, 0);
+        visual_->viz4Trigger();
+        usleep(0.001 * 1000000);
+      }
+
+      // Get neighbors
+      std::vector<DenseVertex> graphNeighborhood;
+      discretizer_->getVertexNeighbors(candidateState, graphNeighborhood);
+
+      // Now that we got the neighbors from the NN, remove any we can't see
+      std::vector<DenseVertex> visibleNeighborhood;
+      for (DenseVertex &denseV : graphNeighborhood)
+      {
+        if (si_->checkMotion(candidateState, stateProperty_[denseV]))
+        {
+          visibleNeighborhood.push_back(denseV);
+        }
+      }
+      std::cout << "graphNeighborhood " << graphNeighborhood.size() << " visibleNeighborhood: " << visibleNeighborhood.size() << std::endl;
+
+      // If no neighbors, should be added
+      if (visibleNeighborhood.empty())
+      {
+        std::cout << "ADDING VERTEX because no neighbors " << std::endl;
+        addVertex(si_->cloneState(candidateState), COVERAGE);
+        continue; // no need to check disjoint states because we know it could not have changed with just a vertex addition
+      }
+
+      // Check each pair of neighbors for connectivity
+      for (std::size_t i = 0; i < visibleNeighborhood.size(); ++i)
+      {
+        for (std::size_t j = i + 1; j < visibleNeighborhood.size(); ++j)
+        {
+          // If they are in different components
+          if (!sameComponent(visibleNeighborhood[i], visibleNeighborhood[j]))
+          {
+            std::cout << "Neighbors " << i << ", " << j << " are in different components, add!" << std::endl;
+
+            // Attempt to connect new Dense vertex into dense graph by connecting neighbors
+            connectNewVertex(si_->cloneState(candidateState), visibleNeighborhood);
+
+            // Statistics
+            numSamplesAddedForDisjointSets_++;
+
+            sampleAdded = true;
+            break;
+          }
+        } // for each neighbor
+        if (sampleAdded)
+          break;
+      } // for each neighbor
+    } // while sampling unuseful states
+
+    // Update number of sets
+    numSets = getDisjointSetsCount();
+
+    // Debug
+    if (disjointVerbose_)
+      std::cout << std::string(coutIndent + 4, ' ') << "Remaining disjoint sets: " << numSets << std::endl;
+  }  // end while
+}
+
+bool DenseDB::sameComponent(const DenseVertex &v1, const DenseVertex &v2)
+{
+  return boost::same_component(v1, v2, disjointSets_);
 }
 
 }  // namespace bolt

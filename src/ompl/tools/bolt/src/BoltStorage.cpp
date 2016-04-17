@@ -56,11 +56,18 @@ BoltStorage::BoltStorage(const base::SpaceInformationPtr &si, DenseDB *denseDB) 
 {
 }
 
+void BoltStorage::save(const char *filename)
+{
+  std::ofstream out(filename, std::ios::binary);
+  save(out);
+  out.close();
+}
+
 void BoltStorage::save(std::ostream &out)
 {
   if (!out.good())
   {
-    OMPL_ERROR("Failed to save PlannerData: output stream is invalid");
+    OMPL_ERROR("Failed to save BoltData: output stream is invalid");
     return;
   }
 
@@ -86,15 +93,8 @@ void BoltStorage::save(std::ostream &out)
   }
   catch (boost::archive::archive_exception &ae)
   {
-    OMPL_ERROR("Failed to save PlannerData: %s", ae.what());
+    OMPL_ERROR("Failed to save BoltData: %s", ae.what());
   }
-}
-
-void BoltStorage::save(const char *filename)
-{
-  std::ofstream out(filename, std::ios::binary);
-  save(out);
-  out.close();
 }
 
 void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
@@ -179,7 +179,7 @@ void BoltStorage::load(std::istream &in)
 {
   if (!in.good())
   {
-    OMPL_ERROR("Failed to load PlannerData: input stream is invalid");
+    OMPL_ERROR("Failed to load BoltData: input stream is invalid");
     return;
   }
 
@@ -195,7 +195,7 @@ void BoltStorage::load(std::istream &in)
     // Checking the archive marker
     if (h.marker != OMPL_PLANNER_DATA_ARCHIVE_MARKER)
     {
-      OMPL_ERROR("Failed to load PlannerData: PlannerData archive marker not found");
+      OMPL_ERROR("Failed to load BoltData: BoltData archive marker not found");
       return;
     }
 
@@ -204,7 +204,7 @@ void BoltStorage::load(std::istream &in)
     si_->getStateSpace()->computeSignature(sig);
     if (h.signature != sig)
     {
-      OMPL_ERROR("Failed to load PlannerData: StateSpace signature mismatch");
+      OMPL_ERROR("Failed to load BoltData: StateSpace signature mismatch");
       return;
     }
 
@@ -214,7 +214,7 @@ void BoltStorage::load(std::istream &in)
   }
   catch (boost::archive::archive_exception &ae)
   {
-    OMPL_ERROR("Failed to load PlannerData: %s", ae.what());
+    OMPL_ERROR("Failed to load BoltData: %s", ae.what());
   }
 }
 

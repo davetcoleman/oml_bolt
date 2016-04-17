@@ -76,9 +76,6 @@ void Bolt::initialize()
   // Load the Retrieve repair database. We do it here so that setRepairPlanner() works
   boltPlanner_ = ob::PlannerPtr(new BoltRetrieveRepair(si_, denseDB_));  // TODO(davetcoleman): pass in visual_
 
-  // Load the discretize grid tool
-  discretizer_.reset(new Discretizer(si_, denseDB_, denseDB_->getVisual()));
-
   OMPL_INFORM("Bolt Framework initialized.");
 }
 
@@ -246,6 +243,13 @@ base::PlannerStatus Bolt::solve(double time)
   return solve(ptc);
 }
 
+bool Bolt::setFilePath(const std::string &filePath)
+{
+  denseDB_->getSparseDB()->getCollisionCache()->setFilePath(filePath+".collision");
+  filePath_ = filePath+".ompl";
+  return true;
+}
+
 bool Bolt::save()
 {
   // setup(); // ensure the db has been loaded to the Experience DB
@@ -280,7 +284,7 @@ bool Bolt::loadOrGenerate()
       // Benchmark runtime
       time::point startTime = time::now();
 
-      discretizer_->generateGrid();
+      denseDB_->generateGrid();
 
       // Benchmark runtime
       double duration = time::seconds(time::now() - startTime);
@@ -289,6 +293,12 @@ bool Bolt::loadOrGenerate()
       return true;
     }
     // denseDB_->displayDatabase();
+
+    denseDB_->eliminateDisjointSets();
+
+    std::cout << "Bolt.cpp: ending for testing " << std::endl;
+    exit(0);
+
     return true;
   }
   OMPL_INFORM("Database already loaded");
@@ -396,7 +406,6 @@ bool Bolt::doPostProcessing()
   denseDB_->displayDatabase();
 
   // Recreate the sparse graph, too
-  denseDB_->getSparseDB()->createSPARS();
 
   // Benchmark runtime
   double duration = time::seconds(time::now() - startTime);
@@ -406,6 +415,47 @@ bool Bolt::doPostProcessing()
 
   return true;
 }
+
+void Bolt::benchmarkStateCheck()
+{
+  std::cout << "-------------------------------------------------------" << std::endl;
+  OMPL_INFORM("Running benchmark");
+  base::State *candidateState = si_->getStateSpace()->allocState();
+
+  base::StateSamplerPtr sampler;
+  sampler = si_->allocStateSampler();
+
+  const std::size_t benchmarkRuns = 100000;
+  std::size_t debugIncrement = benchmarkRuns / 10;
+  std::size_t validCount = 0;
+
+  // Benchmark runtime
+  double totalDuration = 0;
+  time::point startTime;
+  double totalDuration2 = 0;
+  time::point startTime2;
+  for (std::size_t i = 0; i < benchmarkRuns; ++i)
+  {
+    startTime2 = time::now();
+    sampler->sampleUniform(candidateState);
+
+    startTime = time::now();
+    totalDuration2 += time::seconds(startTime - startTime2);
+
+    validCount += si_->isValid(candidateState);
+    totalDuration += time::seconds(time::now() - startTime);
+
+    if (i % debugIncrement == 0)
+      std::cout << "Progress: " << i / double(benchmarkRuns) * 100.0 << std::endl;
+  }
+  // Benchmark runtime
+  OMPL_INFORM("  isValid() took %f seconds (%f per run)", totalDuration, totalDuration / benchmarkRuns);
+  OMPL_INFORM("  sampleUniform() took %f seconds (%f per run)", totalDuration2, totalDuration2 / benchmarkRuns);
+  OMPL_INFORM("  Percent valid: %f", validCount / double(benchmarkRuns) * 100);
+  std::cout << "-------------------------------------------------------" << std::endl;
+  std::cout << std::endl;
+}
+
 }  // namespace bolt
 }  // namespace tools
 }  // namespace ompl

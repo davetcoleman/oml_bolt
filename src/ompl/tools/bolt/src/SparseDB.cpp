@@ -185,6 +185,9 @@ SparseDB::SparseDB(base::SpaceInformationPtr si, DenseDB *denseDB, base::Visuali
   // Initialize path simplifier
   psimp_.reset(new geometric::PathSimplifier(si_));
   psimp_->freeStates(false);
+
+  // Initialize collision cache
+  collisionCache_.reset(new CollisionCache(si_, denseDB_, visual_));
 }
 
 SparseDB::~SparseDB(void)
@@ -402,6 +405,9 @@ void SparseDB::createSPARS()
   // Benchmark runtime
   time::point startTime = time::now();
 
+  // Load collision cache
+  collisionCache_->load();
+
   // Create SPARS
   CALLGRIND_TOGGLE_COLLECT;
   createSPARSOuterLoop();
@@ -417,7 +423,6 @@ void SparseDB::createSPARS()
   // Check how many connected components exist, possibly throw error
   std::size_t numSets = getDisjointSetsCount();
 
-  double percentCachedCollisionChecks = static_cast<double>(totalCollisionChecksFromCache_) / totalCollisionChecks_ * 100.0;
   OMPL_INFORM("-----------------------------------------");
   OMPL_INFORM("Created SPARS graph                      ");
   OMPL_INFORM("  Vertices:                  %u", getNumVertices());
@@ -425,12 +430,12 @@ void SparseDB::createSPARS()
   OMPL_INFORM("  Generation time:           %f", duration);
   OMPL_INFORM("  Total generations:         %u", numGraphGenerations_);
   OMPL_INFORM("  Disjoint sets:             %u", numSets);
-  OMPL_INFORM("  Edge collision cache:      %u", collisionCheckEdgeCache_.size());
-  OMPL_INFORM("  Total collision checks:    %u", totalCollisionChecks_);
-  OMPL_INFORM("  Cached collision checks:   %u (%f %)", totalCollisionChecksFromCache_, percentCachedCollisionChecks);
+  OMPL_INFORM("  Edge collision cache:      %u", collisionCache_->getCacheSize());
+  OMPL_INFORM("  Total collision checks:    %u", collisionCache_->getTotalCollisionChecks());
+  OMPL_INFORM("  Cached collision checks:   %u (%f %)", collisionCache_->getTotalCollisionChecksFromCache(), collisionCache_->getPercentCachedCollisionChecks());
   OMPL_INFORM("-----------------------------------------");
 
-  if (numSets > 1)
+  if (numSets > 1 && false)
   {
     OMPL_INFORM("Disjoint sets: %u, attempting to random sample until fully connected", numSets);
 
@@ -440,6 +445,11 @@ void SparseDB::createSPARS()
     eliminateDisjointSets();
     denseDB_->displayDatabase();
   }
+  else
+    OMPL_WARN("Skipping disjoint set fixing");
+
+  // Save collision cache
+  collisionCache_->save();
 
   OMPL_INFORM("Finished creating sparse database");
 }
@@ -462,8 +472,7 @@ void SparseDB::createSPARSOuterLoop()
   // Reset parameters
   setup();
   visualizeOverlayNodes_ = false;  // DO NOT visualize all added nodes in a separate window
-  totalCollisionChecks_ = 0;
-  totalCollisionChecksFromCache_ = 0;
+  collisionCache_->resetCounters();
 
   // Get the ordering to insert vertices
   std::list<WeightedVertex> vertexInsertionOrder;
@@ -542,7 +551,8 @@ bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOr
     {
       std::cout << std::fixed << std::setprecision(1)
       << "Sparse graph generation: " << (static_cast<double>(loopCount) / originalVertexInsertion) * 100.0
-                << "% Cache size: " << collisionCheckEdgeCache_.size() << std::endl;
+                << "% Cache size: " << collisionCache_->getCacheSize()
+                << " Cache usage: " << collisionCache_->getPercentCachedCollisionChecks() << "%" << std::endl;
       if (visualizeSparsGraph_)
         visual_->viz2Trigger();
     }
@@ -620,12 +630,9 @@ void SparseDB::eliminateDisjointSets()
   /** \brief Sampler user for generating valid samples in the state space */
   base::ValidStateSamplerPtr validSampler = si_->allocValidStateSampler();
 
-  double seconds = 1000;
-  ob::PlannerTerminationCondition ptc = ob::timedPlannerTerminationCondition(seconds, 0.1);
-
   // For each dense vertex we add
   std::size_t numSets = 2;        // dummy value that will be updated at first loop
-  std::size_t newStateCount = 0;  // count how many states we add
+  std::size_t addedStatesCount = 0;  // count how many states we add
   while (numSets > 1)
   {
     // Add dense vertex
@@ -643,6 +650,7 @@ void SparseDB::eliminateDisjointSets()
         exit(-1);  // this should never happen
       }
 
+      OMPL_WARN("Not setup for RobotModelStateSpace!!");
       ob::RealVectorStateSpace::StateType *real_state = static_cast<ob::RealVectorStateSpace::StateType *>(state);
       real_state->values[2] = 0;  // ensure task level is 0, TODO
 
@@ -662,7 +670,7 @@ void SparseDB::eliminateDisjointSets()
         // Debug
         if (disjointVerbose_)
           std::cout << std::string(coutIndent + 2, ' ') << "Added random sampled state to fix graph connectivity, "
-                                                           "total new states: " << ++newStateCount << std::endl;
+                                                           "total new states: " << ++addedStatesCount << std::endl;
 
         // Visualize
         if (visualizeSparsGraph_)
@@ -1147,7 +1155,8 @@ bool SparseDB::checkAddInterface(const DenseVertex &denseV, std::vector<SparseVe
     if (!boost::edge(visibleNeighborhood[0], visibleNeighborhood[1], g_).second)
     {
       // If they can be directly connected
-      if (si_->checkMotion(getSparseStateConst(visibleNeighborhood[0]), getSparseStateConst(visibleNeighborhood[1])))
+      if (collisionCache_->checkMotionWithCache(denseVertexProperty_[visibleNeighborhood[0]], denseVertexProperty_[visibleNeighborhood[1]]))
+        //if (si_->checkMotion(getSparseStateConst(visibleNeighborhood[0]), getSparseStateConst(visibleNeighborhood[1])))
       {
         if (checksVerbose_)
           std::cout << std::string(coutIndent + 2, ' ') << "INTERFACE: directly connected nodes" << std::endl;
@@ -1237,8 +1246,7 @@ void SparseDB::findGraphNeighbors(const DenseVertex &v1, std::vector<SparseVerte
       // Only collision check motion if they don't already share an edge in the dense graph
       if (!boost::edge(v1, v2, denseDB_->g_).second)
       {
-        //if (!si_->checkMotion(state, getSparseState(graphNeighborhood[i])))
-        if (!checkMotionWithCache(v1, v2))
+        if (!collisionCache_->checkMotionWithCache(v1, v2))
         {
           continue;
         }
@@ -1265,34 +1273,6 @@ void SparseDB::findGraphNeighbors(const DenseVertex &v1, std::vector<SparseVerte
   if (checksVerbose_)
     std::cout << std::string(coutIndent + 2, ' ') << "Graph neighborhood: " << graphNeighborhood.size()
               << " | Visible neighborhood: " << visibleNeighborhood.size() << std::endl;
-}
-
-bool SparseDB::checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v2)
-{
-  // Statistics
-  totalCollisionChecks_++;
-
-  // Only store pairs in one direction
-  std::pair<DenseVertex,DenseVertex> key;
-  if (v1 < v2)
-    key = std::pair<DenseVertex,DenseVertex>(v1, v2);
-  else
-    key = std::pair<DenseVertex,DenseVertex>(v2, v1);
-
-  std::map<std::pair<DenseVertex,DenseVertex>,bool>::const_iterator it = collisionCheckEdgeCache_.find(key);
-
-  if (it == collisionCheckEdgeCache_.end()) // no cache available
-  {
-    bool result = si_->checkMotion(getDenseState(v1), getDenseState(v2));
-    collisionCheckEdgeCache_[key] = result;
-    //std::cout << "No cache: Edge " << v1 << ", " << v2 << " collision: " << result << std::endl;
-    return result;
-  }
-
-  // Cache available
-  totalCollisionChecksFromCache_++;
-  //std::cout << "Cache: Edge " << v1 << ", " << v2 << " collision: " << it->second << std::endl;
-  return it->second;
 }
 
 bool SparseDB::sameComponent(const SparseVertex &v1, const SparseVertex &v2)
@@ -1506,65 +1486,6 @@ void SparseDB::displaySparseDatabase(bool showVertices)
 
   // Publish remaining edges
   visual_->viz2Trigger();
-}
-
-void SparseDB::checkMotionCacheBenchmark()
-{
-  std::cout << std::endl;
-  std::cout << "-------------------------------------------------------" << std::endl;
-  OMPL_WARN("Running check motion cache benchmark");
-  std::cout << std::endl;
-
-  // Test new checkMotionWithCache
-  DenseVertex v1 = 2;
-  DenseVertex v2 = 3;
-  std::size_t numRuns = 100000;
-  bool baselineResult = si_->checkMotion(getDenseState(v1), getDenseState(v2));
-
-  // Benchmark collision check without cache
-  {
-    // Benchmark runtime
-    time::point startTime = time::now();
-
-    for (std::size_t i = 0; i < numRuns; ++i)
-    {
-      if (si_->checkMotion(getDenseState(v1), getDenseState(v2)) != baselineResult)
-      {
-        OMPL_ERROR("benchmark checkmotion does not match baseline result");
-        exit(-1);
-      }
-    }
-
-    // Benchmark runtime
-    double duration = time::seconds(time::now() - startTime);
-    OMPL_INFORM(" - no cache took %f seconds (%f hz)", duration, 1.0/duration);
-  }
-
-  // Benchmark collision check with cache
-  {
-    // Benchmark runtime
-    time::point startTime = time::now();
-
-    for (std::size_t i = 0; i < numRuns/2; ++i)
-    {
-      if (checkMotionWithCache(v1, v2) != baselineResult)
-      {
-        OMPL_ERROR("benchmark checkmotion does not match baseline result");
-        exit(-1);
-      }
-
-      if (checkMotionWithCache(v2, v1) != baselineResult)
-      {
-        OMPL_ERROR("benchmark checkmotion does not match baseline result");
-        exit(-1);
-      }
-    }
-    OMPL_INFORM("Cache size: %u", collisionCheckEdgeCache_.size());
-
-    // Benchmark runtime
-    double duration = time::seconds(time::now() - startTime);
-    OMPL_INFORM(" - with cache took %f seconds (%f hz)", duration, 1.0/duration);
-  }
 }
 
 }  // namespace bolt

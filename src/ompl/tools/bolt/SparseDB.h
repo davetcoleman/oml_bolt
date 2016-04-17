@@ -43,13 +43,14 @@
 #include <ompl/geometric/PathGeometric.h>
 #include <ompl/geometric/PathSimplifier.h>
 #include <ompl/base/Planner.h>
-#include <ompl/base/State.h>
+//#include <ompl/base/State.h>
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/datastructures/NearestNeighbors.h>
 #include <ompl/base/PlannerTerminationCondition.h>
 #include <ompl/tools/bolt/Visualizer.h>
 #include <ompl/tools/bolt/DenseDB.h>
 #include <ompl/tools/bolt/BoltGraph.h>
+#include <ompl/tools/bolt/CollisionCache.h>
 
 // Boost
 #include <boost/function.hpp>
@@ -294,9 +295,6 @@ public:
 
   DenseVertex getInterfaceNeighbor(DenseVertex q, SparseVertex rep);
 
-  /** \brief Returns true if motion is valid, false if in collision. Checks cache first and also stores result  */
-  bool checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v2);
-
   bool sameComponent(const SparseVertex &v1, const SparseVertex &v2);
 
   SparseVertex addVertex(DenseVertex denseV, const GuardType& type);
@@ -316,8 +314,10 @@ public:
     numNodesClosed_++;
   }
 
-  /** \brief Test for benchmarking cache */
-  void checkMotionCacheBenchmark();
+  CollisionCachePtr getCollisionCache()
+  {
+    return collisionCache_;
+  }
 
 public:
   /** \brief Shortcut function for getting the state of a vertex */
@@ -375,8 +375,8 @@ protected:
   /** \brief A path simplifier used to simplify dense paths added to S */
   geometric::PathSimplifierPtr psimp_;
 
-  /** \brief Cache previously performed collision checks */
-  std::map<std::pair<DenseVertex,DenseVertex>,bool> collisionCheckEdgeCache_;
+  /** \brief Speed up collision checking by saving redundant checks and using file storage */
+  CollisionCachePtr collisionCache_;
 
   /** \brief Special flag for tracking mode when inserting into sparse graph */
   bool secondSparseInsertionAttempt_ = false;
@@ -392,10 +392,6 @@ protected:
 
   /** \brief Cache the maximum extent for later re-use */
   double maxExtent_;
-
-  /** \brief Stats for the checkMotionWithCache feature */
-  std::size_t totalCollisionChecks_;
-  std::size_t totalCollisionChecksFromCache_;
 
 public:
   /** \brief Astar statistics */

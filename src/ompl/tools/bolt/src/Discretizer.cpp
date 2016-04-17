@@ -57,7 +57,7 @@ namespace tools
 {
 namespace bolt
 {
-Discretizer::Discretizer(base::SpaceInformationPtr si, DenseDBPtr denseDB, base::VisualizerPtr visual)
+Discretizer::Discretizer(base::SpaceInformationPtr si, DenseDB* denseDB, base::VisualizerPtr visual)
   : si_(si), denseDB_(denseDB), visual_(visual)
 {
 }
@@ -66,7 +66,7 @@ Discretizer::~Discretizer(void)
 {
 }
 
-void Discretizer::generateGrid()
+bool Discretizer::generateGrid()
 {
   OMPL_INFORM("Generating grid");
 
@@ -132,6 +132,7 @@ void Discretizer::generateGrid()
   // visual_->viz1Trigger();
 
   denseDB_->graphUnsaved_ = true;
+  return true;
 }
 
 void Discretizer::generateVertices()
@@ -188,6 +189,7 @@ void Discretizer::generateVertices()
     std::cout << "  J0 range is:            " << range << std::endl;
     std::cout << "  J0 Increments:          " << jointIncrements << std::endl;
     std::cout << "  J0 IncrementsPerThread: " << jointIncrementsPerThread << std::endl;
+    std::cout << "  Total states:           " << pow(jointIncrements, si_->getStateSpace()->getDimension()) << std::endl;
     std::cout << "  NumThreads: " << numThreads << std::endl;
     std::cout << "-------------------------------------------------------" << std::endl;
   }
@@ -379,14 +381,11 @@ void Discretizer::recursiveDiscretization(std::size_t threadID, std::vector<doub
         // }
 
         // Visualize
-        if (visualizeGridGeneration_)
+        // Candidate node has already (just) been added
+        if (threadID < 6)
         {
-          // Candidate node has already (just) been added
-          if (threadID < 6)
-          {
-            visual_->vizState(threadID + 1, candidateState, /*green arm*/ 1, 1);
-            visual_->vizTrigger(threadID + 1);
-          }
+          visual_->vizState(threadID + 1, candidateState, /*green arm*/ 1, 1);
+          visual_->vizTrigger(threadID + 1);
         }
       }
     }
@@ -508,7 +507,7 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
     // Get neighors with one of the strategies
     {
       boost::unique_lock<boost::mutex> scoped_lock(edgeNnMutex_);
-      getVertexNeighbors(v1, graphNeighborhood);
+      getVertexNeighbors(denseDB_->stateProperty_[v1], graphNeighborhood);
     }
 
     if (verbose)
@@ -604,14 +603,14 @@ void Discretizer::getVertexNeighborsPreprocess()
   }
 }
 
-void Discretizer::getVertexNeighbors(DenseVertex v1, std::vector<DenseVertex> &graphNeighborhood)
+void Discretizer::getVertexNeighbors(base::State* state, std::vector<DenseVertex> &graphNeighborhood)
 {
   const std::size_t numSameVerticiesFound = 1;  // add 1 to the end because the NN tree always returns itself
 
   // std::cout << "getVertexNeighbors: " << v1 << std::endl;
 
   // Search
-  denseDB_->stateProperty_[denseDB_->queryVertex_] = denseDB_->stateProperty_[v1];
+  denseDB_->stateProperty_[denseDB_->queryVertex_] = state;
 
   // QUESTION: How many edges should each vertex connect with?
   switch (edgeConnectionStrategy_)

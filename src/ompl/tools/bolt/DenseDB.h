@@ -72,6 +72,7 @@ namespace bolt
 /// @cond IGNORE
 OMPL_CLASS_FORWARD(DenseDB);
 OMPL_CLASS_FORWARD(SparseDB);
+OMPL_CLASS_FORWARD(Discretizer);
 /// @endcond
 
 /** \class ompl::tools::bolt::DenseDBPtr
@@ -84,53 +85,47 @@ class DenseDB
   friend class SparseDB;
   friend class BoltStorage;
   friend class Discretizer;
+  friend class CollisionCache;
 
 public:
-  ////////////////////////////////////////////////////////////////////////////////////////
-  /**
-   * Used to artifically supress edges during A* search.
-   * \implements ReadablePropertyMapConcept
-   */
-  class edgeWeightMap
-  {
-  private:
-    const DenseGraph& g_;  // Graph used
-    const DenseEdgeCollisionStateMap& collisionStates_;
-    const double popularityBias_;
-    const bool popularityBiasEnabled_;
+  // ////////////////////////////////////////////////////////////////////////////////////////
+  // /**
+  //  * Used to artifically supress edges during A* search.
+  //  * \implements ReadablePropertyMapConcept
+  //  */
+  // class DenseEdgeWeightMap
+  // {
+  // private:
+  //   const DenseGraph& g_;  // Graph used
+  //   const DenseEdgeCollisionStateMap& collisionStates_;
+  //   const double popularityBias_;
+  //   const bool popularityBiasEnabled_;
 
-  public:
-    /** Map key type. */
-    typedef DenseEdge key_type;
-    /** Map value type. */
-    typedef double value_type;
-    /** Map auxiliary value type. */
-    typedef double& reference;
-    /** Map type. */
-    typedef boost::readable_property_map_tag category;
+  // public:
+  //   /** Map key type. */
+  //   typedef DenseEdge key_type;
+  //   /** Map value type. */
+  //   typedef double value_type;
+  //   /** Map auxiliary value type. */
+  //   typedef double& reference;
+  //   /** Map type. */
+  //   typedef boost::readable_property_map_tag category;
 
-    /**
-     * Construct map for certain constraints.
-     * \param graph         Graph to use
-     */
-    edgeWeightMap(const DenseGraph& graph, const DenseEdgeCollisionStateMap& collisionStates,
-                  const double& popularityBias, const bool popularityBiasEnabled);
+  //   /**
+  //    * Construct map for certain constraints.
+  //    * \param graph         Graph to use
+  //    */
+  //   DenseEdgeWeightMap(const DenseGraph& graph, const DenseEdgeCollisionStateMap& collisionStates,
+  //                 const double& popularityBias, const bool popularityBiasEnabled);
 
-    /**
-     * Get the weight of an edge.
-     * \param e the edge
-     * \return infinity if \a e lies in a forbidden neighborhood; actual weight of \a e otherwise
-     */
-    double get(DenseEdge e) const;
-  };
+  //   /**
+  //    * Get the weight of an edge.
+  //    * \param e the edge
+  //    * \return infinity if \a e lies in a forbidden neighborhood; actual weight of \a e otherwise
+  //    */
+  //   double get(DenseEdge e) const;
+  // };
 
-  ////////////////////////////////////////////////////////////////////////////////////////
-  /**
-   * Thrown to stop the A* search when finished.
-   */
-  class foundGoalException
-  {
-  };
 
   ////////////////////////////////////////////////////////////////////////////////////////
   /**
@@ -191,6 +186,9 @@ public:
    * \return true if file loaded successfully
    */
   bool load(const std::string& fileName);
+
+  /** \brief Create grid */
+  bool generateGrid();
 
   /**
    * \brief Add a new solution path to our database. Des not actually save to file so
@@ -447,10 +445,21 @@ public:
    */
   void connectNewVertex(DenseVertex denseV);
 
+  void connectNewVertex(base::State* state, std::vector<DenseVertex> visibleNeighborhood);
+
   /** \brief Helper for counting the number of disjoint sets in the sparse graph */
   std::size_t getDisjointSetsCount(bool verbose = false);
 
   std::size_t checkConnectedComponents();
+
+  void eliminateDisjointSets();
+
+  bool sameComponent(const DenseVertex& v1, const DenseVertex& v2);
+
+  DiscretizerPtr getDiscretizer()
+  {
+    return discretizer_;
+  }
 
 protected:
   /** \brief The created space information */
@@ -466,7 +475,7 @@ protected:
   base::ValidStateSamplerPtr sampler_;  // TODO(davetcoleman): remove this unused sampler
 
   /** \brief Determine if a save is required */
-  bool graphUnsaved_;
+  bool graphUnsaved_ = false;
 
   /** \brief Helper class for storing each plannerData instance */
   // ompl::base::PlannerDataStorage plannerDataStorage_;
@@ -499,50 +508,56 @@ protected:
   boost::disjoint_sets<boost::property_map<DenseGraph, boost::vertex_rank_t>::type,
                        boost::property_map<DenseGraph, boost::vertex_predecessor_t>::type> disjointSets_;
 
+  /** \brief Tool for gridding state space */
+  DiscretizerPtr discretizer_;
+
   /** \brief Track vertex for later removal if temporary */
   std::vector<DenseVertex> tempVerticies_;
   DenseVertex startConnectorVertex_;
   DenseVertex endConnectorVertex_;
-  double distanceAcrossCartesian_;
+  double distanceAcrossCartesian_ = 0.0;
+
+  std::size_t numSamplesAddedForDisjointSets_;
 
 public:
   /** \brief Allow the database to save to file (new experiences) */
-  bool savingEnabled_;
+  bool savingEnabled_ = true;
 
   /** \brief Whether to bias search using popularity of edges */
-  bool popularityBiasEnabled_;
+  bool popularityBiasEnabled_ = false;
 
   /** \brief How much influence should the popularity costs have over the admissible heuristic */
-  double popularityBias_;
-
-  /** \brief Option to enable debugging output */
-  bool verbose_;
+  double popularityBias_ = 0.0;
 
   /** \brief Are we task planning i.e. for hybrid cartesian paths? */
-  bool useTaskPlanning_;
+  bool useTaskPlanning_ = false;
 
   /** \brief Option to enable debugging output */
-  bool snapPathVerbose_;
+  bool verbose_ = false;
+  bool snapPathVerbose_ = false;
+  bool disjointVerbose_ = true;
 
   /** \brief Various options for visualizing the algorithmns performance */
-  bool visualizeAstar_;
-  bool visualizeCartNeighbors_;
-  bool visualizeCartPath_;
-  bool visualizeSnapPath_;
-  double visualizeSnapPathSpeed_;
-  bool visualizeAddSample_;
-  bool visualizeDatabaseVertices_;
-  bool visualizeDatabaseEdges_;
+  bool visualizeAstar_ = false;
+  bool visualizeCartNeighbors_ = false;
+  bool visualizeCartPath_ = false;
+  bool visualizeSnapPath_ = false;
+  double visualizeSnapPathSpeed_ = 0.001;
+  bool visualizeAddSample_ = false;
+  bool visualizeDatabaseVertices_ = true;
+  bool visualizeDatabaseEdges_ = true;
 
   /** \brief Visualization speed of astar search, num of seconds to show each vertex */
-  double visualizeAstarSpeed_;
+  double visualizeAstarSpeed_ = 0.1;
 
   /** \brief Keep the average cost of the graph at this level */
-  double desiredAverageCost_;
+  double desiredAverageCost_ = 90;
 
 };  // end of class DenseDB
 
 }  // namespace bolt
 }  // namespace tools
 }  // namespace ompl
+
+
 #endif
