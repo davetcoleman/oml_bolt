@@ -118,17 +118,55 @@ bool CollisionCache::load()
   }
 
   in.close();
+
+  // This is really slow
+  //errorCheckData();
+
   return true;
 }
 
 void CollisionCache::resetCounters()
 {
-  OMPL_ERROR("Resetting counters");
   totalCollisionChecks_ = 0;
   totalCollisionChecksFromCache_ = 0;
 }
 
 bool CollisionCache::checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v2)
+{
+  // Statistics
+  totalCollisionChecks_++;
+
+  // Only store pairs in one direction
+  if (v1 < v2)
+    key_ = std::pair<DenseVertex, DenseVertex>(v1, v2);
+  else
+    key_ = std::pair<DenseVertex, DenseVertex>(v2, v1);
+
+  EdgeCacheMap::iterator lb = collisionCheckEdgeCache_.lower_bound(key_);
+
+  if(lb != collisionCheckEdgeCache_.end() && !(collisionCheckEdgeCache_.key_comp()(key_, lb->first)))
+  {
+    // Cache available
+    totalCollisionChecksFromCache_++;
+    // std::cout << "Cache: Edge " << v1 << ", " << v2 << " collision: " << lb->second << std::endl;
+    return lb->second;
+  }
+  else
+  {
+    // no cache available
+    bool result = si_->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]);
+    // std::cout << "No cache: Edge " << v1 << ", " << v2 << " collision: " << result << std::endl;
+
+    // the key does not exist in the map, so add it to the map
+    // Use lb as a hint to insert, so it can avoid another lookup
+    collisionCheckEdgeCache_.insert(lb, EdgeCacheMap::value_type(key_, result));
+
+    return result;
+  }
+
+}
+
+bool CollisionCache::checkMotionWithCacheSlow(const DenseVertex &v1, const DenseVertex &v2)
 {
   // Statistics
   totalCollisionChecks_++;
@@ -140,13 +178,13 @@ bool CollisionCache::checkMotionWithCache(const DenseVertex &v1, const DenseVert
   else
     key = std::pair<DenseVertex, DenseVertex>(v2, v1);
 
-  std::map<std::pair<DenseVertex, DenseVertex>, bool>::const_iterator it = collisionCheckEdgeCache_.find(key);
+  EdgeCacheMap::const_iterator it = collisionCheckEdgeCache_.find(key);
 
   if (it == collisionCheckEdgeCache_.end())  // no cache available
   {
     bool result = si_->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]);
     collisionCheckEdgeCache_[key] = result;
-    //std::cout << "No cache: Edge " << v1 << ", " << v2 << " collision: " << result << std::endl;
+    // std::cout << "No cache: Edge " << v1 << ", " << v2 << " collision: " << result << std::endl;
     return result;
   }
 
@@ -215,7 +253,30 @@ void CollisionCache::checkMotionCacheBenchmark()
   }
 }
 
-void CollisionCache::setFilePath(const std::string& filePath)
+void CollisionCache::errorCheckData()
+{
+  OMPL_INFORM("Error checking collision cache...");
+  std::size_t counter = 0;
+  for (EdgeCacheMap::const_iterator iterator = collisionCheckEdgeCache_.begin(); iterator != collisionCheckEdgeCache_.end();
+       iterator++)
+  {
+    std::pair<DenseVertex,DenseVertex> thing = iterator->first;
+    DenseVertex &v1 = thing.first;
+    DenseVertex &v2 = thing.second;
+    bool cachedResult = iterator->second;
+    if (si_->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]) != cachedResult)
+    {
+      OMPL_ERROR("Found instance where cached collision data is wrong, on iteration %u", counter);
+      std::cout << "v1: " << v1 << std::endl;
+      std::cout << "v2: " << v2 << std::endl;
+      exit(-1);
+    }
+    if (counter++ % 1000 == 0)
+      std::cout << "Checking edge " << counter << std::endl;
+  }
+}
+
+void CollisionCache::setFilePath(const std::string &filePath)
 {
   filePath_ = filePath;
 }

@@ -85,51 +85,6 @@ class SparseDB
   friend class DenseDB;
 
 public:
-  ////////////////////////////////////////////////////////////////////////////////////////
-  /**
-   * Used to artifically supress edges during A* search.
-   * \implements ReadablePropertyMapConcept
-   */
-  class edgeWeightMap
-  {
-  private:
-    const SparseGraph& g_;  // Graph used
-    const SparseEdgeCollisionStateMap& collisionStates_;
-    const double popularityBias_;
-    const bool popularityBiasEnabled_;
-
-  public:
-    /** Map key type. */
-    typedef SparseEdge key_type;
-    /** Map value type. */
-    typedef double value_type;
-    /** Map auxiliary value type. */
-    typedef double& reference;
-    /** Map type. */
-    typedef boost::readable_property_map_tag category;
-
-    /**
-     * Construct map for certain constraints.
-     * \param graph         Graph to use
-     */
-    edgeWeightMap(const SparseGraph& graph, const SparseEdgeCollisionStateMap& collisionStates,
-                  const double& popularityBias, const bool popularityBiasEnabled);
-
-    /**
-     * Get the weight of an edge.
-     * \param e the edge
-     * \return infinity if \a e lies in a forbidden neighborhood; actual weight of \a e otherwise
-     */
-    double get(SparseEdge e) const;
-  };
-
-  ////////////////////////////////////////////////////////////////////////////////////////
-  /**
-   * Thrown to stop the A* search when finished.
-   */
-  class foundGoalException
-  {
-  };
 
   ////////////////////////////////////////////////////////////////////////////////////////
   /**
@@ -164,7 +119,7 @@ public:
      * each of the out-edges of vertex u.
      * \param v current vertex
      * \param g graph we are searching on
-     * \throw foundGoalException if \a u is the goal
+     * \throw FoundGoalException if \a u is the goal
      */
     void examine_vertex(SparseVertex v, const SparseGraph& g) const;
   };

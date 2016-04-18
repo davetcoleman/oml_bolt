@@ -293,11 +293,8 @@ bool Bolt::loadOrGenerate()
       return true;
     }
     // denseDB_->displayDatabase();
-
-    denseDB_->eliminateDisjointSets();
-
-    std::cout << "Bolt.cpp: ending for testing " << std::endl;
-    exit(0);
+    denseDB_->saveIfChanged(filePath_);
+    //denseDB_->eliminateDisjointSets();
 
     return true;
   }

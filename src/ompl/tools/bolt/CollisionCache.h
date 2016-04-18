@@ -56,6 +56,7 @@ namespace bolt
 OMPL_CLASS_FORWARD(CollisionCache);
 OMPL_CLASS_FORWARD(DenseDB);
 
+typedef std::map<std::pair<DenseVertex,DenseVertex>, bool> EdgeCacheMap;
 class CollisionCache
 {
 public:
@@ -74,9 +75,13 @@ public:
 
   /** \brief Returns true if motion is valid, false if in collision. Checks cache first and also stores result  */
   bool checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v2);
+  bool checkMotionWithCacheSlow(const DenseVertex &v1, const DenseVertex &v2); // TODO remove
 
   /** \brief Test for benchmarking cache */
   void checkMotionCacheBenchmark();
+
+  /** \brief Ensure that the collision edge data loaded from file is correct, for debuging */
+  void errorCheckData();
 
   void setFilePath(const std::string& filePath);
 
@@ -101,7 +106,7 @@ private:
   base::VisualizerPtr visual_;
 
   /** \brief Cache previously performed collision checks */
-  std::map<std::pair<DenseVertex,DenseVertex>,bool> collisionCheckEdgeCache_;
+  EdgeCacheMap collisionCheckEdgeCache_;
 
   /** \brief Stats for the checkMotionWithCache feature */
   std::size_t totalCollisionChecks_;
@@ -109,6 +114,8 @@ private:
 
   /** \brief Where to store the cache on disk */
   std::string filePath_;
+
+  std::pair<DenseVertex, DenseVertex> key_;
 
 };  // end of class CollisionCache
 

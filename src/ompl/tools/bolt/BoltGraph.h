@@ -294,15 +294,25 @@ typedef boost::property_map<DenseGraph, edge_collision_state_t>::type DenseEdgeC
 
 ////////////////////////////////////////////////////////////////////////////////////////
 /** \brief Custom storage class */
-class WeightedVertex
+struct WeightedVertex
 {
-public:
   WeightedVertex()
   {
   }
 
   WeightedVertex(DenseVertex v, double weight) : v_(v), weight_(weight)
   {
+  }
+
+  bool operator ==(const WeightedVertex& wv) const
+  {
+    return wv.v_ == v_;
+  }
+
+  template <typename Archive>
+  void serialize(Archive &ar, const unsigned int /*version*/)
+  {
+    ar &v_;
   }
 
   DenseVertex v_;
@@ -372,6 +382,78 @@ public:
       // static const double popularityBias = 10;
       weight = boost::get(boost::edge_weight, g_, e) / MAX_POPULARITY_WEIGHT * popularityBias_;
       // std::cout << "getting popularity weight of edge " << e << " with value " << weight << std::endl;
+    }
+    else
+    {
+      weight = boost::get(boost::edge_weight, g_, e);
+    }
+
+    // Method 3 - less optimal but faster planning time
+    // const double weighted_astar = 0.8;
+    // const double weight = boost::get(boost::edge_weight, g_, e) * weighted_astar;
+
+    // std::cout << "getting weight of edge " << e << " with value " << weight << std::endl;
+
+    return weight;
+  }
+};
+
+////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * Used to artifically supress edges during A* search.
+ * \implements ReadablePropertyMapConcept
+ */
+class SparseEdgeWeightMap
+{
+private:
+  const SparseGraph& g_;  // Graph used
+  const SparseEdgeCollisionStateMap& collisionStates_;
+  const double popularityBias_;
+  const bool popularityBiasEnabled_;
+
+public:
+  /** Map key type. */
+  typedef SparseEdge key_type;
+  /** Map value type. */
+  typedef double value_type;
+  /** Map auxiliary value type. */
+  typedef double& reference;
+  /** Map type. */
+  typedef boost::readable_property_map_tag category;
+
+  /**
+   * Construct map for certain constraints.
+   * \param graph         Graph to use
+   */
+  SparseEdgeWeightMap(const SparseGraph& graph, const SparseEdgeCollisionStateMap& collisionStates,
+                      const double& popularityBias, const bool popularityBiasEnabled)
+    : g_(graph)
+    , collisionStates_(collisionStates)
+    , popularityBias_(popularityBias)
+    , popularityBiasEnabled_(popularityBiasEnabled)
+  {
+  }
+
+  /**
+   * Get the weight of an edge.
+   * \param e the edge
+   * \return infinity if \a e lies in a forbidden neighborhood; actual weight of \a e otherwise
+   */
+  double get(SparseEdge e) const
+  {
+    // Get the status of collision checking for this edge
+    if (collisionStates_[e] == IN_COLLISION)
+      return std::numeric_limits<double>::infinity();
+
+    double weight;
+    if (popularityBiasEnabled_)
+    {
+      // Maximum cost an edge can have based on popularity
+      const double MAX_POPULARITY_WEIGHT = 100.0;
+
+      // static const double popularityBias = 10;
+      weight = boost::get(boost::edge_weight, g_, e) / MAX_POPULARITY_WEIGHT * popularityBias_;
+      std::cout << "getting popularity weight of edge " << e << " with value " << weight << std::endl;
     }
     else
     {

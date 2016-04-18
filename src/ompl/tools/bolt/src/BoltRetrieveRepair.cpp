@@ -167,8 +167,12 @@ base::PlannerStatus BoltRetrieveRepair::solve(const base::PlannerTerminationCond
     visual_->viz5Path(pathSolutionBase, /*style*/ 1);
     visual_->viz5Trigger();
 
-    visual_->viz6Path(pathSolutionBase, /*style*/ 1);
-    visual_->viz6Trigger();
+    // Don't show raw trajectory twice in larger dimensions
+    if (si_->getStateSpace()->getDimension() == 3)
+    {
+      visual_->viz6Path(pathSolutionBase, /*style*/ 1);
+      visual_->viz6Trigger();
+    }
   }
 
   // Smooth the result
@@ -183,6 +187,10 @@ base::PlannerStatus BoltRetrieveRepair::solve(const base::PlannerTerminationCond
   // Show smoothed & interpolated path
   visual_->viz6Path(pathSolutionBase, /*style*/ 2);
   visual_->viz6Trigger();
+
+  // Show robot animated if not 2D
+  if (si_->getStateSpace()->getDimension() > 3)
+    visual_->viz6Path(pathSolutionBase, /*style*/ 3);
 
   // Finished
   approxdif = 0;
@@ -504,6 +512,15 @@ bool BoltRetrieveRepair::lazyCollisionSearch(const SparseVertex &start, const Sp
   assert(actualGoal);
   assert(sparseDB_->getSparseStateConst(start));
   assert(sparseDB_->getSparseStateConst(goal));
+
+  // Check that our states are on the same connected component
+  // TODO: in the future the graph should always just be fully connected
+  // so perhaps this check would not be necessary
+  if (!sparseDB_->sameComponent(start, goal))
+  {
+    OMPL_WARN("Found start and goal stare are on different connected components!");
+    return false;
+  }
 
   // Visualize start vertex
   const bool visualize = false;
