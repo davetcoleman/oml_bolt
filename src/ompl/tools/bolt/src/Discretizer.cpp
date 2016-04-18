@@ -641,6 +641,212 @@ void Discretizer::getVertexNeighbors(DenseVertex v1, std::vector<DenseVertex> &g
   }
 }
 
+void Discretizer::eliminateDisjointSets()
+{
+  OMPL_INFORM("Eliminating disjoint sets in Dense Graph");
+
+  // Statistics
+  eliminateDisjointSetsVerticesAdded_ = 0;
+  eliminateDisjointSetsEdgesAdded_ = 0;
+
+  getVertexNeighborsPreprocess();  // prepare the constants
+  denseDB_->getSparseDB()->setup(); // make sure sparse delta is chosen
+
+  std::size_t numThreads = boost::thread::hardware_concurrency();
+
+  // Debugging
+  if (false)
+  {
+    OMPL_WARN("Overriding number of threads for testing to 1");
+    numThreads = 1;
+  }
+
+  // Setup threading
+  std::vector<boost::thread *> threads(numThreads);
+  OMPL_INFORM("Sampling to eliminate disjoint sets using %u threads", numThreads);
+
+  // For each thread
+  for (std::size_t i = 0; i < threads.size(); ++i)
+  {
+    base::SpaceInformationPtr si(new base::SpaceInformation(si_->getStateSpace()));
+    si->setStateValidityChecker(si_->getStateValidityChecker());
+    si->setMotionValidator(si_->getMotionValidator());
+
+    bool verboseThread = false; //!i; // only thread 0 is verbose
+
+    threads[i] =
+      new boost::thread(boost::bind(&Discretizer::eliminateDisjointSetsThread, this, i, si, verboseThread));
+  }
+
+  // Join threads
+  for (std::size_t i = 0; i < threads.size(); ++i)
+  {
+    threads[i]->join();
+    delete threads[i];
+  }
+}
+
+void Discretizer::eliminateDisjointSetsThread(std::size_t threadID, base::SpaceInformationPtr si, bool verbose)
+{
+  // Add dense vertex
+  base::State *candidateState = si_->allocState();
+
+  // For each dense vertex we add
+  std::size_t numSets = 2;  // dummy value that will be updated at first loop
+  std::size_t sampleCount = 0;
+  std::size_t noVisibleNeighborCount = 0;
+  std::vector<DenseVertex> graphNeighborhood;
+  std::vector<DenseVertex> visibleNeighborhood;
+
+  base::ValidStateSamplerPtr sampler = si_->allocValidStateSampler();
+  while (numSets > 1)
+  {
+    bool sampleAdded = false;
+
+    while (!sampleAdded) // For each random sample
+    {
+      graphNeighborhood.clear();
+      visibleNeighborhood.clear();
+
+      // Sample randomly
+      sampler->sample(candidateState);
+      sampleCount++;
+
+      // Get neighbors
+      {
+        boost::unique_lock<boost::mutex> scoped_lock(vertexMutex_);
+        getVertexNeighbors(candidateState, graphNeighborhood);
+      }
+
+      // Now that we got the neighbors from the NN, find the ones that are visible
+      for (DenseVertex &denseV : graphNeighborhood)
+      {
+        BOOST_ASSERT_MSG(denseV != denseDB_->queryVertex_, "Query vertex should not be in the graph neighborhood");
+
+        if (si_->checkMotion(candidateState, denseDB_->stateProperty_[denseV]))
+        {
+          visibleNeighborhood.push_back(denseV);
+        }
+      }
+
+      // Debug
+      if (verbose && false)
+        std::cout << "Sample #" << sampleCount << " graphNeighborhood " << graphNeighborhood.size()
+                  << " visibleNeighborhood: " << visibleNeighborhood.size()
+                  << " noVisibleNeighborPercent: " << noVisibleNeighborCount / double(sampleCount) * 100.0 << "%" << std::endl;
+
+      // If no neighbors, add the vertex
+      if (visibleNeighborhood.empty())
+      {
+        noVisibleNeighborCount++;
+        std::cout << threadID << ": Adding vertex because no neighbors" << std::endl;
+
+        if (false)  // Visualize
+        {
+          visual_->viz4State(candidateState, /*med purple*/ 4, 0);
+          visual_->viz4Trigger();
+          usleep(0.0001 * 1000000);
+        }
+
+        {
+          boost::unique_lock<boost::mutex> scoped_lock(vertexMutex_);
+          denseDB_->addVertex(si_->cloneState(candidateState), COVERAGE);
+          eliminateDisjointSetsVerticesAdded_++;
+        }
+
+        // Record this new addition
+        denseDB_->graphUnsaved_ = true;
+
+        // no need to check disjoint states because we know it could not have changed with just a vertex addition
+        continue;
+      }
+
+      // Check each pair of neighbors for connectivity
+      for (std::size_t i = 0; i < visibleNeighborhood.size(); ++i)
+      {
+        for (std::size_t j = i + 1; j < visibleNeighborhood.size(); ++j)
+        {
+          // If they are in different components
+          if (!denseDB_->sameComponent(visibleNeighborhood[i], visibleNeighborhood[j]))
+          {
+            std::cout << threadID << ": Neighbors " << visibleNeighborhood[i] << ", " << visibleNeighborhood[j] << " are in different components, add!" << std::endl;
+
+            // Attempt to connect new Dense vertex into dense graph by connecting neighbors
+            connectNewVertex(si_->cloneState(candidateState), visibleNeighborhood, verbose);
+
+            sampleAdded = true;
+            break;
+          }
+        }  // for each neighbor
+        if (sampleAdded)
+          break;
+      }  // for each neighbor
+    }    // while sampling unuseful states
+
+    // Update number of sets
+    numSets = denseDB_->getDisjointSetsCount();
+
+    // Debug
+    OMPL_INFORM("DenseSampler Thread %u: Verticies added: %u, Edges added: %u, Remaining disjoint sets: %u",
+                threadID, eliminateDisjointSetsVerticesAdded_, eliminateDisjointSetsEdgesAdded_, numSets);
+  }  // end while
+}
+
+void Discretizer::connectNewVertex(base::State *state, std::vector<DenseVertex> visibleNeighborhood, bool verbose)
+{
+  boost::unique_lock<boost::mutex> scoped_lock(vertexMutex_);
+
+  DenseVertex v1 = denseDB_->addVertex(state, COVERAGE);  // TODO GuardType is meaningless
+  eliminateDisjointSetsVerticesAdded_++;
+
+  // Visualize new vertex
+  // if (visualizeAddSample_)
+  // {
+  //   visual_->viz1State(state, /*mode=*/1, 1);
+  // }
+
+  // For each visible neighbor vertex, add an edge
+  std::size_t numEdgesAdded = 0;  // sanity check
+  // for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
+  for (DenseVertex &v2 : visibleNeighborhood)
+  {
+    // Check if these vertices are the same STATE
+    if (si_->getStateSpace()->equalStates(state, denseDB_->stateProperty_[v2]))
+    {
+      OMPL_ERROR("This state has already been added, this is low probabilty event TODO");
+      exit(-1);
+    }
+
+    denseDB_->addEdge(v1, v2, 0); // TODO cost... desiredAverageCost_);
+    numEdgesAdded++;
+    eliminateDisjointSetsEdgesAdded_++;
+
+    // if (visualizeAddSample_)  // Debug: display edge
+    // {
+    //   double popularity = 100;  // TODO: maybe make edge really popular so we can be sure its added to the
+    //                             // spars graph since we need it
+    //   visual_->viz1Edge(state, stateProperty_[v2], popularity);
+    // }
+  }  // for each neighbor
+
+  // Make sure one and only one vertex is returned from the NN search that is the same as parent vertex
+  BOOST_ASSERT_MSG(numEdgesAdded >= 2, "Too few edges added from new DenseVertex connectivity node");
+
+  if (verbose)
+    std::cout << "Connected new vertex to " << numEdgesAdded << " neighbors" << std::endl;
+
+  // Visualize
+  // if (visualizeAddSample_)
+  // {
+  //   visual_->viz1Trigger();
+  //   usleep(0.001 * 1000000);
+  // }
+
+  // Record this new addition
+  denseDB_->graphUnsaved_ = true;
+}
+
+
 }  // namespace
 }  // namespace
 }  // namespace

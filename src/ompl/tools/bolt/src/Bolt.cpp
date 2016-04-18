@@ -287,7 +287,8 @@ bool Bolt::loadOrGenerate()
     }
     // denseDB_->displayDatabase();
     denseDB_->saveIfChanged(filePath_);
-    denseDB_->eliminateDisjointSets();
+    denseDB_->getDiscretizer()->eliminateDisjointSets();
+    denseDB_->saveIfChanged(filePath_);
 
     return true;
   }

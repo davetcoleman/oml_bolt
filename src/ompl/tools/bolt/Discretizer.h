@@ -86,6 +86,8 @@ public:
   void getVertexNeighbors(base::State* state, std::vector<DenseVertex> &graphNeighborhood);
   void getVertexNeighbors(DenseVertex v1, std::vector<DenseVertex>& graphNeighborhood);
 
+  void eliminateDisjointSets();
+
 private:
   void generateVertices();
 
@@ -105,6 +107,10 @@ private:
   void generateEdgesThread(std::size_t threadID, DenseVertex startVertex, DenseVertex endVertex,
                            base::SpaceInformationPtr si);
 
+  void eliminateDisjointSetsThread(std::size_t threadID, base::SpaceInformationPtr si, bool verbose);
+
+  void connectNewVertex(base::State* state, std::vector<DenseVertex> visibleNeighborhood, bool verbose);
+
   /** \brief The created space information */
   base::SpaceInformationPtr si_;
 
@@ -123,13 +129,20 @@ private:
   // Allow only one thread to add edges to graph at a time
   boost::mutex edgeMutex_;
 
+  // Eliminate disjoint sets - NN mutex
+  boost::mutex nearestNMutex_;
+
   /** \brief Constant used by k-PRM* to determine now many neighbors to connect to milestones */
   double findNearestKNeighbors_;
   double radiusNeighbors_;
 
+  /** \brief Method for determining how many neighbors to attempt edgess to */
   std::size_t edgeConnectionStrategy_;
 
   std::size_t numEdgesInCollision_;
+
+  std::size_t eliminateDisjointSetsVerticesAdded_;
+  std::size_t eliminateDisjointSetsEdgesAdded_;
 
 public:
   /** \brief Various options for visualizing the algorithmns performance */

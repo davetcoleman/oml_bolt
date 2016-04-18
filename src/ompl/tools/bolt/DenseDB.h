@@ -418,14 +418,10 @@ public:
    */
   void connectNewVertex(DenseVertex denseV);
 
-  void connectNewVertex(base::State* state, std::vector<DenseVertex> visibleNeighborhood);
-
   /** \brief Helper for counting the number of disjoint sets in the sparse graph */
   std::size_t getDisjointSetsCount(bool verbose = false);
 
   std::size_t checkConnectedComponents();
-
-  void eliminateDisjointSets();
 
   bool sameComponent(const DenseVertex& v1, const DenseVertex& v2);
 
@@ -492,8 +488,6 @@ protected:
   DenseVertex startConnectorVertex_;
   DenseVertex endConnectorVertex_;
   double distanceAcrossCartesian_ = 0.0;
-
-  std::size_t numSamplesAddedForDisjointSets_;
 
   bool graphUnsaved_ = false;
 
