@@ -482,7 +482,7 @@ void SparseDB::createSPARSOuterLoop()
       secondSparseInsertionAttempt_ = true;
     }
 
-    bool debugOverRideJustTwice = true;
+    bool debugOverRideJustTwice = false;
     if (debugOverRideJustTwice && loopAttempt == 2)
     {
       OMPL_WARN("Only attempting to add nodes twice for speed");

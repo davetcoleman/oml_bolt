@@ -88,7 +88,7 @@ bool Discretizer::generateGrid()
     vertexDuration = time::seconds(time::now() - start_time);
   }
 
-  OMPL_INFORM("Generated %i vertices.", denseDB_->getNumVertices());
+  OMPL_INFORM("Generated %i vertices in %f sec (%f hours)", denseDB_->getNumVertices(), vertexDuration, vertexDuration/60.0/60.0);
 
   // Error check
   if (denseDB_->getNumVertices() < 2)
@@ -477,7 +477,7 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
 {
   const bool verbose = false;
 
-  std::size_t feedbackFrequency = (endVertex - startVertex) / 10;
+  std::size_t feedbackFrequency = (endVertex - startVertex) / 100;
 
   // Nearest Neighbor search
   std::vector<DenseVertex> graphNeighborhood;
@@ -494,7 +494,7 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
       continue;
 
     // User feedback on thread 0
-    if (threadID == 0 && (v1) % feedbackFrequency == 0)
+    if (threadID == 0 && v1 % feedbackFrequency == 0)
     {
       std::cout << "Generating edges progress: " << std::setprecision(1)
                 << (v1 - startVertex) / static_cast<double>(endVertex - startVertex) * 100.0
