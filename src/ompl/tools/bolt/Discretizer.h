@@ -44,6 +44,7 @@
 #include <ompl/tools/bolt/Visualizer.h>
 #include <ompl/tools/bolt/BoltGraph.h>
 #include <ompl/tools/bolt/DenseDB.h>
+#include <ompl/tools/bolt/EdgeCache.h>
 
 // Boost
 #include <boost/thread/mutex.hpp>
@@ -67,7 +68,7 @@ public:
   /** \brief Constructor needs the state space used for planning.
    *  \param space - state space
    */
-  Discretizer(base::SpaceInformationPtr si, DenseDB* denseDB, base::VisualizerPtr visual);
+  Discretizer(base::SpaceInformationPtr si, DenseDB* denseDB, EdgeCachePtr edgeCache, base::VisualizerPtr visual);
 
   /** \brief Deconstructor */
   virtual ~Discretizer(void);
@@ -82,7 +83,8 @@ public:
 
   void getVertexNeighborsPreprocess();
 
-  void getVertexNeighbors(base::State* state, std::vector<DenseVertex>& graphNeighborhood);
+  void getVertexNeighbors(base::State* state, std::vector<DenseVertex> &graphNeighborhood);
+  void getVertexNeighbors(DenseVertex v1, std::vector<DenseVertex>& graphNeighborhood);
 
 private:
   void generateVertices();
@@ -109,14 +111,14 @@ private:
   /** \brief Class for storing the dense graph */
   DenseDB* denseDB_;
 
+  /** \brief Class for storing collision check data of edges */
+  EdgeCachePtr edgeCache_;
+
   /** \brief Class for managing various visualization features */
   base::VisualizerPtr visual_;
 
   // Prevent two vertices from being added to graph at same time
   boost::mutex vertexMutex_;
-
-  // Allow only one thread to search the NearestNeighbor graph
-  boost::mutex edgeNnMutex_;
 
   // Allow only one thread to add edges to graph at a time
   boost::mutex edgeMutex_;

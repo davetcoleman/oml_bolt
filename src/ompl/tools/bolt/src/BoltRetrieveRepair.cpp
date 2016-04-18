@@ -518,7 +518,7 @@ bool BoltRetrieveRepair::lazyCollisionSearch(const SparseVertex &start, const Sp
   // so perhaps this check would not be necessary
   if (!sparseDB_->sameComponent(start, goal))
   {
-    OMPL_WARN("Found start and goal stare are on different connected components!");
+    OMPL_WARN("Found start and goal states that are on different connected components!");
     return false;
   }
 

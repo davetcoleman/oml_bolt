@@ -44,6 +44,9 @@
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/tools/bolt/BoltGraph.h>
 
+// Boost
+#include <boost/thread/shared_mutex.hpp>
+
 // C++
 #include <map>
 
@@ -56,7 +59,8 @@ namespace bolt
 OMPL_CLASS_FORWARD(EdgeCache);
 OMPL_CLASS_FORWARD(DenseDB);
 
-typedef std::map<std::pair<DenseVertex,DenseVertex>, bool> EdgeCacheMap;
+typedef std::pair<DenseVertex, DenseVertex> CachedEdge;
+typedef std::map<CachedEdge, bool> EdgeCacheMap;
 class EdgeCache
 {
 public:
@@ -74,8 +78,7 @@ public:
   void resetCounters();
 
   /** \brief Returns true if motion is valid, false if in collision. Checks cache first and also stores result  */
-  bool checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v2);
-  bool checkMotionWithCacheSlow(const DenseVertex &v1, const DenseVertex &v2); // TODO remove
+  bool checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v2, const std::size_t &threadID);
 
   /** \brief Test for benchmarking cache */
   void checkMotionCacheBenchmark();
@@ -109,13 +112,16 @@ private:
   EdgeCacheMap collisionCheckEdgeCache_;
 
   /** \brief Stats for the checkMotionWithCache feature */
-  std::size_t totalCollisionChecks_;
-  std::size_t totalCollisionChecksFromCache_;
+  std::vector<std::size_t> totalCollisionChecks_;
+  std::vector<std::size_t> totalCollisionChecksFromCache_;
 
   /** \brief Where to store the cache on disk */
   std::string filePath_;
 
-  std::pair<DenseVertex, DenseVertex> key_;
+  /** \brief Mutex for both reading or writing to the EdgeCacheMap */
+  boost::shared_mutex edgeCacheMutex_;
+
+  std::vector<CachedEdge> keys_;
 
 };  // end of class EdgeCache
 

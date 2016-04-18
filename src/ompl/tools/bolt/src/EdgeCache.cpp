@@ -59,12 +59,17 @@ EdgeCache::EdgeCache(base::SpaceInformationPtr si, DenseDB *denseDB, base::Visua
   : si_(si), denseDB_(denseDB), visual_(visual)
 {
   resetCounters();
+
+  std::size_t numThreads = boost::thread::hardware_concurrency();
+  keys_.resize(numThreads);
+  totalCollisionChecks_.resize(numThreads, 0);
+  totalCollisionChecksFromCache_.resize(numThreads, 0);
 }
 
 bool EdgeCache::save()
 {
   OMPL_INFORM("------------------------------------------------");
-  OMPL_INFORM("Saving Collision Cache");
+  OMPL_INFORM("Saving Edge Cache");
   OMPL_INFORM("  Path:         %s", filePath_.c_str());
   OMPL_INFORM("  Utilization:  %f", getPercentCachedCollisionChecks());
   OMPL_INFORM("  Cache Size:   %u", getCacheSize());
@@ -75,7 +80,7 @@ bool EdgeCache::save()
 
   if (!out.good())
   {
-    OMPL_ERROR("Failed to save collision cache: output stream is invalid");
+    OMPL_ERROR("Failed to save edge cache: output stream is invalid");
     return false;
   }
 
@@ -86,7 +91,7 @@ bool EdgeCache::save()
   }
   catch (boost::archive::archive_exception &ae)
   {
-    OMPL_ERROR("Failed to save collision cache: %s", ae.what());
+    OMPL_ERROR("Failed to save edge cache: %s", ae.what());
     return false;
   }
 
@@ -96,13 +101,19 @@ bool EdgeCache::save()
 
 bool EdgeCache::load()
 {
-  OMPL_INFORM("Loading collision path from %s", filePath_.c_str());
+  OMPL_INFORM("Loading edge path from %s", filePath_.c_str());
+
+  if (!collisionCheckEdgeCache_.empty())
+  {
+    OMPL_ERROR("Collision check edge cache has %u edges and is not empty, unable to load.", collisionCheckEdgeCache_.size());
+    return false;
+  }
 
   std::ifstream in(filePath_, std::ios::binary);
 
   if (!in.good())
   {
-    OMPL_INFORM("Failed to load collision cache: input stream is invalid");
+    OMPL_INFORM("Failed to load edge cache: input stream is invalid");
     return false;
   }
 
@@ -113,7 +124,7 @@ bool EdgeCache::load()
   }
   catch (boost::archive::archive_exception &ae)
   {
-    OMPL_ERROR("Failed to load collision cache: %s", ae.what());
+    OMPL_ERROR("Failed to load edge cache: %s", ae.what());
     return false;
   }
 
@@ -127,71 +138,60 @@ bool EdgeCache::load()
 
 void EdgeCache::resetCounters()
 {
-  totalCollisionChecks_ = 0;
-  totalCollisionChecksFromCache_ = 0;
+  for (std::size_t i = 0; i < totalCollisionChecksFromCache_.size(); ++i)
+  {
+    totalCollisionChecks_[i] = 0;
+    totalCollisionChecksFromCache_[i] = 0;
+  }
 }
 
-bool EdgeCache::checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v2)
+bool EdgeCache::checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v2, const std::size_t &threadID)
 {
-  // Statistics
-  totalCollisionChecks_++;
+  CachedEdge &edge = keys_[threadID];
 
-  // Only store pairs in one direction
+  // Error check
+  BOOST_ASSERT_MSG(v1 != 0, "v1: The queryVertex_ should not be checked within the EdgeCache, because it is subject to change");
+  BOOST_ASSERT_MSG(v2 != 0, "v2: The queryVertex_ should not be checked within the EdgeCache, because it is subject to change");
+
+  // Create edge to search for - only store pairs in one direction
   if (v1 < v2)
-    key_ = std::pair<DenseVertex, DenseVertex>(v1, v2);
+    edge = CachedEdge(v1, v2);
   else
-    key_ = std::pair<DenseVertex, DenseVertex>(v2, v1);
+    edge = CachedEdge(v2, v1);
 
-  EdgeCacheMap::iterator lb = collisionCheckEdgeCache_.lower_bound(key_);
+  EdgeCacheMap::iterator lb = collisionCheckEdgeCache_.lower_bound(edge);
 
-  if(lb != collisionCheckEdgeCache_.end() && !(collisionCheckEdgeCache_.key_comp()(key_, lb->first)))
+  bool result;
+  {  // Get read-only mutex
+    boost::shared_lock<boost::shared_mutex> readLock(edgeCacheMutex_);
+
+    // Search for existing key
+    result = (lb != collisionCheckEdgeCache_.end() && !(collisionCheckEdgeCache_.key_comp()(edge, lb->first)));
+
+    // Statistics
+    totalCollisionChecks_[threadID]++;
+  }
+
+  if (result) // Cache available
   {
-    // Cache available
-    totalCollisionChecksFromCache_++;
+    totalCollisionChecksFromCache_[threadID]++;
     // std::cout << "Cache: Edge " << v1 << ", " << v2 << " collision: " << lb->second << std::endl;
     return lb->second;
   }
-  else
-  {
-    // no cache available
-    bool result = si_->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]);
-    // std::cout << "No cache: Edge " << v1 << ", " << v2 << " collision: " << result << std::endl;
 
-    // the key does not exist in the map, so add it to the map
+  // No cache available
+  result = si_->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]);
+  // std::cout << "No cache: Edge " << v1 << ", " << v2 << " collision: " << result << std::endl;
+
+  {  // Get write mutex
+    boost::lock_guard<boost::shared_mutex> writeLock(edgeCacheMutex_);
+
+    // The key does not exist in the map, so add it to the map
     // Use lb as a hint to insert, so it can avoid another lookup
-    collisionCheckEdgeCache_.insert(lb, EdgeCacheMap::value_type(key_, result));
-
-    return result;
+    collisionCheckEdgeCache_.insert(lb, EdgeCacheMap::value_type(edge, result));
   }
 
-}
-
-bool EdgeCache::checkMotionWithCacheSlow(const DenseVertex &v1, const DenseVertex &v2)
-{
-  // Statistics
-  totalCollisionChecks_++;
-
-  // Only store pairs in one direction
-  std::pair<DenseVertex, DenseVertex> key;
-  if (v1 < v2)
-    key = std::pair<DenseVertex, DenseVertex>(v1, v2);
-  else
-    key = std::pair<DenseVertex, DenseVertex>(v2, v1);
-
-  EdgeCacheMap::const_iterator it = collisionCheckEdgeCache_.find(key);
-
-  if (it == collisionCheckEdgeCache_.end())  // no cache available
-  {
-    bool result = si_->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]);
-    collisionCheckEdgeCache_[key] = result;
-    // std::cout << "No cache: Edge " << v1 << ", " << v2 << " collision: " << result << std::endl;
-    return result;
-  }
-
-  // Cache available
-  totalCollisionChecksFromCache_++;
-  // std::cout << "Cache: Edge " << v1 << ", " << v2 << " collision: " << it->second << std::endl;
-  return it->second;
+  return result;
 }
 
 void EdgeCache::checkMotionCacheBenchmark()
@@ -231,15 +231,16 @@ void EdgeCache::checkMotionCacheBenchmark()
     // Benchmark runtime
     time::point startTime = time::now();
 
+    const std::size_t threadID = 0;
     for (std::size_t i = 0; i < numRuns / 2; ++i)
     {
-      if (checkMotionWithCache(v1, v2) != baselineResult)
+      if (checkMotionWithCache(v1, v2, threadID) != baselineResult)
       {
         OMPL_ERROR("benchmark checkmotion does not match baseline result");
         exit(-1);
       }
 
-      if (checkMotionWithCache(v2, v1) != baselineResult)
+      if (checkMotionWithCache(v2, v1, threadID) != baselineResult)
       {
         OMPL_ERROR("benchmark checkmotion does not match baseline result");
         exit(-1);
@@ -255,7 +256,7 @@ void EdgeCache::checkMotionCacheBenchmark()
 
 void EdgeCache::errorCheckData()
 {
-  OMPL_INFORM("Error checking collision cache...");
+  OMPL_INFORM("Error checking edge cache...");
   std::size_t counter = 0;
   for (EdgeCacheMap::const_iterator iterator = collisionCheckEdgeCache_.begin(); iterator != collisionCheckEdgeCache_.end();
        iterator++)
@@ -266,7 +267,7 @@ void EdgeCache::errorCheckData()
     bool cachedResult = iterator->second;
     if (si_->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]) != cachedResult)
     {
-      OMPL_ERROR("Found instance where cached collision data is wrong, on iteration %u", counter);
+      OMPL_ERROR("Found instance where cached edge data is wrong, on iteration %u", counter);
       std::cout << "v1: " << v1 << std::endl;
       std::cout << "v2: " << v2 << std::endl;
       exit(-1);
@@ -288,20 +289,31 @@ std::size_t EdgeCache::getCacheSize()
 
 std::size_t EdgeCache::getTotalCollisionChecksFromCache()
 {
-  return totalCollisionChecksFromCache_;
+  std::size_t total = 0;
+  for (std::size_t i = 0; i < totalCollisionChecksFromCache_.size(); ++i)
+  {
+    total += totalCollisionChecksFromCache_[i];
+  }
+  return total;
 }
 
 std::size_t EdgeCache::getTotalCollisionChecks()
 {
-  return totalCollisionChecks_;
+  std::size_t total = 0;
+  for (std::size_t i = 0; i < totalCollisionChecks_.size(); ++i)
+  {
+    total += totalCollisionChecks_[i];
+  }
+  return total;
 }
 
 double EdgeCache::getPercentCachedCollisionChecks()
 {
-  if (totalCollisionChecks_ == 0)
+  std::size_t totalCollisionChecks = getTotalCollisionChecks();
+  if (totalCollisionChecks == 0)
     return 0;
 
-  return static_cast<double>(totalCollisionChecksFromCache_) / totalCollisionChecks_ * 100.0;
+  return static_cast<double>(getTotalCollisionChecksFromCache()) / totalCollisionChecks * 100.0;
 }
 
 }  // namespace bolt

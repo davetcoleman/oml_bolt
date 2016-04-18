@@ -57,8 +57,8 @@ namespace tools
 {
 namespace bolt
 {
-Discretizer::Discretizer(base::SpaceInformationPtr si, DenseDB* denseDB, base::VisualizerPtr visual)
-  : si_(si), denseDB_(denseDB), visual_(visual)
+Discretizer::Discretizer(base::SpaceInformationPtr si, DenseDB* denseDB, EdgeCachePtr edgeCache, base::VisualizerPtr visual)
+  : si_(si), denseDB_(denseDB), edgeCache_(edgeCache), visual_(visual)
 {
 }
 
@@ -70,6 +70,9 @@ bool Discretizer::generateGrid()
 {
   OMPL_INFORM("Generating grid");
 
+  // Benchmark runtime
+  time::point totalStartTime = time::now();
+
   if (!si_->isSetup())
   {
     OMPL_WARN("Space information setup was not yet called. Calling now.");
@@ -79,13 +82,13 @@ bool Discretizer::generateGrid()
   double vertexDuration;
   {
     // Benchmark runtime
-    time::point start_time = time::now();
+    time::point startTime = time::now();
 
     // Create vertices
     generateVertices();
 
     // Benchmark runtime
-    vertexDuration = time::seconds(time::now() - start_time);
+    vertexDuration = time::seconds(time::now() - startTime);
   }
 
   OMPL_INFORM("Generated %i vertices in %f sec (%f hours)", denseDB_->getNumVertices(), vertexDuration, vertexDuration/60.0/60.0);
@@ -100,13 +103,13 @@ bool Discretizer::generateGrid()
   double edgeDuration;
   {
     // Benchmark runtime
-    time::point start_time = time::now();
+    time::point startTime = time::now();
 
     // Create edges ----------------------------------------
     generateEdges();
 
     // Benchmark runtime
-    edgeDuration = time::seconds(time::now() - start_time);
+    edgeDuration = time::seconds(time::now() - startTime);
   }
 
   // Get the average vertex degree (number of connected edges)
@@ -115,16 +118,20 @@ bool Discretizer::generateGrid()
   // Check how many disjoint sets are in the dense graph (should be none)
   std::size_t numSets = denseDB_->checkConnectedComponents();
 
+  // Total benchmark runtime
+  double totalDuration = time::seconds(time::now() - totalStartTime);
+
   OMPL_INFORM("------------------------------------------------------");
   OMPL_INFORM("Discretization stats:");
   OMPL_INFORM("   Total valid vertices:   %u", denseDB_->getNumVertices());
-  OMPL_INFORM("   Vertex generation time: %f seconds (%f min)", vertexDuration, vertexDuration / 60.0);
   OMPL_INFORM("   Total valid edges:      %u", denseDB_->getNumEdges());
   OMPL_INFORM("   Num edges colliding:    %f", numEdgesInCollision_);
-  OMPL_INFORM("   Edge generation time:   %f seconds (%f min)", edgeDuration, edgeDuration / 60.0);
   OMPL_INFORM("   Average degree:         %f", averageDegree);
   OMPL_INFORM("   Connected Components:   %u", numSets);
   OMPL_INFORM("   Edge connection method: %u", edgeConnectionStrategy_);
+  OMPL_INFORM("   Vertex generation time: %f seconds (%f min)", vertexDuration, vertexDuration / 60.0);
+  OMPL_INFORM("   Edge generation time:   %f seconds (%f min)", edgeDuration, edgeDuration / 60.0);
+  OMPL_INFORM("   Total grid gen. time:   %f seconds (%f min)", totalDuration, totalDuration / 60.0);
   OMPL_INFORM("------------------------------------------------------");
 
   // Display
@@ -477,11 +484,10 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
 {
   const bool verbose = false;
 
-  std::size_t feedbackFrequency = (endVertex - startVertex) / 100;
+  std::size_t feedbackFrequency = std::max(1.0, double(endVertex - startVertex) / 100.0);
 
   // Nearest Neighbor search
   std::vector<DenseVertex> graphNeighborhood;
-  std::vector<DenseEdge> unvalidatedEdges;
 
   // Stats
   std::size_t numEdgesInCollision = 0;
@@ -498,17 +504,16 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
     {
       std::cout << "Generating edges progress: " << std::setprecision(1)
                 << (v1 - startVertex) / static_cast<double>(endVertex - startVertex) * 100.0
-                << " % Total edges: " << denseDB_->getNumEdges() << std::endl;
+                << " % Total edges: " << denseDB_->getNumEdges()
+                << " Cache size: " << edgeCache_->getCacheSize()
+                << " Cache usage: " << edgeCache_->getPercentCachedCollisionChecks() << "%" << std::endl;
     }
 
     // Add edges
     graphNeighborhood.clear();
 
     // Get neighors with one of the strategies
-    {
-      boost::unique_lock<boost::mutex> scoped_lock(edgeNnMutex_);
-      getVertexNeighbors(denseDB_->stateProperty_[v1], graphNeighborhood);
-    }
+    getVertexNeighbors(v1, graphNeighborhood);
 
     if (verbose)
       OMPL_INFORM("Found %u neighbors", graphNeighborhood.size());
@@ -537,7 +542,8 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
       }
 
       // Check edge for collision
-      if (!si->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]))
+      //if (!si->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]))
+      if (!edgeCache_->checkMotionWithCache(v1, v2, threadID))
       {
         numEdgesInCollision++;
         continue;
@@ -605,35 +611,34 @@ void Discretizer::getVertexNeighborsPreprocess()
 
 void Discretizer::getVertexNeighbors(base::State* state, std::vector<DenseVertex> &graphNeighborhood)
 {
-  const std::size_t numSameVerticiesFound = 1;  // add 1 to the end because the NN tree always returns itself
-
-  // std::cout << "getVertexNeighbors: " << v1 << std::endl;
-
-  // Search
   denseDB_->stateProperty_[denseDB_->queryVertex_] = state;
+  getVertexNeighbors(denseDB_->queryVertex_, graphNeighborhood);
+  denseDB_->stateProperty_[denseDB_->queryVertex_] = NULL;
+}
+
+void Discretizer::getVertexNeighbors(DenseVertex v1, std::vector<DenseVertex> &graphNeighborhood)
+{
+  const std::size_t numSameVerticiesFound = 1;  // add 1 to the end because the NN tree always returns itself
 
   // QUESTION: How many edges should each vertex connect with?
   switch (edgeConnectionStrategy_)
   {
     case 1:
       // METHOD 1
-      denseDB_->nn_->nearestK(denseDB_->queryVertex_, findNearestKNeighbors_ + numSameVerticiesFound,
-                              graphNeighborhood);
+      denseDB_->nn_->nearestK(v1, findNearestKNeighbors_ + numSameVerticiesFound, graphNeighborhood);
       break;
     case 2:
       // METHOD 2
-      denseDB_->nn_->nearestR(denseDB_->queryVertex_, radiusNeighbors_, graphNeighborhood);
+      denseDB_->nn_->nearestR(v1, radiusNeighbors_, graphNeighborhood);
       break;
     case 3:
       // METHOD 3 - based on k-PRM*
-      denseDB_->nn_->nearestK(denseDB_->queryVertex_, findNearestKNeighbors_ + numSameVerticiesFound,
-                              graphNeighborhood);
+      denseDB_->nn_->nearestK(v1, findNearestKNeighbors_ + numSameVerticiesFound, graphNeighborhood);
+
       break;
     default:
       OMPL_ERROR("Incorrect edge connection stragety");
   }
-  // Set search vertex to NULL to prevent segfault on class unload of memory
-  denseDB_->stateProperty_[denseDB_->queryVertex_] = NULL;
 }
 
 }  // namespace

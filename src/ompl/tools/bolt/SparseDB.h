@@ -85,7 +85,6 @@ class SparseDB
   friend class DenseDB;
 
 public:
-
   ////////////////////////////////////////////////////////////////////////////////////////
   /**
    * Vertex visitor to check if A* search is finished.
@@ -197,7 +196,7 @@ public:
   /** \brief Create a SPARS graph from the discretized dense graph and its popularity metric */
   void createSPARS();
   void createSPARSOuterLoop();
-  bool createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOrder, std::size_t &sucessfulInsertions);
+  bool createSPARSInnerLoop(std::list<WeightedVertex>& vertexInsertionOrder, std::size_t& sucessfulInsertions);
 
   /** \brief Helper function for choosing the correct method for vertex insertion ordering */
   void getVertexInsertionOrdering(std::list<WeightedVertex>& vertexInsertionOrder);
@@ -206,7 +205,7 @@ public:
   void eliminateDisjointSets();
 
   /** \brief Attempt to re-add neighbors from dense graph that have not been added yet */
-  bool reinsertNeighborsIntoSpars(const SparseVertex& newVertex);
+  bool reinsertNeighborsIntoSpars(SparseVertex newVertex);
 
   /** \brief Helper for counting the number of disjoint sets in the sparse graph */
   std::size_t getDisjointSetsCount(bool verbose = false);
@@ -229,14 +228,14 @@ public:
 
   /* ----------------------------------------------------------------------------------------*/
   /** \brief SPARS-related functions */
-  bool checkAddCoverage(const DenseVertex& denseV, std::vector<SparseVertex>& visibleNeighborhood,
-                        SparseVertex& newVertex, std::size_t coutIndent);
-  bool checkAddConnectivity(const DenseVertex& denseV, std::vector<SparseVertex>& visibleNeighborhood,
-                            SparseVertex& newVertex, std::size_t coutIndent);
-  bool checkAddInterface(const DenseVertex& denseV, std::vector<SparseVertex>& graphNeighborhood,
+  bool checkAddCoverage(DenseVertex denseV, std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
+                        std::size_t coutIndent);
+  bool checkAddConnectivity(DenseVertex denseV, std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
+                            std::size_t coutIndent);
+  bool checkAddInterface(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
                          std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
                          std::size_t coutIndent);
-  void getInterfaceNeighborhood(const DenseVertex& denseV, std::vector<DenseVertex>& interfaceNeighborhood,
+  void getInterfaceNeighborhood(DenseVertex denseV, std::vector<DenseVertex>& interfaceNeighborhood,
                                 std::size_t coutIndent);
   /**
    * \brief Get neighbors within sparseDelta radius
@@ -245,12 +244,12 @@ public:
    * \param visibleNeighborhood - resulting nearby states that are visible
    * \param countIndent - debugging tool
    */
-  void findGraphNeighbors(const DenseVertex& denseV, std::vector<SparseVertex>& graphNeighborhood,
+  void findGraphNeighbors(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
                           std::vector<SparseVertex>& visibleNeighborhood, std::size_t coutIndent);
 
   DenseVertex getInterfaceNeighbor(DenseVertex q, SparseVertex rep);
 
-  bool sameComponent(const SparseVertex &v1, const SparseVertex &v2);
+  bool sameComponent(SparseVertex v1, SparseVertex v2);
 
   SparseVertex addVertex(DenseVertex denseV, const GuardType& type);
   std::size_t getVizVertexType(const GuardType& type);
@@ -276,9 +275,9 @@ public:
 
 public:
   /** \brief Shortcut function for getting the state of a vertex */
-  base::State*& getSparseState(const SparseVertex& v);
-  const base::State* getSparseStateConst(const SparseVertex& v) const;
-  base::State*& getDenseState(const DenseVertex& denseV);
+  base::State*& getSparseState(SparseVertex v);
+  const base::State* getSparseStateConst(SparseVertex v) const;
+  base::State*& getDenseState(DenseVertex denseV);
 
 protected:
   /** \brief The created space information */
@@ -289,6 +288,9 @@ protected:
 
   /** \brief Class for managing various visualization features */
   base::VisualizerPtr visual_;
+
+  /** \brief Speed up collision checking by saving redundant checks and using file storage */
+  EdgeCachePtr edgeCache_;
 
   /** \brief Nearest neighbors data structure */
   boost::shared_ptr<NearestNeighbors<SparseVertex> > nn_;
@@ -329,9 +331,6 @@ protected:
 
   /** \brief A path simplifier used to simplify dense paths added to S */
   geometric::PathSimplifierPtr psimp_;
-
-  /** \brief Speed up collision checking by saving redundant checks and using file storage */
-  EdgeCachePtr edgeCache_;
 
   /** \brief Special flag for tracking mode when inserting into sparse graph */
   bool secondSparseInsertionAttempt_ = false;

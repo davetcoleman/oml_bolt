@@ -123,8 +123,7 @@ namespace tools
 {
 namespace bolt
 {
-SparseDB::SparseDB(base::SpaceInformationPtr si, DenseDB *denseDB, base::VisualizerPtr visual,
-                   EdgeCachePtr edgeCache)
+SparseDB::SparseDB(base::SpaceInformationPtr si, DenseDB *denseDB, base::VisualizerPtr visual, EdgeCachePtr edgeCache)
   : si_(si)
   , denseDB_(denseDB)
   , visual_(visual)
@@ -394,16 +393,13 @@ void SparseDB::createSPARS()
   OMPL_INFORM("  Edge collision cache:      %u", edgeCache_->getCacheSize());
   OMPL_INFORM("  Total collision checks:    %u", edgeCache_->getTotalCollisionChecks());
   OMPL_INFORM("  Cached collision checks:   %u (%f %)", edgeCache_->getTotalCollisionChecksFromCache(),
-             edgeCache_->getPercentCachedCollisionChecks());
+              edgeCache_->getPercentCachedCollisionChecks());
   OMPL_INFORM("-----------------------------------------");
 
-  if (numSets > 1 && false)
+  if (numSets > 1)
   {
     OMPL_INFORM("Disjoint sets: %u, attempting to random sample until fully connected", numSets);
 
-    // TODO(davetcoleman): temp
-    std::cout << "stopping early " << std::endl;
-    exit(0);
     eliminateDisjointSets();
     denseDB_->displayDatabase();
   }
@@ -450,24 +446,30 @@ void SparseDB::createSPARSOuterLoop()
   while (sucessfulInsertions > 0)
   {
     // if (checksVerbose_)
-    std::cout << std::string(coutIndent, ' ') << "Attempting to insert " << vertexInsertionOrder.size()
+    std::cout << "Attempting to insert " << vertexInsertionOrder.size()
               << " vertices for the " << loopAttempt << " loop" << std::endl;
 
     // Sanity check
     if (loopAttempt > 3)
       OMPL_WARN("Suprising number of loop when attempting to insert nodes into SPARS graph: %u", loopAttempt);
 
+    // Benchmark runtime
+    time::point startTime = time::now();
+
     // ----------------------------------------------------------------------
     // Attempt to insert each vertex using the first 3 criteria
     createSPARSInnerLoop(vertexInsertionOrder, sucessfulInsertions);
+
+    // Benchmark runtime
+    double duration = time::seconds(time::now() - startTime);
 
     // Visualize
     if (visualizeSparsGraph_)
       visual_->viz2Trigger();
 
-    std::cout << std::string(coutIndent + 2, ' ') << "Succeeded in inserting " << sucessfulInsertions
-              << " vertices on the " << loopAttempt
-              << " loop, remaining uninserted verticies: " << vertexInsertionOrder.size() << std::endl;
+    std::cout << "Succeeded in inserting " << sucessfulInsertions << " vertices on the " << loopAttempt
+              << " loop, remaining uninserted verticies: " << vertexInsertionOrder.size()
+              << " loop runtime: " << duration << " sec" << std::endl;
     loopAttempt++;
 
     // Increase the sparse delta a bit, but only after the first loop
@@ -476,6 +478,9 @@ void SparseDB::createSPARSOuterLoop()
       sparseDelta_ = sparseDelta_ * 1.25;
       std::cout << std::string(coutIndent + 2, ' ') << "sparseDelta_ is now " << sparseDelta_ << std::endl;
       secondSparseInsertionAttempt_ = true;
+
+      // Save collision cache, just in case there is a bug
+      edgeCache_->save();
     }
 
     bool debugOverRideJustTwice = false;
@@ -513,7 +518,7 @@ bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOr
     if (loopCount++ % debugFrequency == 0)
     {
       std::cout << std::fixed << std::setprecision(1)
-                << "Sparse graph generation: " << (static_cast<double>(loopCount) / originalVertexInsertion) * 100.0
+                << "  Sparse generation: " << (static_cast<double>(loopCount) / originalVertexInsertion) * 100.0
                 << "% Cache size: " << edgeCache_->getCacheSize()
                 << " Cache usage: " << edgeCache_->getPercentCachedCollisionChecks() << "%" << std::endl;
       if (visualizeSparsGraph_)
@@ -645,7 +650,8 @@ void SparseDB::getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInser
 
     // Insert
     graphNeighborhood_all.insert(graphNeighborhood_all.end(), graphNeighborhood.begin(), graphNeighborhood.end());
-    visibleNeighborhood_all.insert(visibleNeighborhood_all.end(), visibleNeighborhood.begin(), visibleNeighborhood.end());
+    visibleNeighborhood_all.insert(visibleNeighborhood_all.end(), visibleNeighborhood.begin(),
+  visibleNeighborhood.end());
 
     GuardType addReason;         // returns why the state was added
     SparseVertex newVertex = 0;  // the newly generated sparse vertex
@@ -679,7 +685,8 @@ void SparseDB::getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInser
   in.close();
 
   std::cout << "are they the same? " << (graphNeighborhood_all2 == graphNeighborhood_all) << std::endl;
-  std::cout << "are they the same size? " << graphNeighborhood_all2.size() << " and " << graphNeighborhood_all.size() << std::endl;
+  std::cout << "are they the same size? " << graphNeighborhood_all2.size() << " and " << graphNeighborhood_all.size() <<
+  std::endl;
   //std::cout << "are they the same? " << (visibleNeighborhood_all2 == visibleNeighborhood_all) << std::endl;
 
   for (std::size_t i = 0; i < graphNeighborhood_all.size(); ++i)
@@ -797,7 +804,7 @@ void SparseDB::eliminateDisjointSets()
   // exit(-1);
 }
 
-bool SparseDB::reinsertNeighborsIntoSpars(const SparseVertex &newVertex)
+bool SparseDB::reinsertNeighborsIntoSpars(SparseVertex newVertex)
 {
   // Nodes near our input state
   std::vector<DenseVertex> graphNeighborhood;
@@ -1053,7 +1060,7 @@ bool SparseDB::addStateToRoadmap(DenseVertex denseV, SparseVertex &newVertex, Gu
   return stateAdded;
 }
 
-bool SparseDB::checkAddCoverage(const DenseVertex &denseV, std::vector<SparseVertex> &visibleNeighborhood,
+bool SparseDB::checkAddCoverage(DenseVertex denseV, std::vector<SparseVertex> &visibleNeighborhood,
                                 SparseVertex &newVertex, std::size_t coutIndent)
 {
   if (checksVerbose_)
@@ -1084,7 +1091,7 @@ bool SparseDB::checkAddCoverage(const DenseVertex &denseV, std::vector<SparseVer
   return true;
 }
 
-bool SparseDB::checkAddConnectivity(const DenseVertex &denseV, std::vector<SparseVertex> &visibleNeighborhood,
+bool SparseDB::checkAddConnectivity(DenseVertex denseV, std::vector<SparseVertex> &visibleNeighborhood,
                                     SparseVertex &newVertex, std::size_t coutIndent)
 {
   if (checksVerbose_)
@@ -1174,7 +1181,7 @@ bool SparseDB::checkAddConnectivity(const DenseVertex &denseV, std::vector<Spars
   return true;
 }
 
-bool SparseDB::checkAddInterface(const DenseVertex &denseV, std::vector<SparseVertex> &graphNeighborhood,
+bool SparseDB::checkAddInterface(DenseVertex denseV, std::vector<SparseVertex> &graphNeighborhood,
                                  std::vector<SparseVertex> &visibleNeighborhood, SparseVertex &newVertex,
                                  std::size_t coutIndent)
 {
@@ -1196,6 +1203,7 @@ bool SparseDB::checkAddInterface(const DenseVertex &denseV, std::vector<SparseVe
     visualColor = 75;  // ORANGE
 
   // If the two closest nodes are also visible
+  const std::size_t threadID = 0;
   if (graphNeighborhood[0] == visibleNeighborhood[0] && graphNeighborhood[1] == visibleNeighborhood[1])
   {
     // If our two closest neighbors don't share an edge
@@ -1203,7 +1211,7 @@ bool SparseDB::checkAddInterface(const DenseVertex &denseV, std::vector<SparseVe
     {
       // If they can be directly connected
       if (edgeCache_->checkMotionWithCache(denseVertexProperty_[visibleNeighborhood[0]],
-                                                denseVertexProperty_[visibleNeighborhood[1]]))
+                                           denseVertexProperty_[visibleNeighborhood[1]], threadID))
       // if (si_->checkMotion(getSparseStateConst(visibleNeighborhood[0]), getSparseStateConst(visibleNeighborhood[1])))
       {
         if (checksVerbose_)
@@ -1239,7 +1247,7 @@ bool SparseDB::checkAddInterface(const DenseVertex &denseV, std::vector<SparseVe
   return false;
 }
 
-void SparseDB::getInterfaceNeighborhood(const DenseVertex &denseV, std::vector<DenseVertex> &interfaceNeighborhood,
+void SparseDB::getInterfaceNeighborhood(DenseVertex denseV, std::vector<DenseVertex> &interfaceNeighborhood,
                                         std::size_t coutIndent)
 {
   if (fourthCheckVerbose_)
@@ -1269,7 +1277,7 @@ void SparseDB::getInterfaceNeighborhood(const DenseVertex &denseV, std::vector<D
     }
   }
 }
-void SparseDB::findGraphNeighbors(const DenseVertex &v1, std::vector<SparseVertex> &graphNeighborhood,
+void SparseDB::findGraphNeighbors(DenseVertex v1, std::vector<SparseVertex> &graphNeighborhood,
                                   std::vector<SparseVertex> &visibleNeighborhood, std::size_t coutIndent)
 {
   const bool verbose = false;
@@ -1285,6 +1293,7 @@ void SparseDB::findGraphNeighbors(const DenseVertex &v1, std::vector<SparseVerte
   getSparseState(queryVertex_) = NULL;
 
   // Now that we got the neighbors from the NN, we must remove any we can't see
+  const std::size_t threadID = 0;
   for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
   {
     DenseVertex v2 = denseVertexProperty_[graphNeighborhood[i]];
@@ -1294,7 +1303,7 @@ void SparseDB::findGraphNeighbors(const DenseVertex &v1, std::vector<SparseVerte
       // Only collision check motion if they don't already share an edge in the dense graph
       if (!boost::edge(v1, v2, denseDB_->g_).second)
       {
-        if (!edgeCache_->checkMotionWithCache(v1, v2))
+        if (!edgeCache_->checkMotionWithCache(v1, v2, threadID))
         {
           continue;
         }
@@ -1318,12 +1327,12 @@ void SparseDB::findGraphNeighbors(const DenseVertex &v1, std::vector<SparseVerte
     visibleNeighborhood.push_back(graphNeighborhood[i]);
   }
 
-  if (checksVerbose_)
-    std::cout << std::string(coutIndent + 2, ' ') << "Graph neighborhood: " << graphNeighborhood.size()
-              << " | Visible neighborhood: " << visibleNeighborhood.size() << std::endl;
+  //if (checksVerbose_)
+  std::cout << std::string(coutIndent + 2, ' ') << "Graph neighborhood: " << graphNeighborhood.size()
+            << " | Visible neighborhood: " << visibleNeighborhood.size() << std::endl;
 }
 
-bool SparseDB::sameComponent(const SparseVertex &v1, const SparseVertex &v2)
+bool SparseDB::sameComponent(SparseVertex v1, SparseVertex v2)
 {
   return boost::same_component(v1, v2, disjointSets_);
 }
@@ -1443,17 +1452,17 @@ void SparseDB::addEdge(SparseVertex v1, SparseVertex v2, std::size_t visualColor
   }
 }
 
-base::State *&SparseDB::getSparseState(const SparseVertex &v)
+base::State *&SparseDB::getSparseState(SparseVertex v)
 {
   return denseDB_->stateProperty_[denseVertexProperty_[v]];
 }
 
-const base::State *SparseDB::getSparseStateConst(const SparseVertex &v) const
+const base::State *SparseDB::getSparseStateConst(SparseVertex v) const
 {
   return denseDB_->stateProperty_[denseVertexProperty_[v]];
 }
 
-base::State *&SparseDB::getDenseState(const DenseVertex &denseV)
+base::State *&SparseDB::getDenseState(DenseVertex denseV)
 {
   return denseDB_->stateProperty_[denseV];
 }
@@ -1481,8 +1490,8 @@ void SparseDB::displaySparseDatabase(bool showVertices)
     foreach (SparseEdge e, boost::edges(g_))
     {
       // Add edge
-      const SparseVertex &v1 = boost::source(e, g_);
-      const SparseVertex &v2 = boost::target(e, g_);
+      SparseVertex v1 = boost::source(e, g_);
+      SparseVertex v2 = boost::target(e, g_);
 
       // TODO(davetcoleman): currently the weight property is not normalized for 0-100 scale so not using for
       // visualization

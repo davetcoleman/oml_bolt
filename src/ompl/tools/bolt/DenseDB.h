@@ -56,6 +56,7 @@
 
 // this package
 #include <ompl/tools/bolt/BoltStorage.h>
+#include <ompl/tools/bolt/EdgeCache.h>
 
 namespace ompl
 {
@@ -125,7 +126,6 @@ public:
   //    */
   //   double get(DenseEdge e) const;
   // };
-
 
   ////////////////////////////////////////////////////////////////////////////////////////
   /**
@@ -307,9 +307,6 @@ public:
    */
   void loadFromPlannerData(const base::PlannerData& data);
 
-  /** \brief Clone the graph to have second and third layers for task planning then free space planning */
-  void generateTaskSpace();
-
   /** \brief Free all the memory allocated by the database */
   void freeMemory();
 
@@ -318,9 +315,6 @@ public:
 
   /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
   double distanceFunction2(const DenseVertex a, const DenseVertex b) const;
-
-  /** \brief Compute the heuristic distance between the current node and the next goal */
-  double distanceFunctionTasks(const DenseVertex a, const DenseVertex b) const;
 
   /** \brief Helper for getting the task level value from a state */
   std::size_t getTaskLevel(const DenseVertex& v) const;
@@ -372,20 +366,6 @@ public:
   /** \brief Remove parts of graph that were intended to be temporary */
   void cleanupTemporaryVerticies();
 
-  /** \brief Testing code for integrating Decartes */
-  bool addCartPath(std::vector<base::State*> path);
-
-  /**
-   * \brief Helper for connecting both sides of a cartesian path into a dual level graph
-   * \param fromState - the endpoint (start or goal) we are connecting from the cartesian path to the graph
-   * \param level - what task level we are connecting to - either 0 or 2 (bottom layer or top layer)
-   * \param minConnectorVertex - the vertex on the main graph that has the shortest path to connecting to the
-   * cartesian path
-   * \return true on success
-   */
-  bool connectStateToNeighborsAtLevel(const DenseVertex& fromVertex, const std::size_t level,
-                                      DenseVertex& minConnectorVertex);
-
   /**
    * \brief Get neighbors within radius
    * \param denseV - origin state to search from
@@ -400,15 +380,8 @@ public:
   void findGraphNeighbors(base::State* state, std::vector<DenseVertex>& graphNeighborhood,
                           std::vector<DenseVertex>& visibleNeighborhood, double searchRadius, std::size_t coutIndent);
 
-  /** \brief Get k number of neighbors near a state at a certain level that have valid motions */
-  void getNeighborsAtLevel(const base::State* origState, const std::size_t level, const std::size_t kNeighbors,
-                           std::vector<DenseVertex>& neighbors);
-
   /** \brief Shortcut for visualizing an edge */
   void viz1Edge(DenseEdge& e);
-
-  /** \brief Error checking function to ensure solution has correct task path/level changes */
-  bool checkTaskPathSolution(geometric::PathGeometric& path, base::State* start, base::State* goal);
 
   /** \brief Check that all states are the correct type */
   void checkStateType();
@@ -508,6 +481,9 @@ protected:
   boost::disjoint_sets<boost::property_map<DenseGraph, boost::vertex_rank_t>::type,
                        boost::property_map<DenseGraph, boost::vertex_predecessor_t>::type> disjointSets_;
 
+  /** \brief Class for storing collision check data of edges */
+  EdgeCachePtr edgeCache_;
+
   /** \brief Tool for gridding state space */
   DiscretizerPtr discretizer_;
 
@@ -518,6 +494,8 @@ protected:
   double distanceAcrossCartesian_ = 0.0;
 
   std::size_t numSamplesAddedForDisjointSets_;
+
+  bool graphUnsaved_ = false;
 
 public:
   /** \brief Allow the database to save to file (new experiences) */
@@ -558,6 +536,5 @@ public:
 }  // namespace bolt
 }  // namespace tools
 }  // namespace ompl
-
 
 #endif

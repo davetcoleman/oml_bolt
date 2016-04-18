@@ -281,20 +281,13 @@ bool Bolt::loadOrGenerate()
     {
       OMPL_INFORM("No database loaded from file - generating new grid");
 
-      // Benchmark runtime
-      time::point startTime = time::now();
-
       denseDB_->generateGrid();
-
-      // Benchmark runtime
-      double duration = time::seconds(time::now() - startTime);
-      OMPL_INFORM("Grid generation total time: %f seconds (%f min)", duration, duration / 60.0);
 
       return true;
     }
     // denseDB_->displayDatabase();
     denseDB_->saveIfChanged(filePath_);
-    //denseDB_->eliminateDisjointSets();
+    denseDB_->eliminateDisjointSets();
 
     return true;
   }
