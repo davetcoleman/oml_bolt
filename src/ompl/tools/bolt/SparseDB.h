@@ -396,6 +396,8 @@ public:
 
   /** \brief Same discretization used in Discretizer */
   double discretization_;
+
+  bool testingBool_;
 };  // end of class SparseDB
 
 }  // namespace bolt

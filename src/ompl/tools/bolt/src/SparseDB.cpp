@@ -583,9 +583,9 @@ void SparseDB::getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInser
     exit(-1);
   }
 
-  return;
   // Testing ----------------------------
 
+  /*
   // Save
   // std::ofstream out("/home/dave/ros/ompl_storage/temp.ompl", std::ios::binary);
   // boost::archive::binary_oarchive oa(out);
@@ -626,8 +626,84 @@ void SparseDB::getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInser
   }
   std::cout << "done while looping " << std::endl;
 
-  usleep(5*1000000);
+  // Test 2
+  std::vector<SparseVertex> graphNeighborhood;
+  std::vector<SparseVertex> visibleNeighborhood;
+  std::vector<SparseVertex> graphNeighborhood_all;
+  std::vector<SparseVertex> visibleNeighborhood_all;
+
+  std::cout << "starting test, vertexInsertionOrder.size: " << vertexInsertionOrder.size() << std::endl;
+  std::size_t count = 0;
+  for (WeightedVertex wv : vertexInsertionOrder)
+  {
+    if (count++ >= 500)
+      break;
+    if (count+1 % 100 == 0)
+      std::cout << " --------- count: " << count << std::endl;
+
+    graphNeighborhood.clear();
+    visibleNeighborhood.clear();
+    findGraphNeighbors(wv.v_, graphNeighborhood, visibleNeighborhood, 0);
+
+    //std::cout << "graphNeighborhood_all: " << graphNeighborhood_all.size() << std::endl;
+
+    // Insert
+    graphNeighborhood_all.insert(graphNeighborhood_all.end(), graphNeighborhood.begin(), graphNeighborhood.end());
+    visibleNeighborhood_all.insert(visibleNeighborhood_all.end(), visibleNeighborhood.begin(), visibleNeighborhood.end());
+
+    GuardType addReason;         // returns why the state was added
+    SparseVertex newVertex = 0;  // the newly generated sparse vertex
+    addStateToRoadmap(wv.v_, newVertex, addReason);
+  }
+
+  std::cout << std::endl;
+  std::cout << "Summary: graphNeighborhood_all: " << graphNeighborhood_all.size() << std::endl;
+  //std::cout << "visibleNeighborhood_all: " << visibleNeighborhood_all.size() << std::endl;
+
+  if (testingBool_)
+  {
+    // Save
+    std::ofstream out("/home/dave/ros/ompl_storage/temp2.ompl", std::ios::binary);
+    boost::archive::binary_oarchive oa(out);
+    oa << graphNeighborhood_all;
+    //oa << visibleNeighborhood_all;
+    out.close();
+
+    usleep(1*1000000);
+    exit(0);
+  }
+
+  // Load
+  std::vector<SparseVertex> graphNeighborhood_all2;
+  std::vector<SparseVertex> visibleNeighborhood_all2;
+  std::ifstream in("/home/dave/ros/ompl_storage/temp2.ompl", std::ios::binary);
+  boost::archive::binary_iarchive ia(in);
+  ia >> graphNeighborhood_all2;
+  //ia >> visibleNeighborhood_all2;
+  in.close();
+
+  std::cout << "are they the same? " << (graphNeighborhood_all2 == graphNeighborhood_all) << std::endl;
+  std::cout << "are they the same size? " << graphNeighborhood_all2.size() << " and " << graphNeighborhood_all.size() << std::endl;
+  //std::cout << "are they the same? " << (visibleNeighborhood_all2 == visibleNeighborhood_all) << std::endl;
+
+  for (std::size_t i = 0; i < graphNeighborhood_all.size(); ++i)
+  {
+    if (graphNeighborhood_all[i] == graphNeighborhood_all2[i])
+      continue;
+
+    std::cout << "Not the same at index " << i << std::endl;
+    std::cout << "Values: " << graphNeighborhood_all[i] << " and " << graphNeighborhood_all2[i] << std::endl;
+
+    visual_->viz3State(getSparseState(graphNeighborhood_all[i]), 2 small blue, 0);
+    visual_->viz3State(getSparseState(graphNeighborhood_all2[i]), 1 small green, 0);
+        visual_->viz3Trigger();
+        usleep(1 * 1000000);
+    break;
+  }
+
+  usleep(0.1*1000000);
   exit(0);
+*/
 }
 
 void SparseDB::eliminateDisjointSets()
@@ -1029,8 +1105,7 @@ bool SparseDB::checkAddConnectivity(const DenseVertex &denseV, std::vector<Spars
 
   // Identify visibile nodes around our new state that are unconnected (in different connected components)
   // and connect them
-  // TODO(davetcoleman): in C++11 change to std::unordered_set
-  boost::unordered_set<SparseVertex> statesInDiffConnectedComponents;
+  std::set<SparseVertex> statesInDiffConnectedComponents;
 
   // For each neighbor
   for (std::size_t i = 0; i < visibleNeighborhood.size(); ++i)
@@ -1043,10 +1118,6 @@ bool SparseDB::checkAddConnectivity(const DenseVertex &denseV, std::vector<Spars
       {
         statesInDiffConnectedComponents.insert(visibleNeighborhood[i]);
         statesInDiffConnectedComponents.insert(visibleNeighborhood[j]);
-
-        if (specialMode_)
-          std::cout << "visibleNeighborhood[i] " << visibleNeighborhood[i] << " visibleNeighborhood[j] "
-                    << visibleNeighborhood[j] << std::endl;
       }
     }
   }
@@ -1059,27 +1130,14 @@ bool SparseDB::checkAddConnectivity(const DenseVertex &denseV, std::vector<Spars
     return false;
   }
 
-  if (specialMode_)
-  {
-    std::cout << "statesInDiffConnectedComponents: " << statesInDiffConnectedComponents.size() << std::endl;
-
-    // Show neighbors
-    for (std::size_t i = 0; i < visibleNeighborhood.size(); ++i)
-    {
-      std::cout << "showing neighbor " << i << " - " << visibleNeighborhood[i] << std::endl;
-      visual_->viz2State(getSparseStateConst(visibleNeighborhood[i]), 9, 2);
-      visual_->viz2Trigger();
-      usleep(0.001 * 1000000);
-    }
-  }
-
   if (checksVerbose_)
     std::cout << std::string(coutIndent + 2, ' ') << "Adding node for CONNECTIVITY " << std::endl;
 
   // Add the node
   newVertex = addVertex(denseV, CONNECTIVITY);
 
-  for (boost::unordered_set<SparseVertex>::const_iterator vertexIt = statesInDiffConnectedComponents.begin();
+  // Add the edges
+  for (std::set<SparseVertex>::const_iterator vertexIt = statesInDiffConnectedComponents.begin();
        vertexIt != statesInDiffConnectedComponents.end(); ++vertexIt)
   {
     // Do not add edge from self to self
@@ -1089,25 +1147,8 @@ bool SparseDB::checkAddConnectivity(const DenseVertex &denseV, std::vector<Spars
       continue;  // skip this pairing
     }
 
-    // Visualize each diff component state
-    if (specialMode_)
-    {
-      visual_->viz2State(getDenseState(denseV), 9, 3);
-      // visual_->viz2State(getSparseStateConst(*vertexIt), 9, 2);
-      visual_->viz2Trigger();
-      usleep(0.001 * 1000000);
-    }
-
     if (checksVerbose_)
       std::cout << std::string(coutIndent + 3, ' ') << "Loop: Adding vertex " << *vertexIt << std::endl;
-
-    // Make sure vertices are not the same
-    if (newVertex == *vertexIt)
-    {
-      OMPL_ERROR("Somehow the new vertex %u is same as the old vertex %u", newVertex, *vertexIt);
-
-      exit(-1);
-    }
 
     // New vertex should not be connected to anything - there's no edge between the two states
     if (boost::edge(newVertex, *vertexIt, g_).second == true)
@@ -1122,9 +1163,6 @@ bool SparseDB::checkAddConnectivity(const DenseVertex &denseV, std::vector<Spars
       std::size_t visualColor = 0;  // GREEN
       if (secondSparseInsertionAttempt_)
         visualColor = 25;  // ORANGE
-
-      // Error check
-      assert(newVertex != *vertexIt);
 
       // Connect
       addEdge(newVertex, *vertexIt, visualColor, coutIndent + 4);
