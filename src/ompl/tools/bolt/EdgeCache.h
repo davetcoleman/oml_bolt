@@ -36,8 +36,8 @@
    Desc:   Speed up collision checking of DenseVertex edges
 */
 
-#ifndef OMPL_TOOLS_BOLT_COLLISION_CACHE_
-#define OMPL_TOOLS_BOLT_COLLISION_CACHE_
+#ifndef OMPL_TOOLS_BOLT_EDGE_CACHE_
+#define OMPL_TOOLS_BOLT_EDGE_CACHE_
 
 // OMPL
 #include <ompl/base/SpaceInformation.h>
@@ -53,16 +53,16 @@ namespace tools
 {
 namespace bolt
 {
-OMPL_CLASS_FORWARD(CollisionCache);
+OMPL_CLASS_FORWARD(EdgeCache);
 OMPL_CLASS_FORWARD(DenseDB);
 
 typedef std::map<std::pair<DenseVertex,DenseVertex>, bool> EdgeCacheMap;
-class CollisionCache
+class EdgeCache
 {
 public:
 
   /** \brief Constructor */
-  CollisionCache(base::SpaceInformationPtr si, DenseDB *denseDB, base::VisualizerPtr visual);
+  EdgeCache(base::SpaceInformationPtr si, DenseDB *denseDB, base::VisualizerPtr visual);
 
   /** \brief Save cache to file */
   bool save();
@@ -117,10 +117,10 @@ private:
 
   std::pair<DenseVertex, DenseVertex> key_;
 
-};  // end of class CollisionCache
+};  // end of class EdgeCache
 
 }  // namespace bolt
 }  // namespace tools
 }  // namespace ompl
 
-#endif  // OMPL_TOOLS_BOLT_COLLISION_CACHE_
+#endif  // OMPL_TOOLS_BOLT_EDGE_CACHE_

@@ -85,7 +85,7 @@ class DenseDB
   friend class SparseDB;
   friend class BoltStorage;
   friend class Discretizer;
-  friend class CollisionCache;
+  friend class EdgeCache;
 
 public:
   // ////////////////////////////////////////////////////////////////////////////////////////
@@ -187,6 +187,20 @@ public:
    */
   bool load(const std::string& fileName);
 
+  /**
+   * \brief Save loaded database to file, except skips saving if no paths have been added
+   * \param fileName - name of database file
+   * \return true if file saved successfully
+   */
+  bool saveIfChanged(const std::string& fileName);
+
+  /**
+   * \brief Save loaded database to file
+   * \param fileName - name of database file
+   * \return true if file saved successfully
+   */
+  bool save(const std::string& fileName);
+
   /** \brief Create grid */
   bool generateGrid();
 
@@ -219,20 +233,6 @@ public:
   bool recurseSnapWaypoints(ompl::geometric::PathGeometric& inputPath, std::vector<DenseVertex>& roadmapPath,
                             std::size_t currVertexIndex, const DenseVertex& prevGraphVertex, bool& allValid,
                             bool verbose);
-
-  /**
-   * \brief Save loaded database to file, except skips saving if no paths have been added
-   * \param fileName - name of database file
-   * \return true if file saved successfully
-   */
-  bool saveIfChanged(const std::string& fileName);
-
-  /**
-   * \brief Save loaded database to file
-   * \param fileName - name of database file
-   * \return true if file saved successfully
-   */
-  bool save(const std::string& fileName);
 
   /** \brief Given two milestones from the same connected component, construct a path connecting them and set it as
    * the solution
@@ -475,7 +475,7 @@ protected:
   base::ValidStateSamplerPtr sampler_;  // TODO(davetcoleman): remove this unused sampler
 
   /** \brief Determine if a save is required */
-  bool graphUnsaved_ = false;
+  bool dataUnsaved_ = false;
 
   /** \brief Helper class for storing each plannerData instance */
   // ompl::base::PlannerDataStorage plannerDataStorage_;

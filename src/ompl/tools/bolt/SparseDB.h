@@ -50,7 +50,7 @@
 #include <ompl/tools/bolt/Visualizer.h>
 #include <ompl/tools/bolt/DenseDB.h>
 #include <ompl/tools/bolt/BoltGraph.h>
-#include <ompl/tools/bolt/CollisionCache.h>
+#include <ompl/tools/bolt/EdgeCache.h>
 
 // Boost
 #include <boost/function.hpp>
@@ -131,7 +131,7 @@ public:
   /** \brief Constructor needs the state space used for planning.
    *  \param space - state space
    */
-  SparseDB(base::SpaceInformationPtr si, DenseDB* denseDB, base::VisualizerPtr visual);
+  SparseDB(base::SpaceInformationPtr si, DenseDB* denseDB, base::VisualizerPtr visual, EdgeCachePtr edgeCache);
 
   /** \brief Deconstructor */
   virtual ~SparseDB(void);
@@ -269,9 +269,9 @@ public:
     numNodesClosed_++;
   }
 
-  CollisionCachePtr getCollisionCache()
+  EdgeCachePtr getEdgeCache()
   {
-    return collisionCache_;
+    return edgeCache_;
   }
 
 public:
@@ -331,7 +331,7 @@ protected:
   geometric::PathSimplifierPtr psimp_;
 
   /** \brief Speed up collision checking by saving redundant checks and using file storage */
-  CollisionCachePtr collisionCache_;
+  EdgeCachePtr edgeCache_;
 
   /** \brief Special flag for tracking mode when inserting into sparse graph */
   bool secondSparseInsertionAttempt_ = false;

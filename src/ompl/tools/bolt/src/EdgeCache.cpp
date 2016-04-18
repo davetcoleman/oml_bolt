@@ -55,13 +55,13 @@ namespace tools
 {
 namespace bolt
 {
-CollisionCache::CollisionCache(base::SpaceInformationPtr si, DenseDB *denseDB, base::VisualizerPtr visual)
+EdgeCache::EdgeCache(base::SpaceInformationPtr si, DenseDB *denseDB, base::VisualizerPtr visual)
   : si_(si), denseDB_(denseDB), visual_(visual)
 {
   resetCounters();
 }
 
-bool CollisionCache::save()
+bool EdgeCache::save()
 {
   OMPL_INFORM("------------------------------------------------");
   OMPL_INFORM("Saving Collision Cache");
@@ -94,7 +94,7 @@ bool CollisionCache::save()
   return true;
 }
 
-bool CollisionCache::load()
+bool EdgeCache::load()
 {
   OMPL_INFORM("Loading collision path from %s", filePath_.c_str());
 
@@ -125,13 +125,13 @@ bool CollisionCache::load()
   return true;
 }
 
-void CollisionCache::resetCounters()
+void EdgeCache::resetCounters()
 {
   totalCollisionChecks_ = 0;
   totalCollisionChecksFromCache_ = 0;
 }
 
-bool CollisionCache::checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v2)
+bool EdgeCache::checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v2)
 {
   // Statistics
   totalCollisionChecks_++;
@@ -166,7 +166,7 @@ bool CollisionCache::checkMotionWithCache(const DenseVertex &v1, const DenseVert
 
 }
 
-bool CollisionCache::checkMotionWithCacheSlow(const DenseVertex &v1, const DenseVertex &v2)
+bool EdgeCache::checkMotionWithCacheSlow(const DenseVertex &v1, const DenseVertex &v2)
 {
   // Statistics
   totalCollisionChecks_++;
@@ -194,7 +194,7 @@ bool CollisionCache::checkMotionWithCacheSlow(const DenseVertex &v1, const Dense
   return it->second;
 }
 
-void CollisionCache::checkMotionCacheBenchmark()
+void EdgeCache::checkMotionCacheBenchmark()
 {
   std::cout << std::endl;
   std::cout << "-------------------------------------------------------" << std::endl;
@@ -253,7 +253,7 @@ void CollisionCache::checkMotionCacheBenchmark()
   }
 }
 
-void CollisionCache::errorCheckData()
+void EdgeCache::errorCheckData()
 {
   OMPL_INFORM("Error checking collision cache...");
   std::size_t counter = 0;
@@ -276,27 +276,27 @@ void CollisionCache::errorCheckData()
   }
 }
 
-void CollisionCache::setFilePath(const std::string &filePath)
+void EdgeCache::setFilePath(const std::string &filePath)
 {
   filePath_ = filePath;
 }
 
-std::size_t CollisionCache::getCacheSize()
+std::size_t EdgeCache::getCacheSize()
 {
   return collisionCheckEdgeCache_.size();
 }
 
-std::size_t CollisionCache::getTotalCollisionChecksFromCache()
+std::size_t EdgeCache::getTotalCollisionChecksFromCache()
 {
   return totalCollisionChecksFromCache_;
 }
 
-std::size_t CollisionCache::getTotalCollisionChecks()
+std::size_t EdgeCache::getTotalCollisionChecks()
 {
   return totalCollisionChecks_;
 }
 
-double CollisionCache::getPercentCachedCollisionChecks()
+double EdgeCache::getPercentCachedCollisionChecks()
 {
   if (totalCollisionChecks_ == 0)
     return 0;

@@ -38,7 +38,7 @@ include_directories(
 # Secondary Library
 add_library(${PROJECT_NAME}_aux
   src/ompl/tools/bolt/src/BoltStorage.cpp
-  src/ompl/tools/bolt/src/CollisionCache.cpp
+  src/ompl/tools/bolt/src/EdgeCache.cpp
   src/ompl/tools/bolt/src/Discretizer.cpp
 )
 # Specify libraries to link a library or executable target against

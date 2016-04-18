@@ -123,10 +123,12 @@ namespace tools
 {
 namespace bolt
 {
-SparseDB::SparseDB(base::SpaceInformationPtr si, DenseDB *denseDB, base::VisualizerPtr visual)
+SparseDB::SparseDB(base::SpaceInformationPtr si, DenseDB *denseDB, base::VisualizerPtr visual,
+                   EdgeCachePtr edgeCache)
   : si_(si)
   , denseDB_(denseDB)
   , visual_(visual)
+  , edgeCache_(edgeCache)
   , smoothingGeomPath_(si)
   // Property accessors of edges
   , edgeWeightPropertySparse_(boost::get(boost::edge_weight, g_))
@@ -150,9 +152,6 @@ SparseDB::SparseDB(base::SpaceInformationPtr si, DenseDB *denseDB, base::Visuali
   // Initialize path simplifier
   psimp_.reset(new geometric::PathSimplifier(si_));
   psimp_->freeStates(false);
-
-  // Initialize collision cache
-  collisionCache_.reset(new CollisionCache(si_, denseDB_, visual_));
 }
 
 SparseDB::~SparseDB(void)
@@ -370,9 +369,6 @@ void SparseDB::createSPARS()
   // Benchmark runtime
   time::point startTime = time::now();
 
-  // Load collision cache
-  collisionCache_->load();
-
   // Create SPARS
   CALLGRIND_TOGGLE_COLLECT;
   createSPARSOuterLoop();
@@ -395,10 +391,10 @@ void SparseDB::createSPARS()
   OMPL_INFORM("  Generation time:           %f", duration);
   OMPL_INFORM("  Total generations:         %u", numGraphGenerations_);
   OMPL_INFORM("  Disjoint sets:             %u", numSets);
-  OMPL_INFORM("  Edge collision cache:      %u", collisionCache_->getCacheSize());
-  OMPL_INFORM("  Total collision checks:    %u", collisionCache_->getTotalCollisionChecks());
-  OMPL_INFORM("  Cached collision checks:   %u (%f %)", collisionCache_->getTotalCollisionChecksFromCache(),
-              collisionCache_->getPercentCachedCollisionChecks());
+  OMPL_INFORM("  Edge collision cache:      %u", edgeCache_->getCacheSize());
+  OMPL_INFORM("  Total collision checks:    %u", edgeCache_->getTotalCollisionChecks());
+  OMPL_INFORM("  Cached collision checks:   %u (%f %)", edgeCache_->getTotalCollisionChecksFromCache(),
+             edgeCache_->getPercentCachedCollisionChecks());
   OMPL_INFORM("-----------------------------------------");
 
   if (numSets > 1 && false)
@@ -415,7 +411,7 @@ void SparseDB::createSPARS()
     OMPL_WARN("Skipping disjoint set fixing");
 
   // Save collision cache
-  collisionCache_->save();
+  edgeCache_->save();
 
   OMPL_INFORM("Finished creating sparse database");
 }
@@ -438,7 +434,7 @@ void SparseDB::createSPARSOuterLoop()
   // Reset parameters
   setup();
   visualizeOverlayNodes_ = false;  // DO NOT visualize all added nodes in a separate window
-  collisionCache_->resetCounters();
+  edgeCache_->resetCounters();
 
   // Get the ordering to insert vertices
   std::list<WeightedVertex> vertexInsertionOrder;
@@ -518,8 +514,8 @@ bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOr
     {
       std::cout << std::fixed << std::setprecision(1)
                 << "Sparse graph generation: " << (static_cast<double>(loopCount) / originalVertexInsertion) * 100.0
-                << "% Cache size: " << collisionCache_->getCacheSize()
-                << " Cache usage: " << collisionCache_->getPercentCachedCollisionChecks() << "%" << std::endl;
+                << "% Cache size: " << edgeCache_->getCacheSize()
+                << " Cache usage: " << edgeCache_->getPercentCachedCollisionChecks() << "%" << std::endl;
       if (visualizeSparsGraph_)
         visual_->viz2Trigger();
     }
@@ -1206,7 +1202,7 @@ bool SparseDB::checkAddInterface(const DenseVertex &denseV, std::vector<SparseVe
     if (!boost::edge(visibleNeighborhood[0], visibleNeighborhood[1], g_).second)
     {
       // If they can be directly connected
-      if (collisionCache_->checkMotionWithCache(denseVertexProperty_[visibleNeighborhood[0]],
+      if (edgeCache_->checkMotionWithCache(denseVertexProperty_[visibleNeighborhood[0]],
                                                 denseVertexProperty_[visibleNeighborhood[1]]))
       // if (si_->checkMotion(getSparseStateConst(visibleNeighborhood[0]), getSparseStateConst(visibleNeighborhood[1])))
       {
@@ -1298,7 +1294,7 @@ void SparseDB::findGraphNeighbors(const DenseVertex &v1, std::vector<SparseVerte
       // Only collision check motion if they don't already share an edge in the dense graph
       if (!boost::edge(v1, v2, denseDB_->g_).second)
       {
-        if (!collisionCache_->checkMotionWithCache(v1, v2))
+        if (!edgeCache_->checkMotionWithCache(v1, v2))
         {
           continue;
         }

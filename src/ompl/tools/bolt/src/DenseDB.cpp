@@ -126,15 +126,18 @@ DenseDB::DenseDB(base::SpaceInformationPtr si, base::VisualizerPtr visual)
   // Add search state
   initializeQueryState();
 
+  // Initialize collision cache
+  edgeCache_.reset(new EdgeCache(si_, this, visual_));
+
   // Initialize sparse database
-  sparseDB_.reset(new SparseDB(si_, this, visual_));
+  sparseDB_.reset(new SparseDB(si_, this, visual_, edgeCache_));
 
   // Initialize nearest neighbor datastructure
   nn_.reset(new NearestNeighborsGNATNoThreadSafety<DenseVertex>());
   nn_->setDistanceFunction(boost::bind(&DenseDB::distanceFunction, this, _1, _2));
 
   // Initialize the discretize grid tool
-  discretizer_.reset(new Discretizer(si_, this, visual_));
+  discretizer_.reset(new Discretizer(si_, this, visual_, edgeCache_));
 }
 
 DenseDB::~DenseDB(void)
@@ -204,9 +207,12 @@ bool DenseDB::load(const std::string &fileName)
   // Benchmark
   double duration = time::seconds(time::now() - start);
 
+  // Load collision cache
+  edgeCache_->load();
+
   // Visualize
-  visual_->viz1Trigger();
-  usleep(0.1 * 1000000);
+  //visual_->viz1Trigger();
+  //usleep(0.1 * 1000000);
 
   // Error check
   if (!getNumVertices() || !getNumEdges())
@@ -230,6 +236,57 @@ bool DenseDB::load(const std::string &fileName)
   OMPL_INFORM("   Loading time:           %f", duration);
   OMPL_INFORM("------------------------------------------------------");
 
+  return true;
+}
+
+bool DenseDB::saveIfChanged(const std::string &fileName)
+{
+  if (graphUnsaved_)
+  {
+    return save(fileName);
+  }
+  else
+    OMPL_INFORM("Not saving because database has not changed");
+  return true;
+}
+
+bool DenseDB::save(const std::string &fileName)
+{
+  if (!graphUnsaved_)
+    OMPL_WARN("No need to save because graphUnsaved_ is false, but saving anyway because requested");
+
+  // Disabled
+  if (!savingEnabled_)
+  {
+    OMPL_INFORM("Not saving because option disabled for DenseDB");
+    return false;
+  }
+
+  // Error checking
+  if (fileName.empty())
+  {
+    OMPL_ERROR("Empty filename passed to save function");
+    return false;
+  }
+
+  OMPL_INFORM("Saving graph with %d vertices and %d edges to file: %s", getNumVertices(), getNumEdges(),
+              fileName.c_str());
+
+  // Benchmark
+  time::point start = time::now();
+
+  // Save
+  BoltStorage storage_(si_, this);
+  storage_.save(fileName.c_str());
+
+  // Save collision cache
+  edgeCache_->save();
+
+  // Benchmark
+  double loadTime = time::seconds(time::now() - start);
+  OMPL_INFORM("Saved database to file in %f sec", loadTime);
+
+  graphUnsaved_ = false;
   return true;
 }
 
@@ -570,54 +627,6 @@ bool DenseDB::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<Den
                                                     "(one that has already returned) did not" << std::endl;
 
   return false;  // this loop found a valid connection, but lower recursive loop did not
-}
-
-bool DenseDB::saveIfChanged(const std::string &fileName)
-{
-  if (graphUnsaved_)
-  {
-    return save(fileName);
-  }
-  else
-    OMPL_INFORM("Not saving because database has not changed");
-  return true;
-}
-
-bool DenseDB::save(const std::string &fileName)
-{
-  if (!graphUnsaved_)
-    OMPL_WARN("No need to save because graphUnsaved_ is false, but saving anyway because requested");
-
-  // Disabled
-  if (!savingEnabled_)
-  {
-    OMPL_INFORM("Not saving because option disabled for DenseDB");
-    return false;
-  }
-
-  // Error checking
-  if (fileName.empty())
-  {
-    OMPL_ERROR("Empty filename passed to save function");
-    return false;
-  }
-
-  OMPL_INFORM("Saving graph with %d vertices and %d edges to file: %s", getNumVertices(), getNumEdges(),
-              fileName.c_str());
-
-  // Benchmark
-  time::point start = time::now();
-
-  // Save
-  BoltStorage storage_(si_, this);
-  storage_.save(fileName.c_str());
-
-  // Benchmark
-  double loadTime = time::seconds(time::now() - start);
-  OMPL_INFORM("Saved database to file in %f sec", loadTime);
-
-  graphUnsaved_ = false;
-  return true;
 }
 
 bool DenseDB::astarSearch(const DenseVertex start, const DenseVertex goal, std::vector<DenseVertex> &vertexPath)
