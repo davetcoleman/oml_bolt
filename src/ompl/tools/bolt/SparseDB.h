@@ -248,8 +248,8 @@ protected:
   /** \brief Connectivity graph */
   SparseGraph g_;
 
-  /** \brief Vertex for performing nearest neighbor queries. */
-  SparseVertex queryVertex_;
+  /** \brief Vertices for performing nearest neighbor queries on multiple threads */
+  std::vector<SparseVertex> queryVertices_;
 
   /** \brief Geometric Path variable used for smoothing out paths. */
   geometric::PathGeometric smoothingGeomPath_;
