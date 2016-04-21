@@ -76,6 +76,8 @@ OMPL_CLASS_FORWARD(SparseDB);
 OMPL_CLASS_FORWARD(Discretizer);
 /// @endcond
 
+typedef std::map<DenseVertex, std::vector<DenseVertex> > DisjointSetsParentKey;
+
 /** \class ompl::tools::bolt::DenseDBPtr
     \brief A boost shared pointer wrapper for ompl::tools::bolt::DenseDB */
 
@@ -180,26 +182,32 @@ public:
   /** \brief Initialize database */
   bool setup();
 
+  /** \brief Set the file path to load/save to/from */
+  void setFilePath(const std::string& filePath)
+  {
+    filePath_ = filePath;
+  }
+
   /**
    * \brief Load database from file
    * \param fileName - name of database file
    * \return true if file loaded successfully
    */
-  bool load(const std::string& fileName);
+  bool load();
 
   /**
    * \brief Save loaded database to file, except skips saving if no paths have been added
    * \param fileName - name of database file
    * \return true if file saved successfully
    */
-  bool saveIfChanged(const std::string& fileName);
+  bool saveIfChanged();
 
   /**
    * \brief Save loaded database to file
    * \param fileName - name of database file
    * \return true if file saved successfully
    */
-  bool save(const std::string& fileName);
+  bool save();
 
   /** \brief Create grid */
   bool generateGrid();
@@ -301,11 +309,11 @@ public:
   /** \brief Hook for adding edges from BoltStorage */
   void addEdgeFromFile(BoltStorage::BoltEdgeData e);
 
-  /**
-   * \brief Set the sparse graph from file
-   * \param a pre-built graph
-   */
-  void loadFromPlannerData(const base::PlannerData& data);
+  /** \brief Mark the datastructure as needing to be saved to file */
+  void setGraphUnsaved()
+  {
+    graphUnsaved_ = true;
+  }
 
   /** \brief Free all the memory allocated by the database */
   void freeMemory();
@@ -366,6 +374,8 @@ public:
   /** \brief Remove parts of graph that were intended to be temporary */
   void cleanupTemporaryVerticies();
 
+  void removeVertex(DenseVertex v);
+
   /**
    * \brief Get neighbors within radius
    * \param denseV - origin state to search from
@@ -425,10 +435,17 @@ public:
 
   bool sameComponent(const DenseVertex& v1, const DenseVertex& v2);
 
+  void removeInvalidVertices();
+
   DiscretizerPtr getDiscretizer()
   {
     return discretizer_;
   }
+
+  /** \brief Get all the different conencted components in the graph, and print to console or visualize */
+  void getDisjointSets(DisjointSetsParentKey &disjointSets);
+  void printDisjointSets(DisjointSetsParentKey &disjointSets);
+  void visualizeDisjointSets(DisjointSetsParentKey &disjointSets);
 
 protected:
   /** \brief The created space information */
@@ -482,6 +499,9 @@ protected:
 
   /** \brief Tool for gridding state space */
   DiscretizerPtr discretizer_;
+
+  /** \brief Track where to load/save datastructures */
+  std::string filePath_;
 
   /** \brief Track vertex for later removal if temporary */
   std::vector<DenseVertex> tempVerticies_;

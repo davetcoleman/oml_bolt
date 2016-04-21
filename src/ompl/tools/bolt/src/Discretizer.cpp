@@ -45,6 +45,9 @@
 #include <boost/thread.hpp>
 #include <boost/math/constants/constants.hpp>
 
+// Profiling
+#include <valgrind/callgrind.h>
+
 #define foreach BOOST_FOREACH
 
 namespace og = ompl::geometric;
@@ -57,7 +60,8 @@ namespace tools
 {
 namespace bolt
 {
-Discretizer::Discretizer(base::SpaceInformationPtr si, DenseDB* denseDB, EdgeCachePtr edgeCache, base::VisualizerPtr visual)
+Discretizer::Discretizer(base::SpaceInformationPtr si, DenseDB *denseDB, EdgeCachePtr edgeCache,
+                         base::VisualizerPtr visual)
   : si_(si), denseDB_(denseDB), edgeCache_(edgeCache), visual_(visual)
 {
 }
@@ -91,7 +95,8 @@ bool Discretizer::generateGrid()
     vertexDuration = time::seconds(time::now() - startTime);
   }
 
-  OMPL_INFORM("Generated %i vertices in %f sec (%f hours)", denseDB_->getNumVertices(), vertexDuration, vertexDuration/60.0/60.0);
+  OMPL_INFORM("Generated %i vertices in %f sec (%f hours)", denseDB_->getNumVertices(), vertexDuration,
+              vertexDuration / 60.0 / 60.0);
 
   // Error check
   if (denseDB_->getNumVertices() < 2)
@@ -196,7 +201,8 @@ void Discretizer::generateVertices()
     std::cout << "  J0 range is:            " << range << std::endl;
     std::cout << "  J0 Increments:          " << jointIncrements << std::endl;
     std::cout << "  J0 IncrementsPerThread: " << jointIncrementsPerThread << std::endl;
-    std::cout << "  Total states:           " << pow(jointIncrements, si_->getStateSpace()->getDimension()) << std::endl;
+    std::cout << "  Total states:           " << pow(jointIncrements, si_->getStateSpace()->getDimension())
+              << std::endl;
     std::cout << "  NumThreads: " << numThreads << std::endl;
     std::cout << "-------------------------------------------------------" << std::endl;
   }
@@ -255,7 +261,7 @@ void Discretizer::createVertexThread(std::size_t threadID, double startJointValu
     maxDiscretizationLevel = 1;  // because the third level (numbered '2') is for task space
     values[2] = 0.0;             // task space
   }
-  else if (dim == 6)
+  else if (dim == 6 && false)
   {
     maxDiscretizationLevel = dim - 2;  // don't discretize the wrist rotation
     values[5] = 0.0;                   // middle rotation of wrist
@@ -504,8 +510,7 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
     {
       std::cout << "Generating edges progress: " << std::setprecision(1)
                 << (v1 - startVertex) / static_cast<double>(endVertex - startVertex) * 100.0
-                << " % Total edges: " << denseDB_->getNumEdges()
-                << " Cache size: " << edgeCache_->getCacheSize()
+                << " % Total edges: " << denseDB_->getNumEdges() << " Cache size: " << edgeCache_->getCacheSize()
                 << " Cache usage: " << edgeCache_->getPercentCachedCollisionChecks() << "%" << std::endl;
     }
 
@@ -542,7 +547,7 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
       }
 
       // Check edge for collision
-      //if (!si->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]))
+      // if (!si->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]))
       if (!edgeCache_->checkMotionWithCache(v1, v2, threadID))
       {
         numEdgesInCollision++;
@@ -589,11 +594,11 @@ void Discretizer::getVertexNeighborsPreprocess()
   {
     case 1:
       findNearestKNeighbors_ = getEdgesPerVertex(si_);
-      std::cout << "findNearestKNeighbors: " << findNearestKNeighbors_ << std::endl;
+      std::cout << "Edge Connection Strategy: findNearestKNeighbors k=" << findNearestKNeighbors_ << std::endl;
       break;
     case 2:
       radiusNeighbors_ = sqrt(2 * (discretization_ * discretization_));
-      std::cout << "radiusNeighbors_: " << radiusNeighbors_ << std::endl;
+      std::cout << "Edge Connection Strategy: radiusNeighbors_ r=" << radiusNeighbors_ << std::endl;
       break;
     case 3:
     {
@@ -601,7 +606,7 @@ void Discretizer::getVertexNeighborsPreprocess()
       double kPRMConstant_ = boost::math::constants::e<double>() +
                              (boost::math::constants::e<double>() / (double)si_->getStateSpace()->getDimension());
       findNearestKNeighbors_ = static_cast<unsigned int>(ceil(kPRMConstant_ * log((double)denseDB_->getNumVertices())));
-      std::cout << "findNearestKNeighbors: " << findNearestKNeighbors_ << std::endl;
+      std::cout << "Edge Connection Strategy: findNearestKNeighbors k=" << findNearestKNeighbors_ << std::endl;
     }
     break;
     default:
@@ -609,7 +614,7 @@ void Discretizer::getVertexNeighborsPreprocess()
   }
 }
 
-void Discretizer::getVertexNeighbors(base::State* state, std::vector<DenseVertex> &graphNeighborhood)
+void Discretizer::getVertexNeighbors(base::State *state, std::vector<DenseVertex> &graphNeighborhood)
 {
   denseDB_->stateProperty_[denseDB_->queryVertex_] = state;
   getVertexNeighbors(denseDB_->queryVertex_, graphNeighborhood);
@@ -643,14 +648,18 @@ void Discretizer::getVertexNeighbors(DenseVertex v1, std::vector<DenseVertex> &g
 
 void Discretizer::eliminateDisjointSets()
 {
+  CALLGRIND_TOGGLE_COLLECT;
+
   OMPL_INFORM("Eliminating disjoint sets in Dense Graph");
 
   // Statistics
   eliminateDisjointSetsVerticesAdded_ = 0;
   eliminateDisjointSetsEdgesAdded_ = 0;
+  eliminateDisjointSetsVerticesAddedUnsaved_ = 0;
+  stopSearchingDisjointSets_ = false;
 
-  getVertexNeighborsPreprocess();  // prepare the constants
-  denseDB_->getSparseDB()->setup(); // make sure sparse delta is chosen
+  getVertexNeighborsPreprocess();    // prepare the constants
+  denseDB_->getSparseDB()->setup();  // make sure sparse delta is chosen
 
   std::size_t numThreads = boost::thread::hardware_concurrency();
 
@@ -672,7 +681,7 @@ void Discretizer::eliminateDisjointSets()
     si->setStateValidityChecker(si_->getStateValidityChecker());
     si->setMotionValidator(si_->getMotionValidator());
 
-    bool verboseThread = false; //!i; // only thread 0 is verbose
+    bool verboseThread = false;  //!i; // only thread 0 is verbose
 
     threads[i] =
       new boost::thread(boost::bind(&Discretizer::eliminateDisjointSetsThread, this, i, si, verboseThread));
@@ -684,6 +693,9 @@ void Discretizer::eliminateDisjointSets()
     threads[i]->join();
     delete threads[i];
   }
+
+  CALLGRIND_TOGGLE_COLLECT;
+  CALLGRIND_DUMP_STATS;
 }
 
 void Discretizer::eliminateDisjointSetsThread(std::size_t threadID, base::SpaceInformationPtr si, bool verbose)
@@ -699,18 +711,30 @@ void Discretizer::eliminateDisjointSetsThread(std::size_t threadID, base::SpaceI
   std::vector<DenseVertex> visibleNeighborhood;
 
   base::ValidStateSamplerPtr sampler = si_->allocValidStateSampler();
-  while (numSets > 1)
+  while (numSets > 1 && !stopSearchingDisjointSets_)
   {
     bool sampleAdded = false;
 
-    while (!sampleAdded) // For each random sample
+    while (!sampleAdded)  // For each random sample
     {
       graphNeighborhood.clear();
       visibleNeighborhood.clear();
 
       // Sample randomly
-      sampler->sample(candidateState);
+      if (!sampler->sample(candidateState))
+      {
+        OMPL_WARN("Sampler failed to find valid state");
+        continue;
+      }
       sampleCount++;
+
+      // Collision check TODO - this should not be necessary but there is a big with sampleNear() that does not
+      // always return a valid state
+      if (!si->isValid(candidateState))
+      {
+        //OMPL_ERROR("Sampled 'valid' state that is actually not valid");
+        continue;
+      }
 
       // Get neighbors
       {
@@ -733,25 +757,28 @@ void Discretizer::eliminateDisjointSetsThread(std::size_t threadID, base::SpaceI
       if (verbose && false)
         std::cout << "Sample #" << sampleCount << " graphNeighborhood " << graphNeighborhood.size()
                   << " visibleNeighborhood: " << visibleNeighborhood.size()
-                  << " noVisibleNeighborPercent: " << noVisibleNeighborCount / double(sampleCount) * 100.0 << "%" << std::endl;
+                  << " noVisibleNeighborPercent: " << noVisibleNeighborCount / double(sampleCount) * 100.0 << "%"
+                  << std::endl;
 
       // If no neighbors, add the vertex
       if (visibleNeighborhood.empty())
       {
         noVisibleNeighborCount++;
-        std::cout << threadID << ": Adding vertex because no neighbors" << std::endl;
-
-        if (false)  // Visualize
-        {
-          visual_->viz4State(candidateState, /*med purple*/ 4, 0);
-          visual_->viz4Trigger();
-          usleep(0.0001 * 1000000);
-        }
+        // std::cout << threadID << ": Adding vertex because no neighbors" << std::endl;
 
         {
           boost::unique_lock<boost::mutex> scoped_lock(vertexMutex_);
+
+          if (false)  // Visualize
+          {
+            visual_->viz6State(candidateState, /*robot state*/ 10, base::CYAN);
+            visual_->viz6Trigger();
+          }
+
           denseDB_->addVertex(si_->cloneState(candidateState), COVERAGE);
+          denseDB_->setGraphUnsaved();
           eliminateDisjointSetsVerticesAdded_++;
+          eliminateDisjointSetsVerticesAddedUnsaved_++;
         }
 
         // Record this new addition
@@ -769,7 +796,8 @@ void Discretizer::eliminateDisjointSetsThread(std::size_t threadID, base::SpaceI
           // If they are in different components
           if (!denseDB_->sameComponent(visibleNeighborhood[i], visibleNeighborhood[j]))
           {
-            std::cout << threadID << ": Neighbors " << visibleNeighborhood[i] << ", " << visibleNeighborhood[j] << " are in different components, add!" << std::endl;
+            // std::cout << threadID << ": Neighbors " << visibleNeighborhood[i] << ", " << visibleNeighborhood[j] << "
+            // are in different components, add!" << std::endl;
 
             // Attempt to connect new Dense vertex into dense graph by connecting neighbors
             connectNewVertex(si_->cloneState(candidateState), visibleNeighborhood, verbose);
@@ -781,15 +809,38 @@ void Discretizer::eliminateDisjointSetsThread(std::size_t threadID, base::SpaceI
         if (sampleAdded)
           break;
       }  // for each neighbor
-    }    // while sampling unuseful states
+
+      // Thread 0 occationally saves
+      if (threadID == 0 && eliminateDisjointSetsVerticesAddedUnsaved_ >= 50)
+      {
+        boost::unique_lock<boost::mutex> scoped_lock(vertexMutex_);
+
+        OMPL_INFORM("Saving database so not to lose progress...");
+        denseDB_->saveIfChanged();
+        eliminateDisjointSetsVerticesAddedUnsaved_ = 0;
+      }
+    }  // while sampling unuseful states
 
     // Update number of sets
     numSets = denseDB_->getDisjointSetsCount();
 
     // Debug
-    OMPL_INFORM("DenseSampler Thread %u: Verticies added: %u, Edges added: %u, Remaining disjoint sets: %u",
-                threadID, eliminateDisjointSetsVerticesAdded_, eliminateDisjointSetsEdgesAdded_, numSets);
+    OMPL_INFORM("DenseSampler Thread %u: Verticies added: %u, Edges added: %u, Remaining disjoint sets: %u", threadID,
+                eliminateDisjointSetsVerticesAdded_, eliminateDisjointSetsEdgesAdded_, numSets);
+
+    // Occationally do stuff just in thread 0
+    if (threadID == 0)
+    {
+      DisjointSetsParentKey disjointSets;
+      denseDB_->getDisjointSets(disjointSets);
+      denseDB_->printDisjointSets(disjointSets);
+      //stopSearchingDisjointSets_ = true;
+    }
+
   }  // end while
+
+  // Free memory
+  si_->freeState(candidateState);
 }
 
 void Discretizer::connectNewVertex(base::State *state, std::vector<DenseVertex> visibleNeighborhood, bool verbose)
@@ -797,7 +848,9 @@ void Discretizer::connectNewVertex(base::State *state, std::vector<DenseVertex> 
   boost::unique_lock<boost::mutex> scoped_lock(vertexMutex_);
 
   DenseVertex v1 = denseDB_->addVertex(state, COVERAGE);  // TODO GuardType is meaningless
+  denseDB_->setGraphUnsaved();
   eliminateDisjointSetsVerticesAdded_++;
+  eliminateDisjointSetsVerticesAddedUnsaved_++;
 
   // Visualize new vertex
   // if (visualizeAddSample_)
@@ -817,7 +870,7 @@ void Discretizer::connectNewVertex(base::State *state, std::vector<DenseVertex> 
       exit(-1);
     }
 
-    denseDB_->addEdge(v1, v2, 0); // TODO cost... desiredAverageCost_);
+    denseDB_->addEdge(v1, v2, 0);  // TODO cost... desiredAverageCost_);
     numEdgesAdded++;
     eliminateDisjointSetsEdgesAdded_++;
 
@@ -845,7 +898,6 @@ void Discretizer::connectNewVertex(base::State *state, std::vector<DenseVertex> 
   // Record this new addition
   denseDB_->graphUnsaved_ = true;
 }
-
 
 }  // namespace
 }  // namespace

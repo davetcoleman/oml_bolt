@@ -83,6 +83,7 @@ class SparseDB
 {
   friend class BoltRetrieveRepair;
   friend class DenseDB;
+  friend class Discretizer;
 
 public:
   ////////////////////////////////////////////////////////////////////////////////////////
@@ -273,7 +274,6 @@ public:
     return edgeCache_;
   }
 
-public:
   /** \brief Shortcut function for getting the state of a vertex */
   base::State*& getSparseState(SparseVertex v);
   const base::State* getSparseStateConst(SparseVertex v) const;

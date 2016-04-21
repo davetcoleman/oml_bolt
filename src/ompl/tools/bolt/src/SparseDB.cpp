@@ -396,7 +396,7 @@ void SparseDB::createSPARS()
               edgeCache_->getPercentCachedCollisionChecks());
   OMPL_INFORM("-----------------------------------------");
 
-  if (numSets > 1)
+  if (numSets > 1 && false)
   {
     OMPL_INFORM("Disjoint sets: %u, attempting to random sample until fully connected", numSets);
 
@@ -404,7 +404,7 @@ void SparseDB::createSPARS()
     denseDB_->displayDatabase();
   }
   else
-    OMPL_WARN("Skipping disjoint set fixing");
+    OMPL_WARN("Skipping SPARSE disjoint set fixing");
 
   // Save collision cache
   edgeCache_->save();
@@ -776,9 +776,10 @@ void SparseDB::eliminateDisjointSets()
         {
           if (reinsertNeighborsIntoSpars(newVertex))
           {
-            if (verbose)
-              std::cout << "success in inserting neighbors " << std::endl;
+            std::cout << "success in reinserting COVERAGE node neighbors " << std::endl;
           }
+          else
+            std::cout << "no success in reinserting COVERAGE node neighbors " << std::endl;
         }
 
         // Attempt to connect new DENSE vertex into dense graph by connecting neighbors
@@ -1327,9 +1328,9 @@ void SparseDB::findGraphNeighbors(DenseVertex v1, std::vector<SparseVertex> &gra
     visibleNeighborhood.push_back(graphNeighborhood[i]);
   }
 
-  //if (checksVerbose_)
-  std::cout << std::string(coutIndent + 2, ' ') << "Graph neighborhood: " << graphNeighborhood.size()
-            << " | Visible neighborhood: " << visibleNeighborhood.size() << std::endl;
+  if (checksVerbose_)
+    std::cout << std::string(coutIndent + 2, ' ') << "Graph neighborhood: " << graphNeighborhood.size()
+              << " | Visible neighborhood: " << visibleNeighborhood.size() << std::endl;
 }
 
 bool SparseDB::sameComponent(SparseVertex v1, SparseVertex v2)

@@ -59,6 +59,32 @@ OMPL_CLASS_FORWARD(Visualizer);
 /** \class ompl::tools::VisualizerPtr
     \brief A boost shared pointer wrapper for ompl::tools::Visualizer */
 
+// Colors that correspond with rviz_visual_tools
+enum colors
+{
+  BLACK = 0,
+  BROWN = 1,
+  BLUE = 2,
+  CYAN = 3,
+  GREY = 4,
+  DARK_GREY = 5,
+  GREEN = 6,
+  LIME_GREEN = 7,
+  MAGENTA = 8,
+  ORANGE = 9,
+  PURPLE = 10,
+  RED = 11,
+  PINK = 12,
+  WHITE = 13,
+  YELLOW = 14,
+  TRANSLUCENT = 15,
+  TRANSLUCENT_LIGHT = 16,
+  TRANSLUCENT_DARK = 17,
+  RAND = 18,
+  CLEAR = 19,
+  DEFAULT = 20 // i.e. 'do not change default color'
+};
+
 /**
  * \brief Visualization callback hook for external debugging of states
  * \param v - state to visualize

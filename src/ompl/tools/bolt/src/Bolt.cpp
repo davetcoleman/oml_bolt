@@ -173,38 +173,38 @@ void Bolt::logResults()
       exit(-1);
       break;
     case base::PlannerStatus::EXACT_SOLUTION:
-    {
-      og::PathGeometric solutionPath = og::SimpleSetup::getSolutionPath();  // copied so that it is non-const
-
-      std::cout << ANSI_COLOR_BLUE;
-      std::cout << "Bolt Finished - solution found in " << std::setprecision(5) << planTime_ << " seconds with "
-                << solutionPath.getStateCount() << " states" << std::endl;
-      std::cout << ANSI_COLOR_RESET;
-
-      // Error check for repeated states
-      if (!checkRepeatedStates(solutionPath))
-        exit(-1);
-
-      // Stats
-      stats_.numSolutionsFromRecall_++;
-
-      // Make sure solution has at least 2 states
-      if (solutionPath.getStateCount() < 2)
       {
-        OMPL_INFORM("NOT saving to database because solution is less than 2 states long");
-        stats_.numSolutionsTooShort_++;
+        og::PathGeometric solutionPath = og::SimpleSetup::getSolutionPath();  // copied so that it is non-const
 
-        // Logging
-        log.isSaved = "less_2_states";
-        log.tooShort = true;
+        std::cout << ANSI_COLOR_BLUE;
+        std::cout << "Bolt Finished - solution found in " << std::setprecision(5) << planTime_ << " seconds with "
+                  << solutionPath.getStateCount() << " states" << std::endl;
+        std::cout << ANSI_COLOR_RESET;
+
+        // Error check for repeated states
+        if (!checkRepeatedStates(solutionPath))
+          exit(-1);
+
+        // Stats
+        stats_.numSolutionsFromRecall_++;
+
+        // Make sure solution has at least 2 states
+        if (solutionPath.getStateCount() < 2)
+        {
+          OMPL_INFORM("NOT saving to database because solution is less than 2 states long");
+          stats_.numSolutionsTooShort_++;
+
+          // Logging
+          log.isSaved = "less_2_states";
+          log.tooShort = true;
+        }
+        else
+        {
+          // Queue the solution path for future insertion into experience database (post-processing)
+          queuedSolutionPaths_.push_back(solutionPath);
+        }
       }
-      else
-      {
-        // Queue the solution path for future insertion into experience database (post-processing)
-        queuedSolutionPaths_.push_back(solutionPath);
-      }
-    }
-    break;
+      break;
     default:
       OMPL_ERROR("Unknown status type: %u", lastStatus_);
       stats_.numSolutionsFailed_++;
@@ -246,20 +246,20 @@ base::PlannerStatus Bolt::solve(double time)
 bool Bolt::setFilePath(const std::string &filePath)
 {
   denseDB_->getSparseDB()->getEdgeCache()->setFilePath(filePath+".collision");
-  filePath_ = filePath+".ompl";
+  denseDB_->setFilePath(filePath+".ompl");
   return true;
 }
 
 bool Bolt::save()
 {
   // setup(); // ensure the db has been loaded to the Experience DB
-  return denseDB_->save(filePath_);
+  return denseDB_->save();
 }
 
 bool Bolt::saveIfChanged()
 {
   // setup(); // ensure the db has been loaded to the Experience DB
-  return denseDB_->saveIfChanged(filePath_);
+  return denseDB_->saveIfChanged();
 }
 
 void Bolt::printResultsInfo(std::ostream &out) const
@@ -277,18 +277,13 @@ bool Bolt::loadOrGenerate()
   // Load from file or generate new grid
   if (denseDB_->getNumVertices() <= 1)  // the search verticie may already be there
   {
-    if (!denseDB_->load(filePath_))  // load from file
+    if (!denseDB_->load())  // load from file
     {
       OMPL_INFORM("No database loaded from file - generating new grid");
 
       denseDB_->generateGrid();
-
-      return true;
     }
-    // denseDB_->displayDatabase();
-    denseDB_->saveIfChanged(filePath_);
-    denseDB_->getDiscretizer()->eliminateDisjointSets();
-    denseDB_->saveIfChanged(filePath_);
+    denseDB_->saveIfChanged();
 
     return true;
   }
@@ -376,7 +371,7 @@ bool Bolt::doPostProcessing()
   {
     if (denseDB_->snapPathVerbose_)
       std::cout << "post processing path " << i << " of " << queuedSolutionPaths_.size() << " -------------------------"
-                                                                                            "- " << std::endl;
+        "- " << std::endl;
 
     // Time to add a path to experience database
     if (!denseDB_->postProcessPath(queuedSolutionPaths_[i]))

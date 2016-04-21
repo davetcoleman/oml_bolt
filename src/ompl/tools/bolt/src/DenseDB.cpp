@@ -174,7 +174,7 @@ bool DenseDB::setup()
   return true;
 }
 
-bool DenseDB::load(const std::string &fileName)
+bool DenseDB::load()
 {
   OMPL_INFORM("DenseDB: load()");
 
@@ -184,14 +184,14 @@ bool DenseDB::load(const std::string &fileName)
     OMPL_INFORM("Database is not empty, unable to load from file");
     return true;
   }
-  if (fileName.empty())
+  if (filePath_.empty())
   {
     OMPL_ERROR("Empty filename passed to save function");
     return false;
   }
-  if (!boost::filesystem::exists(fileName))
+  if (!boost::filesystem::exists(filePath_))
   {
-    OMPL_INFORM("Database file does not exist: %s.", fileName.c_str());
+    OMPL_INFORM("Database file does not exist: %s.", filePath_.c_str());
     return false;
   }
 
@@ -199,10 +199,10 @@ bool DenseDB::load(const std::string &fileName)
   time::point start = time::now();
 
   // Load
-  OMPL_INFORM("Loading database from file: %s", fileName.c_str());
+  OMPL_INFORM("Loading database from file: %s", filePath_.c_str());
 
   BoltStorage storage_(si_, this);
-  storage_.load(fileName.c_str());
+  storage_.load(filePath_.c_str());
 
   // Benchmark
   double duration = time::seconds(time::now() - start);
@@ -211,8 +211,8 @@ bool DenseDB::load(const std::string &fileName)
   edgeCache_->load();
 
   // Visualize
-  //visual_->viz1Trigger();
-  //usleep(0.1 * 1000000);
+  // visual_->viz1Trigger();
+  // usleep(0.1 * 1000000);
 
   // Error check
   if (!getNumVertices() || !getNumEdges())
@@ -239,18 +239,18 @@ bool DenseDB::load(const std::string &fileName)
   return true;
 }
 
-bool DenseDB::saveIfChanged(const std::string &fileName)
+bool DenseDB::saveIfChanged()
 {
   if (graphUnsaved_)
   {
-    return save(fileName);
+    return save();
   }
   else
     OMPL_INFORM("Not saving because database has not changed");
   return true;
 }
 
-bool DenseDB::save(const std::string &fileName)
+bool DenseDB::save()
 {
   if (!graphUnsaved_)
     OMPL_WARN("No need to save because graphUnsaved_ is false, but saving anyway because requested");
@@ -263,20 +263,20 @@ bool DenseDB::save(const std::string &fileName)
   }
 
   // Error checking
-  if (fileName.empty())
+  if (filePath_.empty())
   {
     OMPL_ERROR("Empty filename passed to save function");
     return false;
   }
 
-  OMPL_INFORM("Saving with %d vertices and %d edges to: %s", getNumVertices(), getNumEdges(), fileName.c_str());
+  OMPL_INFORM("Saving with %d vertices and %d edges to: %s", getNumVertices(), getNumEdges(), filePath_.c_str());
 
   // Benchmark
   time::point start = time::now();
 
   // Save
   BoltStorage storage_(si_, this);
-  storage_.save(fileName.c_str());
+  storage_.save(filePath_.c_str());
 
   // Save collision cache
   edgeCache_->save();
@@ -659,9 +659,9 @@ bool DenseDB::astarSearch(const DenseVertex start, const DenseVertex goal, std::
     boost::astar_search(
         g_,     // graph
         start,  // start state
-        // boost::bind(&DenseDB::distanceFunction2, this, _1, goal),  // the heuristic
-         boost::bind(&DenseDB::distanceFunction, this, _1, goal),  // the heuristic
-        //boost::bind(&DenseDB::distanceFunctionTasks, this, _1, goal),  // the heuristic
+                // boost::bind(&DenseDB::distanceFunction2, this, _1, goal),  // the heuristic
+        boost::bind(&DenseDB::distanceFunction, this, _1, goal),  // the heuristic
+        // boost::bind(&DenseDB::distanceFunctionTasks, this, _1, goal),  // the heuristic
         // ability to disable edges (set cost to inifinity):
         boost::weight_map(DenseEdgeWeightMap(g_, edgeCollisionStateProperty_, popularityBias_, popularityBiasEnabled_))
             .predecessor_map(vertexPredecessors)
@@ -1019,30 +1019,34 @@ void DenseDB::cleanupTemporaryVerticies()
   OMPL_INFORM("Cleaning up temp verticies - vertex count: %u, edge count: %u", getNumVertices(), getNumEdges());
   BOOST_REVERSE_FOREACH(DenseVertex v, tempVerticies_)
   {
-    if (verbose)
-      std::cout << "removing vertex " << v << std::endl;
-    if (verbose)
-      std::cout << "remove from nearest neighbor " << std::endl;
-    nn_->remove(v);
-    if (verbose)
-      std::cout << "free state " << std::endl;
-    si_->freeState(stateProperty_[v]);
-    if (verbose)
-      std::cout << "setting to null " << std::endl;
-    stateProperty_[v] = NULL;
-    if (verbose)
-      std::cout << "clear vertex" << std::endl;
-    // Remove all edges to and from vertex
-    boost::clear_vertex(v, g_);
-    if (verbose)
-      std::cout << "remove vertex " << std::endl;
-    // Remove vertex
-    boost::remove_vertex(v, g_);
+    removeVertex(v);
+
     if (verbose)
       OMPL_DEBUG("Removed, updated - vertex count: %u, edge count: %u", getNumVertices(), getNumEdges());
   }
   tempVerticies_.clear();
   OMPL_INFORM("Finished cleaning up temp verticies");
+}
+
+void DenseDB::removeVertex(DenseVertex v)
+{
+  const bool verbose = false;
+
+  if (verbose)
+    std::cout << "Removing vertex " << v << std::endl;
+
+  // Remove from nearest neighbor
+  nn_->remove(v);
+
+  // Delete state
+  si_->freeState(stateProperty_[v]);
+  stateProperty_[v] = NULL;
+
+  // Remove all edges to and from vertex
+  boost::clear_vertex(v, g_);
+
+  // Remove vertex
+  boost::remove_vertex(v, g_);
 }
 
 void DenseDB::findGraphNeighbors(const DenseVertex &denseV, std::vector<DenseVertex> &graphNeighborhood,
@@ -1211,6 +1215,9 @@ std::size_t DenseDB::getDisjointSetsCount(bool verbose)
       ++numSets;
     }
   }
+  // Alternative method, but does not remove the queryVertex disjoint set....
+  //std::size_t secondNumSets = disjointSets_.count_sets(boost::vertices(g_).first, boost::vertices(g_).second);
+
   return numSets;
 }
 
@@ -1229,6 +1236,164 @@ std::size_t DenseDB::checkConnectedComponents()
 bool DenseDB::sameComponent(const DenseVertex &v1, const DenseVertex &v2)
 {
   return boost::same_component(v1, v2, disjointSets_);
+}
+
+void DenseDB::removeInvalidVertices()
+{
+  OMPL_INFORM("Removing invalid vertices");
+
+  std::size_t totalInvalid = 0;  // invalid states
+
+  typedef boost::graph_traits<DenseGraph>::vertex_iterator VertexIterator;
+  for (VertexIterator vertexIt = boost::vertices(g_).first; vertexIt != boost::vertices(g_).second; ++vertexIt)
+  {
+    if (*vertexIt == queryVertex_)
+      continue;
+
+    if (*vertexIt > 17000)
+    {
+      if (*vertexIt % 1000 == 0)
+        std::cout << "Checking vertex " << *vertexIt << std::endl;
+    }
+    else
+      continue;
+
+    // Check if state is valid
+    if (!si_->isValid(stateProperty_[*vertexIt]))
+    {
+      OMPL_ERROR("State %u is not valid", *vertexIt);
+      totalInvalid++;
+
+      visual_->viz5State(stateProperty_[*vertexIt], /*robot state*/ 10, base::RED);
+      visual_->viz5Trigger();
+      //usleep(0.25 * 1000000);
+
+      removeVertex(*vertexIt);
+      vertexIt--; // backtrack one vertex
+    }
+  }
+
+  if (totalInvalid > 0)
+  {
+    OMPL_ERROR("Total invalid: %u", totalInvalid);
+
+    // Must clear out edge cache since we changed the numbering of vertices
+    edgeCache_->clear();
+
+    dataUnsaved_ = true;
+  }
+}
+
+void DenseDB::getDisjointSets(DisjointSetsParentKey &disjointSets)
+{
+  OMPL_INFORM("Get disjoint sets...");
+  disjointSets.clear();
+
+  // Flatten the parents tree so that the parent of every element is its representative.
+  disjointSets_.compress_sets(boost::vertices(g_).first, boost::vertices(g_).second);
+
+  // Count size of each disjoint set and group its containing vertices
+  typedef boost::graph_traits<DenseGraph>::vertex_iterator VertexIterator;
+  for (VertexIterator v = boost::vertices(g_).first; v != boost::vertices(g_).second; ++v)
+  {
+    // Do not count the search vertex within the sets
+    if (*v == queryVertex_)
+      continue;
+
+    disjointSets[boost::get(boost::get(boost::vertex_predecessor, g_), *v)].push_back(*v);
+  }
+}
+
+void DenseDB::printDisjointSets(DisjointSetsParentKey &disjointSets)
+{
+  for (DisjointSetsParentKey::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
+       iterator++)
+  {
+    const DenseVertex v = iterator->first;
+    const std::size_t freq = iterator->second.size();
+    std::cout << "Parent: " << v << " frequency " << freq << std::endl;
+  }
+}
+
+void DenseDB::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
+{
+  OMPL_INFORM("Visualizing disjoint sets");
+
+  // Find the disjoint set that is the 'main' large one
+  std::size_t maxDisjointSetSize = 0;
+  DenseVertex maxDisjointSetParent;
+  for (DisjointSetsParentKey::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
+       iterator++)
+  {
+    const DenseVertex v = iterator->first;
+    const std::size_t freq = iterator->second.size();
+
+    if (freq > maxDisjointSetSize)
+    {
+      maxDisjointSetSize = freq;
+      maxDisjointSetParent = v;
+    }
+  }
+  OMPL_INFORM("The largest disjoint set is of size %u with parent %u", maxDisjointSetSize, maxDisjointSetParent);
+
+  // Display size of disjoint sets and visualize small ones
+  for (DisjointSetsParentKey::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
+       iterator++)
+  {
+    const DenseVertex v1 = iterator->first;
+    const std::size_t freq = iterator->second.size();
+    std::cout << v1 << ": frequency: " << freq << std::endl;
+
+    BOOST_ASSERT_MSG(freq > 0, "Frequnecy must be at least 1");
+
+    if (freq == maxDisjointSetSize)  // any subgraph that is smaller than the full graph
+      continue; // the main disjoint set is not considered a disjoint set
+
+    // Visualize sets of size one
+    if (freq == 1 && true)
+    {
+      visual_->viz5State(stateProperty_[v1], /*robot state*/ 10, base::RED);
+      visual_->viz5Trigger();
+      usleep(1.0 * 1000000);
+    }
+
+    // Visualize large disjoint sets (greater than one)
+    if (freq > 1 && freq < 1000)
+    {
+      // Clear markers
+      visual_->viz4State(NULL, /*deleteAllMarkers*/ 0, 0);
+
+      // Visualize this subgraph that is disconnected
+      // Loop through every every vertex and check if its part of this group
+      typedef boost::graph_traits<DenseGraph>::vertex_iterator VertexIterator;
+      for (VertexIterator v2 = boost::vertices(g_).first; v2 != boost::vertices(g_).second; ++v2)
+      {
+        if (boost::get(boost::get(boost::vertex_predecessor, g_), *v2) == v1)
+        {
+          visual_->viz4State(stateProperty_[*v2], /*large red*/8, 0);
+
+          // Show state's edges
+          foreach (DenseEdge edge, boost::out_edges(*v2, g_))
+          {
+            DenseVertex e_v1 = boost::source(edge, g_);
+            DenseVertex e_v2 = boost::target(edge, g_);
+            visual_->viz4Edge(stateProperty_[e_v1], stateProperty_[e_v2], edgeWeightProperty_[edge]);
+          }
+          visual_->viz4Trigger();
+
+          // Show this robot state
+          visual_->viz4State(stateProperty_[*v2], /*robot state*/ 10, base::DEFAULT);
+
+          usleep(0.1*1000000);
+        }
+      }
+      if (true)
+      {
+
+        usleep(2*1000000);
+      }
+    }
+  }
 }
 
 }  // namespace bolt

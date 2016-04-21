@@ -136,6 +136,13 @@ bool EdgeCache::load()
   return true;
 }
 
+void EdgeCache::clear()
+{
+  OMPL_INFORM("Clearing edge cache");
+  collisionCheckEdgeCache_.clear();
+  resetCounters();
+}
+
 void EdgeCache::resetCounters()
 {
   for (std::size_t i = 0; i < totalCollisionChecksFromCache_.size(); ++i)

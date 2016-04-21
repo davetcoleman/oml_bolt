@@ -141,8 +141,11 @@ private:
 
   std::size_t numEdgesInCollision_;
 
+  /** \brief Disjoint sets vars */
   std::size_t eliminateDisjointSetsVerticesAdded_;
+  std::size_t eliminateDisjointSetsVerticesAddedUnsaved_;
   std::size_t eliminateDisjointSetsEdgesAdded_;
+  bool stopSearchingDisjointSets_;
 
 public:
   /** \brief Various options for visualizing the algorithmns performance */
