@@ -101,7 +101,10 @@ bool EdgeCache::save()
 
 bool EdgeCache::load()
 {
-  OMPL_INFORM("Loading edge path from %s", filePath_.c_str());
+  OMPL_INFORM("Loading edge cache from %s", filePath_.c_str());
+
+  // Benchmark runtime
+  time::point startTime = time::now();
 
   if (!collisionCheckEdgeCache_.empty())
   {
@@ -111,6 +114,7 @@ bool EdgeCache::load()
 
   std::ifstream in(filePath_, std::ios::binary);
 
+  // Error check
   if (!in.good())
   {
     OMPL_INFORM("Failed to load edge cache: input stream is invalid");
@@ -132,6 +136,17 @@ bool EdgeCache::load()
 
   // This is really slow
   //errorCheckData();
+
+  // Benchmark runtime
+  double duration = time::seconds(time::now() - startTime);
+
+  OMPL_INFORM("------------------------------------------------------");
+  OMPL_INFORM("Loaded edge cache stats:");
+  OMPL_INFORM("  Path:         %s", filePath_.c_str());
+  OMPL_INFORM("  Cache Size:   %u", getCacheSize());
+  OMPL_INFORM("  Theory Max:   %u", denseDB_->getNumVertices() * denseDB_->getNumVertices());
+  OMPL_INFORM("  Loading time: %f", duration);
+  OMPL_INFORM("------------------------------------------------------");
 
   return true;
 }

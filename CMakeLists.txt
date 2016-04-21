@@ -26,7 +26,6 @@ catkin_package(
 include_directories(SYSTEM
   ${Boost_INCLUDE_DIR}
   ${OMPL_INCLUDE_DIRS}
-  #${EIGEN_INCLUDE_DIRS}
 )
 
 include_directories(

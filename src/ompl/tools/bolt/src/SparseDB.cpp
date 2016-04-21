@@ -69,52 +69,6 @@ namespace ot = ompl::tools;
 namespace otb = ompl::tools::bolt;
 namespace ob = ompl::base;
 
-// SparseEdgeWeightMap methods ////////////////////////////////////////////////////////////////////////////
-
-BOOST_CONCEPT_ASSERT((boost::ReadablePropertyMapConcept<otb::SparseEdgeWeightMap, otb::SparseEdge>));
-
-namespace boost
-{
-double get(const otb::SparseEdgeWeightMap &m, const otb::SparseEdge &e)
-{
-  return m.get(e);
-}
-}
-
-// CustomAstarVisitor methods ////////////////////////////////////////////////////////////////////////////
-
-BOOST_CONCEPT_ASSERT((boost::AStarVisitorConcept<otb::SparseDB::CustomAstarVisitor, otb::SparseGraph>));
-
-otb::SparseDB::CustomAstarVisitor::CustomAstarVisitor(SparseVertex goal, SparseDB *parent)
-  : goal_(goal), parent_(parent)
-{
-}
-
-void otb::SparseDB::CustomAstarVisitor::discover_vertex(SparseVertex v, const SparseGraph &) const
-{
-  // Statistics
-  parent_->recordNodeOpened();
-
-  if (parent_->visualizeAstar_)
-    parent_->visual_->viz4State(parent_->getSparseState(v), /*small green*/ 1, 1);
-}
-
-void otb::SparseDB::CustomAstarVisitor::examine_vertex(SparseVertex v, const SparseGraph &) const
-{
-  // Statistics
-  parent_->recordNodeClosed();
-
-  if (parent_->visualizeAstar_)
-  {
-    parent_->visual_->viz4State(parent_->getSparseState(v), /*large black*/ 5, 1);
-    parent_->visual_->viz4Trigger();
-    usleep(parent_->visualizeAstarSpeed_ * 1000000);
-  }
-
-  if (v == goal_)
-    throw FoundGoalException();
-}
-
 // Actual class ////////////////////////////////////////////////////////////////////////////
 
 namespace ompl
@@ -164,6 +118,12 @@ void SparseDB::freeMemory()
 
   if (nn_)
     nn_->clear();
+
+  // Free query states
+  for (std::size_t stateID = 0; stateID < queryStates_.size(); ++stateID)
+  {
+    si_->freeState(queryStates_[stateID]);
+  }
 }
 
 bool SparseDB::setup()
@@ -184,6 +144,7 @@ bool SparseDB::setup()
   return true;
 }
 
+/*
 bool SparseDB::astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath)
 {
   // Hold a list of the shortest path parent to each vertex
@@ -212,7 +173,7 @@ bool SparseDB::astarSearch(const SparseVertex start, const SparseVertex goal, st
                                                               popularityBiasEnabled))
                             .predecessor_map(vertexPredecessors)
                             .distance_map(&vertexDistances[0])
-                            .visitor(CustomAstarVisitor(goal, this)));
+                            .visitor(CustomAstarVisitor(goal, sparseDB_)));
   }
   catch (FoundGoalException &)
   {
@@ -278,6 +239,7 @@ bool SparseDB::astarSearch(const SparseVertex start, const SparseVertex goal, st
   // No solution found from start to goal
   return foundGoal;
 }
+*/
 
 void SparseDB::debugVertex(const ompl::base::PlannerDataVertex &vertex)
 {
@@ -289,71 +251,21 @@ void SparseDB::debugState(const ompl::base::State *state)
   si_->printState(state, std::cout);
 }
 
-double SparseDB::astarHeuristic(const SparseVertex a, const SparseVertex b) const
-{
-  // Assume vertex 'a' is the one we care about its populariy
-
-  // Get the classic distance
-  double dist = si_->distance(getSparseStateConst(a), getSparseStateConst(b));
-
-  if (false)  // method 1
-  {
-    const double percentMaxExtent = (maxExtent_ * percentMaxExtentUnderestimate_);  // TODO(davetcoleman): cache
-    double popularityComponent = percentMaxExtent * (vertexPopularity_[a] / 100.0);
-
-    std::cout << "astarHeuristic - dist: " << std::setprecision(4) << dist << ", popularity: " << vertexPopularity_[a]
-              << ", max extent: " << maxExtent_ << ", percentMaxExtent: " << percentMaxExtent
-              << ", popularityComponent: " << popularityComponent;
-    dist = std::max(0.0, dist - popularityComponent);
-  }
-  else if (false)  // method 2
-  {
-    const double percentDist = (dist * percentMaxExtentUnderestimate_);  // TODO(davetcoleman): cache
-    double popularityComponent = percentDist * (vertexPopularity_[a] / 100.0);
-
-    std::cout << "astarHeuristic - dist: " << std::setprecision(4) << dist << ", popularity: " << vertexPopularity_[a]
-              << ", percentDist: " << percentDist << ", popularityComponent: " << popularityComponent;
-    dist = std::max(0.0, dist - popularityComponent);
-  }
-  else if (false)  // method 3
-  {
-    std::cout << "astarHeuristic - dist: " << std::setprecision(4) << dist << ", popularity: " << vertexPopularity_[a]
-              << ", vertexPopularity_[a] / 100.0: " << vertexPopularity_[a] / 100.0
-              << ", percentMaxExtentUnderestimate_: " << percentMaxExtentUnderestimate_;
-    // if ((vertexPopularity_[a] / 100.0) < (1 - percentMaxExtentUnderestimate_))
-    if (vertexPopularity_[a] > (100 - percentMaxExtentUnderestimate_ * 100.0))
-    {
-      dist = 0;
-    }
-
-    // dist = std::max(0.0, dist - popularityComponent);
-  }
-  else  // method 4
-  {
-    dist *= (1 + percentMaxExtentUnderestimate_);
-  }
-  // method 5: increasing the sparseDelta fraction
-
-  // std::cout << ", new distance: " << dist << std::endl;
-
-  return dist;
-}
-
-double SparseDB::distanceFunction(const SparseVertex a, const SparseVertex b) const
-{
-  // const double dist = si_->distance(getSparseState(a), getSparseState(b));
-  // std::cout << "getting distance from " << a << " to " << b << " of value " << dist << std::endl;
-  // return dist;
-  return si_->distance(getSparseStateConst(a), getSparseStateConst(b));
-}
-
 void SparseDB::initializeQueryState()
 {
-  if (boost::num_vertices(g_) < 1)
+  if (boost::num_vertices(g_) > 0)
+    return; // assume its already been setup
+
+  // Create a query state for each possible thread
+  std::size_t numThreads = boost::thread::hardware_concurrency();
+  queryVertices_.resize(numThreads);
+  queryStates_.resize(numThreads);
+
+  for (std::size_t threadID = 0; threadID < numThreads; ++threadID)
   {
-    queryVertex_ = boost::add_vertex(g_);
-    denseVertexProperty_[queryVertex_] = denseDB_->queryVertex_;
-    getSparseState(queryVertex_) = NULL;
+    queryVertices_[threadID] = boost::add_vertex(g_);
+    denseVertexProperty_[queryVertices_[threadID]] = denseDB_->queryVertex_;
+    getSparseState(queryVertices_[threadID]) = NULL;
   }
 }
 
@@ -1278,6 +1190,7 @@ void SparseDB::getInterfaceNeighborhood(DenseVertex denseV, std::vector<DenseVer
     }
   }
 }
+
 void SparseDB::findGraphNeighbors(DenseVertex v1, std::vector<SparseVertex> &graphNeighborhood,
                                   std::vector<SparseVertex> &visibleNeighborhood, std::size_t coutIndent)
 {
@@ -1289,9 +1202,9 @@ void SparseDB::findGraphNeighbors(DenseVertex v1, std::vector<SparseVertex> &gra
   base::State *state = getDenseState(v1);
 
   // Search
-  getSparseState(queryVertex_) = state;
-  nn_->nearestR(queryVertex_, sparseDelta_, graphNeighborhood);
-  getSparseState(queryVertex_) = NULL;
+  getSparseState(queryVertices_[threadID]) = state;
+  nn_->nearestR(queryVertices_[threadID], sparseDelta_, graphNeighborhood);
+  getSparseState(queryVertices_[threadID]) = NULL;
 
   // Now that we got the neighbors from the NN, we must remove any we can't see
   const std::size_t threadID = 0;
@@ -1545,6 +1458,15 @@ void SparseDB::displaySparseDatabase(bool showVertices)
   // Publish remaining edges
   visual_->viz2Trigger();
 }
+
+double SparseDB::distanceFunction(const SparseVertex a, const SparseVertex b) const
+{
+  // const double dist = si_->distance(getSparseState(a), getSparseState(b));
+  // std::cout << "getting distance from " << a << " to " << b << " of value " << dist << std::endl;
+  // return dist;
+  return si_->distance(getSparseStateConst(a), getSparseStateConst(b));
+}
+
 
 }  // namespace bolt
 }  // namespace tools

@@ -402,41 +402,41 @@ bool Bolt::doPostProcessing()
   return true;
 }
 
-void Bolt::benchmarkStateCheck()
+void Bolt::benchmarkPerformance()
 {
   std::cout << "-------------------------------------------------------" << std::endl;
-  OMPL_INFORM("Running benchmark");
+  OMPL_INFORM("Running system performance benchmark");
   base::State *candidateState = si_->getStateSpace()->allocState();
 
   base::StateSamplerPtr sampler;
   sampler = si_->allocStateSampler();
 
-  const std::size_t benchmarkRuns = 100000;
+  const std::size_t benchmarkRuns = 10000;
   std::size_t debugIncrement = benchmarkRuns / 10;
   std::size_t validCount = 0;
 
   // Benchmark runtime
-  double totalDuration = 0;
-  time::point startTime;
-  double totalDuration2 = 0;
-  time::point startTime2;
+  double totalDurationValid = 0;
+  time::point startTimeValid;
+  double totalDurationSampler = 0;
+  time::point startTimeSampler;
   for (std::size_t i = 0; i < benchmarkRuns; ++i)
   {
-    startTime2 = time::now();
+    startTimeSampler = time::now();
     sampler->sampleUniform(candidateState);
 
-    startTime = time::now();
-    totalDuration2 += time::seconds(startTime - startTime2);
+    startTimeValid = time::now();
+    totalDurationSampler += time::seconds(startTimeValid - startTimeSampler);
 
     validCount += si_->isValid(candidateState);
-    totalDuration += time::seconds(time::now() - startTime);
+    totalDurationValid += time::seconds(time::now() - startTimeValid);
 
     if (i % debugIncrement == 0)
-      std::cout << "Progress: " << i / double(benchmarkRuns) * 100.0 << std::endl;
+      std::cout << "Progress: " << i / double(benchmarkRuns) * 100.0 << "%" << std::endl;
   }
   // Benchmark runtime
-  OMPL_INFORM("  isValid() took %f seconds (%f per run)", totalDuration, totalDuration / benchmarkRuns);
-  OMPL_INFORM("  sampleUniform() took %f seconds (%f per run)", totalDuration2, totalDuration2 / benchmarkRuns);
+  OMPL_INFORM("  isValid() took %f seconds (%f per run)", totalDurationValid, totalDurationValid / benchmarkRuns);
+  OMPL_INFORM("  sampleUniform() took %f seconds (%f per run)", totalDurationSampler, totalDurationSampler / benchmarkRuns);
   OMPL_INFORM("  Percent valid: %f", validCount / double(benchmarkRuns) * 100);
   std::cout << "-------------------------------------------------------" << std::endl;
   std::cout << std::endl;

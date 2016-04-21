@@ -51,6 +51,54 @@
 
 namespace og = ompl::geometric;
 namespace ob = ompl::base;
+namespace ot = ompl::tools;
+namespace otb = ompl::tools::bolt;
+
+// SparseEdgeWeightMap methods ////////////////////////////////////////////////////////////////////////////
+
+BOOST_CONCEPT_ASSERT((boost::ReadablePropertyMapConcept<otb::SparseEdgeWeightMap, otb::SparseEdge>));
+
+namespace boost
+{
+double get(const otb::SparseEdgeWeightMap &m, const otb::SparseEdge &e)
+{
+  return m.get(e);
+}
+}
+
+// CustomAstarVisitor methods ////////////////////////////////////////////////////////////////////////////
+
+BOOST_CONCEPT_ASSERT((boost::AStarVisitorConcept<otb::CustomAstarVisitor, otb::SparseGraph>));
+
+otb::CustomAstarVisitor::CustomAstarVisitor(SparseVertex goal, BoltRetrieveRepair *parent)
+  : goal_(goal), parent_(parent)
+{
+}
+
+void otb::CustomAstarVisitor::discover_vertex(SparseVertex v, const SparseGraph &) const
+{
+  // Statistics
+  parent_->recordNodeOpened();
+
+  if (parent_->visualizeAstar_)
+    parent_->getVisual()->viz4State(parent_->getSparseDB()->getSparseState(v), /*small green*/ 1, 1);
+}
+
+void otb::CustomAstarVisitor::examine_vertex(SparseVertex v, const SparseGraph &) const
+{
+  // Statistics
+  parent_->recordNodeClosed();
+
+  if (parent_->visualizeAstar_)
+  {
+    parent_->getVisual()->viz4State(parent_->getSparseDB()->getSparseState(v), /*large black*/ 5, 1);
+    parent_->getVisual()->viz4Trigger();
+    usleep(parent_->visualizeAstarSpeed_ * 1000000);
+  }
+
+  if (v == goal_)
+    throw FoundGoalException();
+}
 
 namespace ompl
 {
@@ -556,7 +604,7 @@ bool BoltRetrieveRepair::lazyCollisionSearch(const SparseVertex &start, const Sp
     }
 
     // Attempt to find a solution from start to goal
-    if (!sparseDB_->astarSearch(start, goal, vertexPath))
+    if (!astarSearch(start, goal, vertexPath))
     {
       OMPL_INFORM("        unable to construct solution between start and goal using astar");
 
@@ -886,6 +934,154 @@ bool BoltRetrieveRepair::canConnect(const base::State *randomState, const base::
   }
   return false;
 }
+
+bool BoltRetrieveRepair::astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath)
+{
+  // Hold a list of the shortest path parent to each vertex
+  SparseVertex *vertexPredecessors = new SparseVertex[sparseDB_->getNumVertices()];
+  // boost::vector_property_map<SparseVertex> vertexPredecessors(getNumVertices());
+
+  bool foundGoal = false;
+  double *vertexDistances = new double[sparseDB_->getNumVertices()];
+
+  // Reset statistics
+  numNodesOpened_ = 0;
+  numNodesClosed_ = 0;
+
+  OMPL_INFORM("Beginning AStar Search");
+  try
+  {
+    double popularityBias = 0;
+    bool popularityBiasEnabled = false;
+    // Note: could not get astar_search to compile within BoltRetrieveRepair.cpp class because of
+    // namespacing issues
+    boost::astar_search(sparseDB_->g_,                                                 // graph
+                        start,                                                        // start state
+                        boost::bind(&otb::BoltRetrieveRepair::astarHeuristic, this, _1, goal),  // the heuristic
+                        // ability to disable edges (set cost to inifinity):
+                        boost::weight_map(SparseEdgeWeightMap(sparseDB_->g_,
+                                                              sparseDB_->edgeCollisionStatePropertySparse_, popularityBias,
+                                                              popularityBiasEnabled))
+                            .predecessor_map(vertexPredecessors)
+                            .distance_map(&vertexDistances[0])
+                            .visitor(CustomAstarVisitor(goal, this)));
+  }
+  catch (FoundGoalException &)
+  {
+    // the custom exception from CustomAstarVisitor
+    OMPL_INFORM("AStar found goal vertex. distance to goal: %f", vertexDistances[goal]);
+    //OMPL_INFORM("Number nodes opened: %u, Number nodes closed: %u", numNodesOpened_, numNodesClosed_);
+
+    if (vertexDistances[goal] > 1.7e+308)  // TODO(davetcoleman): fix terrible hack for detecting infinity
+    // double diff = d[goal] - std::numeric_limits<double>::infinity();
+    // if ((diff < std::numeric_limits<double>::epsilon()) && (-diff <
+    // std::numeric_limits<double>::epsilon()))
+    // check if the distance to goal is inifinity. if so, it is unreachable
+    // if (d[goal] >= std::numeric_limits<double>::infinity())
+    {
+      OMPL_INFORM("Distance to goal is infinity");
+      foundGoal = false;
+    }
+    else
+    {
+      // Only clear the vertexPath after we know we have a new solution, otherwise it might have a good
+      // previous one
+      vertexPath.clear();  // remove any old solutions
+
+      // Trace back the shortest path in reverse and only save the states
+      SparseVertex v;
+      for (v = goal; v != vertexPredecessors[v]; v = vertexPredecessors[v])
+      {
+        vertexPath.push_back(v);
+      }
+      if (v != goal)  // TODO explain this because i don't understand
+      {
+        vertexPath.push_back(v);
+      }
+
+      foundGoal = true;
+    }
+  }
+
+  if (!foundGoal)
+    OMPL_WARN("        Did not find goal");
+
+  // Show all predecessors
+  if (visualizeAstar_)
+  {
+    OMPL_INFORM("        Show all predecessors");
+    for (std::size_t i = 1; i < sparseDB_->getNumVertices(); ++i)  // skip vertex 0 b/c that is the search vertex
+    {
+      const SparseVertex v1 = i;
+      const SparseVertex v2 = vertexPredecessors[v1];
+      if (v1 != v2)
+      {
+        // std::cout << "Edge " << v1 << " to " << v2 << std::endl;
+        visual_->viz4Edge(sparseDB_->getSparseStateConst(v1), sparseDB_->getSparseStateConst(v2), 10);
+      }
+    }
+    visual_->viz4Trigger();
+  }
+
+  // Unload
+  delete[] vertexPredecessors;
+  delete[] vertexDistances;
+
+  // No solution found from start to goal
+  return foundGoal;
+}
+
+double BoltRetrieveRepair::astarHeuristic(const SparseVertex a, const SparseVertex b) const
+{
+  // Assume vertex 'a' is the one we care about its populariy
+
+  // Get the classic distance
+  double dist = si_->distance(sparseDB_->getSparseStateConst(a), sparseDB_->getSparseStateConst(b));
+
+  if (false)  // method 1
+  {
+    const double percentMaxExtent = (sparseDB_->maxExtent_ * sparseDB_->percentMaxExtentUnderestimate_);  // TODO(davetcoleman): cache
+    double popularityComponent = percentMaxExtent * (sparseDB_->vertexPopularity_[a] / 100.0);
+
+    std::cout << "astarHeuristic - dist: " << std::setprecision(4) << dist << ", popularity: " << sparseDB_->vertexPopularity_[a]
+              << ", max extent: " << sparseDB_->maxExtent_ << ", percentMaxExtent: " << percentMaxExtent
+              << ", popularityComponent: " << popularityComponent;
+    dist = std::max(0.0, dist - popularityComponent);
+  }
+  else if (false)  // method 2
+  {
+    const double percentDist = (dist * sparseDB_->percentMaxExtentUnderestimate_);  // TODO(davetcoleman): cache
+    double popularityComponent = percentDist * (sparseDB_->vertexPopularity_[a] / 100.0);
+
+    std::cout << "astarHeuristic - dist: " << std::setprecision(4) << dist << ", popularity: " << sparseDB_->vertexPopularity_[a]
+              << ", percentDist: " << percentDist << ", popularityComponent: " << popularityComponent;
+    dist = std::max(0.0, dist - popularityComponent);
+  }
+  else if (false)  // method 3
+  {
+    std::cout << "astarHeuristic - dist: " << std::setprecision(4) << dist << ", popularity: " << sparseDB_->vertexPopularity_[a]
+              << ", vertexPopularity_[a] / 100.0: " << sparseDB_->vertexPopularity_[a] / 100.0
+              << ", percentMaxExtentUnderestimate_: " << sparseDB_->percentMaxExtentUnderestimate_;
+    // if ((vertexPopularity_[a] / 100.0) < (1 - percentMaxExtentUnderestimate_))
+    if (sparseDB_->vertexPopularity_[a] > (100 - sparseDB_->percentMaxExtentUnderestimate_ * 100.0))
+    {
+      dist = 0;
+    }
+
+    // dist = std::max(0.0, dist - popularityComponent);
+  }
+  else  // method 4
+  {
+    dist *= (1 + sparseDB_->percentMaxExtentUnderestimate_);
+  }
+  // method 5: increasing the sparseDelta fraction
+
+  // std::cout << ", new distance: " << dist << std::endl;
+
+  return dist;
+}
+
+
 }  // namespace bolt
 }  // namespace tools
 }  // namespace ompl

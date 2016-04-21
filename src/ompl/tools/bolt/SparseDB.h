@@ -86,43 +86,6 @@ class SparseDB
   friend class Discretizer;
 
 public:
-  ////////////////////////////////////////////////////////////////////////////////////////
-  /**
-   * Vertex visitor to check if A* search is finished.
-   * \implements AStarVisitorConcept
-   * See http://www.boost.org/doc/libs/1_58_0/libs/graph/doc/AStarVisitor.html
-   */
-  class CustomAstarVisitor : public boost::default_astar_visitor
-  {
-  private:
-    SparseVertex goal_;  // Goal Vertex of the search
-    SparseDB* parent_;
-
-  public:
-    /**
-     * Construct a visitor for a given search.
-     * \param goal  goal vertex of the search
-     */
-    CustomAstarVisitor(SparseVertex goal, SparseDB* parent);
-
-    /**
-     * \brief Invoked when a vertex is first discovered and is added to the OPEN list.
-     * \param v current Vertex
-     * \param g graph we are searching on
-     */
-    void discover_vertex(SparseVertex v, const SparseGraph& g) const;
-
-    /**
-     * \brief Check if we have arrived at the goal.
-     * This is invoked on a vertex as it is popped from the queue (i.e., it has the lowest
-     * cost on the OPEN list). This happens immediately before examine_edge() is invoked on
-     * each of the out-edges of vertex u.
-     * \param v current vertex
-     * \param g graph we are searching on
-     * \throw FoundGoalException if \a u is the goal
-     */
-    void examine_vertex(SparseVertex v, const SparseGraph& g) const;
-  };
 
   ////////////////////////////////////////////////////////////////////////////////////////
   // SparseDB MEMBER FUNCTIONS
@@ -146,7 +109,7 @@ public:
    *  \param vertexPath
    *  \return true if candidate solution found
    */
-  bool astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex>& vertexPath);
+  //bool astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex>& vertexPath);
 
   /** \brief Print info to screen */
   void debugVertex(const ompl::base::PlannerDataVertex& vertex);
@@ -181,12 +144,6 @@ public:
   {
     return !getNumVertices();
   }
-
-  /** \brief Distance between two states with special bias using popularity */
-  double astarHeuristic(const SparseVertex a, const SparseVertex b) const;
-
-  /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
-  double distanceFunction(const SparseVertex a, const SparseVertex b) const;
 
   /** \brief Check that the query vertex is initialized (used for internal nearest neighbor searches) */
   void initializeQueryState();
@@ -259,16 +216,6 @@ public:
   /** \brief Show in visualizer the sparse graph */
   void displaySparseDatabase(bool showVertices = false);
 
-  /** \brief Custom A* visitor statistics */
-  void recordNodeOpened()  // discovered
-  {
-    numNodesOpened_++;
-  }
-  void recordNodeClosed()  // examined
-  {
-    numNodesClosed_++;
-  }
-
   EdgeCachePtr getEdgeCache()
   {
     return edgeCache_;
@@ -278,6 +225,9 @@ public:
   base::State*& getSparseState(SparseVertex v);
   const base::State* getSparseStateConst(SparseVertex v) const;
   base::State*& getDenseState(DenseVertex denseV);
+
+  /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
+  double distanceFunction(const SparseVertex a, const SparseVertex b) const;
 
 protected:
   /** \brief The created space information */
@@ -348,9 +298,6 @@ protected:
   double maxExtent_;
 
 public:
-  /** \brief Astar statistics */
-  std::size_t numNodesOpened_ = 0;
-  std::size_t numNodesClosed_ = 0;
 
   /** \brief SPARS parameter for dense graph connection distance as a fraction of max. extent */
   double denseDeltaFraction_ = 0.05;
@@ -372,9 +319,6 @@ public:
   bool disjointVerbose_ = true;
   bool fourthCheckVerbose_ = true;
 
-  /** \brief Various options for visualizing the algorithmns performance */
-  bool visualizeAstar_ = false;
-
   /** \brief Show the sparse graph being generated */
   bool visualizeSparsGraph_ = false;
   double visualizeSparsGraphSpeed_ = 0.0;
@@ -382,9 +326,6 @@ public:
   bool visualizeDatabaseEdges_ = true;
   bool visualizeDenseRepresentatives_ = false;
   bool visualizeNodePopularity_ = false;
-
-  /** \brief Visualization speed of astar search, num of seconds to show each vertex */
-  double visualizeAstarSpeed_ = 0.1;
 
   /** \brief Method for ordering of vertex insertion */
   int sparseCreationInsertionOrder_ = 0;

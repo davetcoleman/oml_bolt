@@ -186,7 +186,7 @@ public:
     return visual_;
   }
 
-  void benchmarkStateCheck();
+  void benchmarkPerformance();
 
 protected:
   /** \brief Class for managing various visualization features */
