@@ -502,7 +502,7 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
   for (DenseVertex v1 = startVertex; v1 <= endVertex; ++v1)
   {
     // Skip the query vertex (first vertex)
-    if (v1 == denseDB_->queryVertex_)
+    if (v1 <= denseDB_->queryVertices_.back())
       continue;
 
     // User feedback on thread 0
@@ -614,11 +614,11 @@ void Discretizer::getVertexNeighborsPreprocess()
   }
 }
 
-void Discretizer::getVertexNeighbors(base::State *state, std::vector<DenseVertex> &graphNeighborhood)
+void Discretizer::getVertexNeighbors(base::State *state, std::vector<DenseVertex> &graphNeighborhood, std::size_t threadID)
 {
-  denseDB_->stateProperty_[denseDB_->queryVertex_] = state;
-  getVertexNeighbors(denseDB_->queryVertex_, graphNeighborhood);
-  denseDB_->stateProperty_[denseDB_->queryVertex_] = NULL;
+  denseDB_->stateProperty_[denseDB_->queryVertices_[threadID]] = state;
+  getVertexNeighbors(denseDB_->queryVertices_[threadID], graphNeighborhood);
+  denseDB_->stateProperty_[denseDB_->queryVertices_[threadID]] = NULL;
 }
 
 void Discretizer::getVertexNeighbors(DenseVertex v1, std::vector<DenseVertex> &graphNeighborhood)
@@ -737,15 +737,15 @@ void Discretizer::eliminateDisjointSetsThread(std::size_t threadID, base::SpaceI
       }
 
       // Get neighbors
-      {
-        boost::unique_lock<boost::mutex> scoped_lock(vertexMutex_);
-        getVertexNeighbors(candidateState, graphNeighborhood);
-      }
+      //{
+      //boost::unique_lock<boost::mutex> scoped_lock(vertexMutex_);
+      getVertexNeighbors(candidateState, graphNeighborhood, threadID);
+      //}
 
       // Now that we got the neighbors from the NN, find the ones that are visible
       for (DenseVertex &denseV : graphNeighborhood)
       {
-        BOOST_ASSERT_MSG(denseV != denseDB_->queryVertex_, "Query vertex should not be in the graph neighborhood");
+        //BOOST_ASSERT_MSG(denseV != denseDB_->queryVertex_, "Query vertex should not be in the graph neighborhood");
 
         if (si_->checkMotion(candidateState, denseDB_->stateProperty_[denseV]))
         {

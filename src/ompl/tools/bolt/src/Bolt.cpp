@@ -76,7 +76,8 @@ void Bolt::initialize()
   // Load the Retrieve repair database. We do it here so that setRepairPlanner() works
   boltPlanner_ = ob::PlannerPtr(new BoltRetrieveRepair(si_, denseDB_));  // TODO(davetcoleman): pass in visual_
 
-  OMPL_INFORM("Bolt Framework initialized.");
+  std::size_t numThreads = boost::thread::hardware_concurrency();
+  OMPL_INFORM("Bolt Framework initialized using %u threads", numThreads);
 }
 
 void Bolt::setup(void)
@@ -275,19 +276,20 @@ void Bolt::printResultsInfo(std::ostream &out) const
 bool Bolt::loadOrGenerate()
 {
   // Load from file or generate new grid
-  if (denseDB_->getNumVertices() <= 1)  // the search verticie may already be there
+  if (denseDB_->getNumVertices() > denseDB_->getNumQueryVertices())  // the search verticie may already be there
   {
-    if (!denseDB_->load())  // load from file
-    {
-      OMPL_INFORM("No database loaded from file - generating new grid");
-
-      denseDB_->generateGrid();
-    }
-    denseDB_->saveIfChanged();
-
+    OMPL_INFORM("Database already loaded");
     return true;
   }
-  OMPL_INFORM("Database already loaded");
+
+  if (!denseDB_->load())  // load from file
+  {
+    OMPL_INFORM("No database loaded from file - generating new grid");
+
+    denseDB_->generateGrid();
+  }
+  denseDB_->saveIfChanged();
+
   return true;
 }
 

@@ -54,6 +54,7 @@ namespace bolt
 {
 BoltStorage::BoltStorage(const base::SpaceInformationPtr &si, DenseDB *denseDB) : si_(si), denseDB_(denseDB)
 {
+  numQueryVertices_ = boost::thread::hardware_concurrency();
 }
 
 void BoltStorage::save(const char *filename)
@@ -79,7 +80,7 @@ void BoltStorage::save(std::ostream &out)
     Header h;
     h.marker = OMPL_PLANNER_DATA_ARCHIVE_MARKER;
     // Note: we increment all vertex indexes by 1 because the queryVertex_ is vertex id 0
-    h.vertex_count = denseDB_->getNumVertices() - INCREMENT_VERTEX_COUNT;
+    h.vertex_count = denseDB_->getNumVertices() - numQueryVertices_;
     h.edge_count = denseDB_->getNumEdges();
     //OMPL_INFORM("Computing state space signuture");
     si_->getStateSpace()->computeSignature(h.signature);
@@ -110,7 +111,7 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
   foreach (const DenseVertex v, boost::vertices(denseDB_->g_))
   {
     // Skip the query vertex that is NULL
-    if (v == denseDB_->queryVertex_)
+    if (v <= denseDB_->queryVertices_.back())
     {
       errorCheckNumQueryVertices++;
       continue;
@@ -134,8 +135,9 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
       std::cout << std::fixed << std::setprecision(0) << (count / double(denseDB_->getNumVertices())) * 100.0 << "% "
                 << std::flush;
   }
-  BOOST_ASSERT_MSG(errorCheckNumQueryVertices == 1, "There should only be one query vertex that was skipped while "
-                                                    "saving");
+  BOOST_ASSERT_MSG(errorCheckNumQueryVertices == numQueryVertices_,
+                   "There should be the same number of query vertex as threads that were skipped while saving");
+
 
   std::cout << std::endl;
 }
@@ -154,8 +156,8 @@ void BoltStorage::saveEdges(boost::archive::binary_oarchive &oa)
     // Convert to new structure
     BoltEdgeData edgeData;
     // Note: we increment all vertex indexes by 1 because the queryVertex_ is vertex id 0
-    edgeData.endpoints_.first = v1 - INCREMENT_VERTEX_COUNT;
-    edgeData.endpoints_.second = v2 - INCREMENT_VERTEX_COUNT;
+    edgeData.endpoints_.first = v1 - numQueryVertices_;
+    edgeData.endpoints_.second = v2 - numQueryVertices_;
     edgeData.weight_ = denseDB_->edgeWeightProperty_[e];
     oa << edgeData;
 
@@ -258,6 +260,11 @@ void BoltStorage::loadEdges(unsigned int numEdges, boost::archive::binary_iarchi
   {
     BoltEdgeData edgeData;
     ia >> edgeData;
+
+    // Note: we increment all vertex indexes by the number of query verticies
+    edgeData.endpoints_.first += numQueryVertices_;
+    edgeData.endpoints_.second += numQueryVertices_;
+
     // pd.addEdge(edgeData.endpoints_.first, edgeData.endpoints_.second, *edgeData.e_, Cost(edgeData.weight_));
     denseDB_->addEdgeFromFile(edgeData);
 

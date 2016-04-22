@@ -491,7 +491,7 @@ bool BoltRetrieveRepair::getPathOnGraph(const std::vector<SparseVertex> &candida
           usleep(0.1 * 1000000);
         }
 
-        continue;  // this is actually not visible
+        continue; // this is actually not visible
       }
       foundValidGoal = true;
 
@@ -710,8 +710,9 @@ bool BoltRetrieveRepair::findGraphNeighbors(const base::State *state, std::vecto
   graphNeighborhood.clear();
 
   // Setup search by getting a non-const version of the focused state
+  const std::size_t threadID = 0;
   base::State *stateCopy = si_->cloneState(state);
-  sparseDB_->getSparseState(sparseDB_->queryVertex_) = stateCopy;
+  sparseDB_->getSparseState(sparseDB_->queryVertices_[threadID]) = stateCopy;
 
   // Search
   double find_nearest_k_neighbors;
@@ -719,10 +720,10 @@ bool BoltRetrieveRepair::findGraphNeighbors(const base::State *state, std::vecto
     find_nearest_k_neighbors = 10;
   else
     find_nearest_k_neighbors = 30;
-  sparseDB_->nn_->nearestK(sparseDB_->queryVertex_, find_nearest_k_neighbors, graphNeighborhood);
+  sparseDB_->nn_->nearestK(sparseDB_->queryVertices_[threadID], find_nearest_k_neighbors, graphNeighborhood);
 
   // Reset
-  sparseDB_->getSparseState(sparseDB_->queryVertex_) = NULL;
+  sparseDB_->getSparseState(sparseDB_->queryVertices_[threadID]) = NULL;
 
   // Filter neighbors based on level
   if (requiredLevel >= 0)

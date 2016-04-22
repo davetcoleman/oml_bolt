@@ -83,7 +83,7 @@ public:
 
   void getVertexNeighborsPreprocess();
 
-  void getVertexNeighbors(base::State* state, std::vector<DenseVertex> &graphNeighborhood);
+  void getVertexNeighbors(base::State* state, std::vector<DenseVertex> &graphNeighborhood, std::size_t threadID);
   void getVertexNeighbors(DenseVertex v1, std::vector<DenseVertex>& graphNeighborhood);
 
   void eliminateDisjointSets();

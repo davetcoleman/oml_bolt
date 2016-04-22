@@ -40,7 +40,7 @@
 #include <ompl/tools/bolt/SparseDB.h>
 #include <ompl/util/Time.h>
 #include <ompl/util/Console.h>
-#include <ompl/datastructures/NearestNeighborsGNATNoThreadSafety.h>
+#include <ompl/datastructures/NearestNeighborsGNAT.h>
 #include <ompl/base/spaces/RealVectorStateSpace.h>  // TODO: remove, this is not space agnostic
 
 // Boost
@@ -99,7 +99,7 @@ SparseDB::SparseDB(base::SpaceInformationPtr si, DenseDB *denseDB, base::Visuali
   initializeQueryState();
 
   // Initialize nearest neighbor datastructure
-  nn_.reset(new NearestNeighborsGNATNoThreadSafety<SparseVertex>());
+  nn_.reset(new NearestNeighborsGNAT<SparseVertex>());
   nn_->setDistanceFunction(boost::bind(&otb::SparseDB::distanceFunction, this, _1, _2));
 
   // Initialize path simplifier
@@ -248,7 +248,13 @@ void SparseDB::debugState(const ompl::base::State *state)
 void SparseDB::initializeQueryState()
 {
   if (boost::num_vertices(g_) > 0)
+  {
+    OMPL_WARN("Not initializing query state because already is of size %u", boost::num_vertices(g_));
     return; // assume its already been setup
+  }
+
+  // Make sure dense graph has been initialized
+  denseDB_->initializeQueryState();
 
   // Create a query state for each possible thread
   std::size_t numThreads = boost::thread::hardware_concurrency();
@@ -256,9 +262,11 @@ void SparseDB::initializeQueryState()
 
   for (std::size_t threadID = 0; threadID < numThreads; ++threadID)
   {
+    // Add a fake vertex to the graph
     queryVertices_[threadID] = boost::add_vertex(g_);
+
+    // Set this fake vertex's dense vertex to correspond to the fake dense vertex
     denseVertexProperty_[queryVertices_[threadID]] = denseDB_->queryVertices_[threadID];
-    getSparseState(queryVertices_[threadID]) = NULL;
   }
 }
 
@@ -322,7 +330,7 @@ void SparseDB::createSPARSOuterLoop()
   std::size_t coutIndent = 2;
 
   // Clear the old spars graph
-  if (getNumVertices() > 1)
+  if (getNumVertices() > queryVertices_.size())
   {
     OMPL_INFORM("Resetting sparse database");
     freeMemory();
@@ -342,7 +350,7 @@ void SparseDB::createSPARSOuterLoop()
   getVertexInsertionOrdering(vertexInsertionOrder);
 
   // Error check order creation
-  assert(vertexInsertionOrder.size() == denseDB_->getNumVertices() - 1);  // subtract 1 for query vertex
+  assert(vertexInsertionOrder.size() == denseDB_->getNumVertices() - queryVertices_.size());
 
   // Attempt to insert the verticies multiple times until no more succesful insertions occur
   secondSparseInsertionAttempt_ = false;
@@ -413,7 +421,8 @@ bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOr
   sucessfulInsertions = 0;
   std::size_t loopCount = 0;
   std::size_t originalVertexInsertion = vertexInsertionOrder.size();
-  std::size_t debugFrequency = static_cast<std::size_t>(originalVertexInsertion / 20);
+  std::size_t debugFrequency = std::max(std::size_t(10), static_cast<std::size_t>(originalVertexInsertion / 20));
+  std::cout << "originalVertexInsertion: " << originalVertexInsertion << std::endl;
 
   for (std::list<WeightedVertex>::iterator vertexIt = vertexInsertionOrder.begin();
        vertexIt != vertexInsertionOrder.end();
@@ -488,130 +497,6 @@ void SparseDB::getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInser
     OMPL_ERROR("Unknown insertion order method");
     exit(-1);
   }
-
-  // Testing ----------------------------
-
-  /*
-  // Save
-  // std::ofstream out("/home/dave/ros/ompl_storage/temp.ompl", std::ios::binary);
-  // boost::archive::binary_oarchive oa(out);
-  // oa << vertexInsertionOrder;
-  // out.close();
-
-  // exit(0);
-
-  // Load
-  std::list<WeightedVertex> vertexInsertionOrder2;
-  std::ifstream in("/home/dave/ros/ompl_storage/temp.ompl", std::ios::binary);
-  boost::archive::binary_iarchive ia(in);
-  ia >> vertexInsertionOrder2;
-  in.close();
-
-  bool result = (vertexInsertionOrder2 == vertexInsertionOrder);
-  std::cout << "Are they the same? " << result << std::endl;
-  std::cout << "list1 size: " << vertexInsertionOrder.size() << " list2: " << vertexInsertionOrder2.size() << std::endl;
-
-  std::list<WeightedVertex>::const_iterator it1 =  vertexInsertionOrder.begin();
-  std::list<WeightedVertex>::const_iterator it2 =  vertexInsertionOrder2.begin();
-  std::size_t counter = 0;
-  while (it1 != vertexInsertionOrder.end() && it2 != vertexInsertionOrder2.end())
-  {
-  DenseVertex v1 = it1->v_;
-  DenseVertex v2 = it2->v_;
-  if (v1 != v2)
-  std::cout << "Not the same at index " << counter << std::endl;
-
-  if (v1 == 0)
-  std::cout << "v1 has zero! " << std::endl;
-  if (v2 == 0)
-  std::cout << "v2 has zero! " << std::endl;
-
-  counter++;
-  it1++;
-  it2++;
-  }
-  std::cout << "done while looping " << std::endl;
-
-  // Test 2
-  std::vector<SparseVertex> graphNeighborhood;
-  std::vector<SparseVertex> visibleNeighborhood;
-  std::vector<SparseVertex> graphNeighborhood_all;
-  std::vector<SparseVertex> visibleNeighborhood_all;
-
-  std::cout << "starting test, vertexInsertionOrder.size: " << vertexInsertionOrder.size() << std::endl;
-  std::size_t count = 0;
-  for (WeightedVertex wv : vertexInsertionOrder)
-  {
-  if (count++ >= 500)
-  break;
-  if (count+1 % 100 == 0)
-  std::cout << " --------- count: " << count << std::endl;
-
-  graphNeighborhood.clear();
-  visibleNeighborhood.clear();
-  findGraphNeighbors(wv.v_, graphNeighborhood, visibleNeighborhood, 0);
-
-  //std::cout << "graphNeighborhood_all: " << graphNeighborhood_all.size() << std::endl;
-
-  // Insert
-  graphNeighborhood_all.insert(graphNeighborhood_all.end(), graphNeighborhood.begin(), graphNeighborhood.end());
-  visibleNeighborhood_all.insert(visibleNeighborhood_all.end(), visibleNeighborhood.begin(),
-  visibleNeighborhood.end());
-
-  GuardType addReason;         // returns why the state was added
-  SparseVertex newVertex = 0;  // the newly generated sparse vertex
-  addStateToRoadmap(wv.v_, newVertex, addReason);
-  }
-
-  std::cout << std::endl;
-  std::cout << "Summary: graphNeighborhood_all: " << graphNeighborhood_all.size() << std::endl;
-  //std::cout << "visibleNeighborhood_all: " << visibleNeighborhood_all.size() << std::endl;
-
-  if (testingBool_)
-  {
-  // Save
-  std::ofstream out("/home/dave/ros/ompl_storage/temp2.ompl", std::ios::binary);
-  boost::archive::binary_oarchive oa(out);
-  oa << graphNeighborhood_all;
-  //oa << visibleNeighborhood_all;
-  out.close();
-
-  usleep(1*1000000);
-  exit(0);
-  }
-
-  // Load
-  std::vector<SparseVertex> graphNeighborhood_all2;
-  std::vector<SparseVertex> visibleNeighborhood_all2;
-  std::ifstream in("/home/dave/ros/ompl_storage/temp2.ompl", std::ios::binary);
-  boost::archive::binary_iarchive ia(in);
-  ia >> graphNeighborhood_all2;
-  //ia >> visibleNeighborhood_all2;
-  in.close();
-
-  std::cout << "are they the same? " << (graphNeighborhood_all2 == graphNeighborhood_all) << std::endl;
-  std::cout << "are they the same size? " << graphNeighborhood_all2.size() << " and " << graphNeighborhood_all.size() <<
-  std::endl;
-  //std::cout << "are they the same? " << (visibleNeighborhood_all2 == visibleNeighborhood_all) << std::endl;
-
-  for (std::size_t i = 0; i < graphNeighborhood_all.size(); ++i)
-  {
-  if (graphNeighborhood_all[i] == graphNeighborhood_all2[i])
-  continue;
-
-  std::cout << "Not the same at index " << i << std::endl;
-  std::cout << "Values: " << graphNeighborhood_all[i] << " and " << graphNeighborhood_all2[i] << std::endl;
-
-  visual_->viz3State(getSparseState(graphNeighborhood_all[i]), 2 small blue, 0);
-  visual_->viz3State(getSparseState(graphNeighborhood_all2[i]), 1 small green, 0);
-  visual_->viz3Trigger();
-  usleep(1 * 1000000);
-  break;
-  }
-
-  usleep(0.1*1000000);
-  exit(0);
-  */
 }
 
 void SparseDB::eliminateDisjointSets()
@@ -747,7 +632,7 @@ std::size_t SparseDB::getDisjointSetsCount(bool verbose)
   foreach (SparseVertex v, boost::vertices(g_))
   {
     // Do not count the search vertex within the sets
-    if (v <= queryVertices_.end())
+    if (v <= queryVertices_.back())
       continue;
 
     if (boost::get(boost::get(boost::vertex_predecessor, g_), v) == v)
@@ -765,7 +650,7 @@ bool SparseDB::getPopularityOrder(std::list<WeightedVertex> &vertexInsertionOrde
   bool verbose = false;
 
   // Error check
-  BOOST_ASSERT_MSG(denseDB_->getNumVertices() > 1, "Unable to get vertices in order of popularity because dense "
+  BOOST_ASSERT_MSG(denseDB_->getNumVertices() > queryVertices_.size(), "Unable to get vertices in order of popularity because dense "
                    "graph is empty");
 
   if (visualizeNodePopularity_)  // Clear visualization
@@ -780,7 +665,7 @@ bool SparseDB::getPopularityOrder(std::list<WeightedVertex> &vertexInsertionOrde
   foreach (DenseVertex v, boost::vertices(denseDB_->g_))
   {
     // Do not process the search vertex, it is null
-    if (v == 0)  // TODO do not assume the search vertex is the first one
+    if (v <= queryVertices_.back())
       continue;
 
     if (verbose)
@@ -845,7 +730,7 @@ bool SparseDB::getDefaultOrder(std::list<WeightedVertex> &vertexInsertionOrder)
   foreach (DenseVertex v, boost::vertices(denseDB_->g_))
   {
     // Do not process the search vertex, it is null
-    if (v == 0)  // TODO do not assume the search vertex is the first one
+    if (v <= queryVertices_.back())
       continue;
 
     if (verbose)
@@ -1195,12 +1080,12 @@ void SparseDB::findGraphNeighbors(DenseVertex v1, std::vector<SparseVertex> &gra
   base::State *state = getDenseState(v1);
 
   // Search
+  const std::size_t threadID = 0;
   getSparseState(queryVertices_[threadID]) = state;
   nn_->nearestR(queryVertices_[threadID], sparseDelta_, graphNeighborhood);
   getSparseState(queryVertices_[threadID]) = NULL;
 
   // Now that we got the neighbors from the NN, we must remove any we can't see
-  const std::size_t threadID = 0;
   for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
   {
     DenseVertex v2 = denseVertexProperty_[graphNeighborhood[i]];
@@ -1432,7 +1317,7 @@ void SparseDB::displaySparseDatabase(bool showVertices)
         visual_->viz2State(getSparseStateConst(v), /*small blue*/ 2, 1);
         // visual_->viz2State(getSparseStateConst(v), /*popularity0-100*/ 7, vertexPopularity_[v]);
       }
-      else if (v > queryVertices_.end())  // query vertex should always be null, actually
+      else if (v > queryVertices_.back())  // query vertex should always be null, actually
         OMPL_WARN("Null sparse state found on vertex %u", v);
 
       // Prevent cache from getting too big

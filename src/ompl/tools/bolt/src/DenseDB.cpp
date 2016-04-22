@@ -179,7 +179,7 @@ bool DenseDB::load()
   OMPL_INFORM("DenseDB: load()");
 
   // Error checking
-  if (getNumEdges() > 1 || getNumVertices() > 1)  // the search verticie may already be there
+  if (getNumEdges() > queryVertices_.size() || getNumVertices() > queryVertices_.size())  // the search verticie may already be there
   {
     OMPL_INFORM("Database is not empty, unable to load from file");
     return true;
@@ -476,11 +476,12 @@ bool DenseDB::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<Den
   base::State *currentPathState = inputPath.getState(currVertexIndex);
 
   // Find multiple nearby nodes on the graph
-  stateProperty_[queryVertex_] = currentPathState;
+  std::size_t threadID = 0;
+  stateProperty_[queryVertices_[threadID]] = currentPathState;
   std::size_t findNearestKNeighbors = 10;
   const std::size_t numSameVerticiesFound = 1;  // add 1 to the end because the NN tree always returns itself
-  nn_->nearestK(queryVertex_, findNearestKNeighbors + numSameVerticiesFound, graphNeighborhood);
-  stateProperty_[queryVertex_] = NULL;
+  nn_->nearestK(queryVertices_[threadID], findNearestKNeighbors + numSameVerticiesFound, graphNeighborhood);
+  stateProperty_[queryVertices_[threadID]] = NULL;
 
   // Loop through each neighbor until one is found that connects to the previous vertex
   bool foundValidConnToPrevious = false;
@@ -798,10 +799,23 @@ std::size_t DenseDB::getTaskLevel(const base::State *state) const
 
 void DenseDB::initializeQueryState()
 {
-  if (boost::num_vertices(g_) < 1)
+  if (boost::num_vertices(g_) > 0)
   {
-    queryVertex_ = boost::add_vertex(g_);
-    stateProperty_[queryVertex_] = NULL;
+    OMPL_WARN("Not initializing query state because already is of size %u", boost::num_vertices(g_));
+    return; // assume its already been setup
+  }
+
+  // Create a query state for each possible thread
+  std::size_t numThreads = boost::thread::hardware_concurrency();
+  queryVertices_.resize(numThreads);
+
+  for (std::size_t threadID = 0; threadID < numThreads; ++threadID)
+  {
+    // Add a fake vertex to the graph
+    queryVertices_[threadID] = boost::add_vertex(g_);
+
+    // Set its state to NULL
+    stateProperty_[queryVertices_[threadID]] = NULL;
   }
 }
 
@@ -814,9 +828,8 @@ void DenseDB::addVertexFromFile(BoltStorage::BoltVertexData v)
 
 void DenseDB::addEdgeFromFile(BoltStorage::BoltEdgeData e)
 {
-  // Note: we increment all vertex indexes by 1 because the queryVertex_ is vertex id 0
-  const DenseVertex v1 = e.endpoints_.first + INCREMENT_VERTEX_COUNT;
-  const DenseVertex v2 = e.endpoints_.second + INCREMENT_VERTEX_COUNT;
+  const DenseVertex v1 = e.endpoints_.first;
+  const DenseVertex v2 = e.endpoints_.second;
 
   // Error check
   BOOST_ASSERT_MSG(v1 <= getNumVertices(), "Vertex 1 out of range of possible verticies");
@@ -964,8 +977,7 @@ otb::DenseVertex DenseDB::addVertex(base::State *state, const GuardType &type)
   // Add properties
   typeProperty_[v] = type;
   stateProperty_[v] = state;
-  // state3Property_[v] = state;
-  representativesProperty_[v] = 0;
+  representativesProperty_[v] = 0; // which sparse vertex reps this dense vertex
 
   // Connected component tracking
   disjointSets_.make_set(v);
@@ -1065,9 +1077,10 @@ void DenseDB::findGraphNeighbors(base::State *state, std::vector<DenseVertex> &g
     std::cout << std::string(coutIndent, ' ') << "findGraphNeighbors()" << std::endl;
 
   // Search
-  stateProperty_[queryVertex_] = state;
-  nn_->nearestR(queryVertex_, searchRadius, graphNeighborhood);
-  stateProperty_[queryVertex_] = NULL;
+  const std::size_t threadID = 0;
+  stateProperty_[queryVertices_[threadID]] = state;
+  nn_->nearestR(queryVertices_[threadID], searchRadius, graphNeighborhood);
+  stateProperty_[queryVertices_[threadID]] = NULL;
 
   // Now that we got the neighbors from the NN, remove any we can't see
   for (DenseVertex &denseV : graphNeighborhood)
@@ -1135,9 +1148,10 @@ void DenseDB::connectNewVertex(DenseVertex v1)
   const std::size_t numSameVerticiesFound = 1;  // add 1 to the end because the NN tree always returns itself
 
   // Search
-  stateProperty_[queryVertex_] = stateProperty_[v1];
-  nn_->nearestK(queryVertex_, findNearestKNeighbors + numSameVerticiesFound, graphNeighborhood);
-  stateProperty_[queryVertex_] = NULL;  // Set search vertex to NULL to prevent segfault on class unload of memory
+  const std::size_t threadID = 0;
+  stateProperty_[queryVertices_[threadID]] = stateProperty_[v1];
+  nn_->nearestK(queryVertices_[threadID], findNearestKNeighbors + numSameVerticiesFound, graphNeighborhood);
+  stateProperty_[queryVertices_[threadID]] = NULL;  // Set search vertex to NULL to prevent segfault on class unload of memory
 
   // For each nearby vertex, add an edge
   std::size_t errorCheckNumSameVerticies = 0;  // sanity check
@@ -1205,7 +1219,7 @@ std::size_t DenseDB::getDisjointSetsCount(bool verbose)
   foreach (DenseVertex v, boost::vertices(g_))
   {
     // Do not count the search vertex within the sets
-    if (v == queryVertex_)
+    if (v <= queryVertices_.back())
       continue;
 
     if (boost::get(boost::get(boost::vertex_predecessor, g_), v) == v)
@@ -1215,8 +1229,6 @@ std::size_t DenseDB::getDisjointSetsCount(bool verbose)
       ++numSets;
     }
   }
-  // Alternative method, but does not remove the queryVertex disjoint set....
-  //std::size_t secondNumSets = disjointSets_.count_sets(boost::vertices(g_).first, boost::vertices(g_).second);
 
   return numSets;
 }
@@ -1247,7 +1259,7 @@ void DenseDB::removeInvalidVertices()
   typedef boost::graph_traits<DenseGraph>::vertex_iterator VertexIterator;
   for (VertexIterator vertexIt = boost::vertices(g_).first; vertexIt != boost::vertices(g_).second; ++vertexIt)
   {
-    if (*vertexIt == queryVertex_)
+    if (*vertexIt <= queryVertices_.back())
       continue;
 
     if (*vertexIt > 17000)
@@ -1297,7 +1309,7 @@ void DenseDB::getDisjointSets(DisjointSetsParentKey &disjointSets)
   for (VertexIterator v = boost::vertices(g_).first; v != boost::vertices(g_).second; ++v)
   {
     // Do not count the search vertex within the sets
-    if (*v == queryVertex_)
+    if (*v <= queryVertices_.back())
       continue;
 
     disjointSets[boost::get(boost::get(boost::vertex_predecessor, g_), *v)].push_back(*v);

@@ -76,9 +76,6 @@ OMPL_CLASS_FORWARD(DenseDB);
 
 static const boost::uint32_t OMPL_PLANNER_DATA_ARCHIVE_MARKER = 0x5044414D;  // this spells PDAM
 
-// Note: we increment all vertex indexes by 1 because the queryVertex_ is vertex id 0
-static const std::size_t INCREMENT_VERTEX_COUNT = 1;
-
 class BoltStorage
 {
 public:
@@ -169,6 +166,8 @@ public:
 
   DenseDB *denseDB_;
 
+  /** \brief Based on number of threads system is using */
+  std::size_t numQueryVertices_;
 };  // end of class BoltStorage
 
 }  // namespace bolt

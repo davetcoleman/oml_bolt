@@ -447,6 +447,11 @@ public:
   void printDisjointSets(DisjointSetsParentKey &disjointSets);
   void visualizeDisjointSets(DisjointSetsParentKey &disjointSets);
 
+  std::size_t getNumQueryVertices()
+  {
+    return queryVertices_.size();
+  }
+
 protected:
   /** \brief The created space information */
   base::SpaceInformationPtr si_;
@@ -472,8 +477,8 @@ protected:
   /** \brief Connectivity graph */
   DenseGraph g_;
 
-  /** \brief Vertex for performing nearest neighbor queries. */
-  DenseVertex queryVertex_;
+  /** \brief Vertices for performing nearest neighbor queries on multiple threads */
+  std::vector<DenseVertex> queryVertices_;
 
   /** \brief Access to the weights of each Edge */
   boost::property_map<DenseGraph, boost::edge_weight_t>::type edgeWeightProperty_;
