@@ -442,7 +442,8 @@ bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOr
     // Run SPARS checks
     GuardType addReason;         // returns why the state was added
     SparseVertex newVertex = 0;  // the newly generated sparse vertex
-    if (!addStateToRoadmap(vertexIt->v_, newVertex, addReason))
+    std::size_t threadID = 0; // TODO(davetcoleman): I would like to multi-thread this but its not worth my time currently
+    if (!addStateToRoadmap(vertexIt->v_, newVertex, addReason, threadID))
     {
       // std::cout << "Failed AGAIN to add state to roadmap------" << std::endl;
 
@@ -547,7 +548,8 @@ void SparseDB::eliminateDisjointSets()
       // Run SPARS checks
       GuardType addReason;     // returns why the state was added
       SparseVertex newVertex;  // the newly generated sparse vertex
-      if (addStateToRoadmap(denseV, newVertex, addReason))
+      const std::size_t threadID = 0;
+      if (addStateToRoadmap(denseV, newVertex, addReason, threadID))
       {
         // Debug
         if (disjointVerbose_)
@@ -616,7 +618,8 @@ bool SparseDB::reinsertNeighborsIntoSpars(SparseVertex newVertex)
     std::cout << "attempting to reinsert " << i << " - " << visibleNeighborhood[i] << std::endl;
     SparseVertex newVertex;
     GuardType addReason;
-    if (addStateToRoadmap(visibleNeighborhood[i], newVertex, addReason))
+    const std::size_t threadID = 0;
+    if (addStateToRoadmap(visibleNeighborhood[i], newVertex, addReason, threadID))
     {
       std::cout << "    addition worked!! " << std::endl;
       result = true;
@@ -809,7 +812,7 @@ int SparseDB::iRand(int min, int max)
   return min + x % n;
 }
 
-bool SparseDB::addStateToRoadmap(DenseVertex denseV, SparseVertex &newVertex, GuardType &addReason)
+bool SparseDB::addStateToRoadmap(DenseVertex denseV, SparseVertex &newVertex, GuardType &addReason, std::size_t threadID)
 {
   std::size_t coutIndent = 2;
   if (checksVerbose_)
@@ -823,7 +826,7 @@ bool SparseDB::addStateToRoadmap(DenseVertex denseV, SparseVertex &newVertex, Gu
   std::vector<SparseVertex> visibleNeighborhood;
 
   // Find nearby nodes
-  findGraphNeighbors(denseV, graphNeighborhood, visibleNeighborhood, coutIndent + 4);
+  findGraphNeighbors(denseV, graphNeighborhood, visibleNeighborhood, threadID, coutIndent + 4);
 
   // Always add a node if no other nodes around it are visible (GUARD)
   if (checkAddCoverage(denseV, visibleNeighborhood, newVertex, coutIndent + 4))
@@ -1070,7 +1073,7 @@ void SparseDB::getInterfaceNeighborhood(DenseVertex denseV, std::vector<DenseVer
 }
 
 void SparseDB::findGraphNeighbors(DenseVertex v1, std::vector<SparseVertex> &graphNeighborhood,
-                                  std::vector<SparseVertex> &visibleNeighborhood, std::size_t coutIndent)
+                                  std::vector<SparseVertex> &visibleNeighborhood, std::size_t threadID, std::size_t coutIndent)
 {
   const bool verbose = false;
 
@@ -1080,7 +1083,6 @@ void SparseDB::findGraphNeighbors(DenseVertex v1, std::vector<SparseVertex> &gra
   base::State *state = getDenseState(v1);
 
   // Search
-  const std::size_t threadID = 0;
   getSparseState(queryVertices_[threadID]) = state;
   nn_->nearestR(queryVertices_[threadID], sparseDelta_, graphNeighborhood);
   getSparseState(queryVertices_[threadID]) = NULL;

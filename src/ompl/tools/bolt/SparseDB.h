@@ -182,7 +182,7 @@ public:
    * \param addReason - if function returns true, the reson the denseVertex was added to the sparse graph
    * \return true on success
    */
-  bool addStateToRoadmap(DenseVertex denseVertex, SparseVertex& newVertex, GuardType& addReason);
+  bool addStateToRoadmap(DenseVertex denseVertex, SparseVertex& newVertex, GuardType& addReason, std::size_t threadID);
 
   /* ----------------------------------------------------------------------------------------*/
   /** \brief SPARS-related functions */
@@ -203,7 +203,7 @@ public:
    * \param countIndent - debugging tool
    */
   void findGraphNeighbors(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
-                          std::vector<SparseVertex>& visibleNeighborhood, std::size_t coutIndent);
+                          std::vector<SparseVertex>& visibleNeighborhood, std::size_t threadID, std::size_t coutIndent);
 
   DenseVertex getInterfaceNeighbor(DenseVertex q, SparseVertex rep);
 
