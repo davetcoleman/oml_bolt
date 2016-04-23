@@ -64,6 +64,14 @@ Discretizer::Discretizer(base::SpaceInformationPtr si, DenseDB *denseDB, EdgeCac
                          base::VisualizerPtr visual)
   : si_(si), denseDB_(denseDB), edgeCache_(edgeCache), visual_(visual)
 {
+  numThreads_ = boost::thread::hardware_concurrency();
+
+  // Debugging
+  if (false)
+  {
+    OMPL_WARN("Overriding number of threads for testing to 1");
+    numThreads_ = 1;
+  }
 }
 
 Discretizer::~Discretizer(void)
@@ -160,34 +168,26 @@ void Discretizer::generateVertices()
   const std::size_t jointID = 0;
   const double range = bounds.high[jointID] - bounds.low[jointID];
   const std::size_t jointIncrements = range / discretization_;
-  std::size_t numThreads = boost::thread::hardware_concurrency();
 
   // Check that we have enough jointIncrements for all the threads
-  if (jointIncrements < numThreads)
+  if (jointIncrements < numThreads_)
   {
     OMPL_WARN("There are fewer joint_0 increments (%u) at current discretization (%f) than available threads (%u), "
               "underutilizing threading",
-              jointIncrements, discretization_, numThreads);
-    OMPL_INFORM("Optimal discretization: %f", range / double(numThreads));
-    numThreads = jointIncrements;
-  }
-
-  // Debugging
-  if (false)
-  {
-    OMPL_WARN("Overriding number of threads for testing to 1");
-    numThreads = 1;
+              jointIncrements, discretization_, numThreads_);
+    OMPL_INFORM("Optimal discretization: %f", range / double(numThreads_));
+    numThreads_ = jointIncrements;
   }
 
   // Warn
-  // if (numThreads > 1 && visualizeGridGeneration_)
+  // if (numThreads_ > 1 && visualizeGridGeneration_)
   // OMPL_WARN("Multiple threads are trying to visualize, could cause race conditions");
 
   // Setup threading
-  std::vector<boost::thread *> threads(numThreads);
-  OMPL_INFORM("Generating vertices using %u threads", numThreads);
+  std::vector<boost::thread *> threads(numThreads_);
+  OMPL_INFORM("Generating vertices using %u threads", numThreads_);
 
-  std::size_t jointIncrementsPerThread = jointIncrements / numThreads;
+  std::size_t jointIncrementsPerThread = jointIncrements / numThreads_;
 
   if (true)
   {
@@ -203,7 +203,7 @@ void Discretizer::generateVertices()
     std::cout << "  J0 IncrementsPerThread: " << jointIncrementsPerThread << std::endl;
     std::cout << "  Total states:           " << pow(jointIncrements, si_->getStateSpace()->getDimension())
               << std::endl;
-    std::cout << "  NumThreads: " << numThreads << std::endl;
+    std::cout << "  NumThreads: " << numThreads_ << std::endl;
     std::cout << "-------------------------------------------------------" << std::endl;
   }
 
@@ -230,7 +230,7 @@ void Discretizer::generateVertices()
     si->setMotionValidator(si_->getMotionValidator());
 
     threads[i] =
-        new boost::thread(boost::bind(&Discretizer::createVertexThread, this, i, startJointValue, endJointValue, si));
+        new boost::thread(boost::bind(&Discretizer::generateVerticesThread, this, i, startJointValue, endJointValue, si));
 
     startJointValue = endJointValue;
   }
@@ -243,7 +243,7 @@ void Discretizer::generateVertices()
   }
 }
 
-void Discretizer::createVertexThread(std::size_t threadID, double startJointValue, double endJointValue,
+void Discretizer::generateVerticesThread(std::size_t threadID, double startJointValue, double endJointValue,
                                      base::SpaceInformationPtr si)
 {
   std::size_t jointID = 0;
@@ -281,7 +281,7 @@ void Discretizer::createVertexThread(std::size_t threadID, double startJointValu
   for (double value = startJointValue; value < endJointValue; value += discretization_)
   {
     // User feedback on thread 0
-    if (threadID == 0)
+    if (threadID == numThreads_ - 1)
     {
       const double percent = (value - startJointValue) / (endJointValue - startJointValue) * 100.0;
       std::cout << "Vertex generation progress: " << std::setprecision(1) << percent
@@ -421,20 +421,10 @@ void Discretizer::generateEdges()
 {
   const bool verbose = false;
 
-  // Setup threading
-  std::size_t numThreads = boost::thread::hardware_concurrency();
+  std::vector<boost::thread *> threads(numThreads_);
+  OMPL_INFORM("Generating edges using %u threads", numThreads_);
 
-  // Debugging
-  if (false)
-  {
-    OMPL_WARN("Overriding number of threads for testing to 1");
-    numThreads = 1;
-  }
-
-  std::vector<boost::thread *> threads(numThreads);
-  OMPL_INFORM("Generating edges using %u threads", numThreads);
-
-  std::size_t verticesPerThread = denseDB_->getNumVertices() / numThreads;  // rounds down
+  std::size_t verticesPerThread = denseDB_->getNumVertices() / numThreads_;  // rounds down
   std::size_t startVertex = 0;
   std::size_t endVertex;
   std::size_t errorCheckTotalVertices = 0;
@@ -506,7 +496,7 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
       continue;
 
     // User feedback on thread 0
-    if (threadID == 0 && v1 % feedbackFrequency == 0)
+    if (threadID == numThreads_ - 1 && v1 % feedbackFrequency == 0)
     {
       std::cout << "Generating edges progress: " << std::setprecision(1)
                 << (v1 - startVertex) / static_cast<double>(endVertex - startVertex) * 100.0
@@ -661,18 +651,9 @@ void Discretizer::eliminateDisjointSets()
   getVertexNeighborsPreprocess();    // prepare the constants
   denseDB_->getSparseDB()->setup();  // make sure sparse delta is chosen
 
-  std::size_t numThreads = boost::thread::hardware_concurrency();
-
-  // Debugging
-  if (false)
-  {
-    OMPL_WARN("Overriding number of threads for testing to 1");
-    numThreads = 1;
-  }
-
   // Setup threading
-  std::vector<boost::thread *> threads(numThreads);
-  OMPL_INFORM("Sampling to eliminate disjoint sets using %u threads", numThreads);
+  std::vector<boost::thread *> threads(numThreads_);
+  OMPL_INFORM("Sampling to eliminate disjoint sets using %u threads", numThreads_);
 
   // For each thread
   for (std::size_t i = 0; i < threads.size(); ++i)

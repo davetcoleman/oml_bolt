@@ -151,6 +151,10 @@ public:
   /** \brief Clear all past edge state information about in collision or not */
   void clearEdgeCollisionStates();
 
+  /** \brief Utilize multi-threading by using lots of caching */
+  void preprocessSPARS();
+  void preprocessSPARSThread(std::size_t threadID, std::size_t numThreads, base::SpaceInformationPtr si);
+
   /** \brief Create a SPARS graph from the discretized dense graph and its popularity metric */
   void createSPARS();
   void createSPARSOuterLoop();
@@ -229,6 +233,8 @@ public:
   /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
   double distanceFunction(const SparseVertex a, const SparseVertex b) const;
 
+  double getSecondarySparseDelta();
+
 protected:
   /** \brief The created space information */
   base::SpaceInformationPtr si_;
@@ -243,7 +249,7 @@ protected:
   EdgeCachePtr edgeCache_;
 
   /** \brief Nearest neighbors data structure */
-  boost::shared_ptr<NearestNeighbors<SparseVertex> > nn_;
+  std::shared_ptr<NearestNeighbors<SparseVertex> > nn_;
 
   /** \brief Connectivity graph */
   SparseGraph g_;

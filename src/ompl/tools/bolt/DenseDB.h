@@ -384,10 +384,10 @@ public:
    * \param searchRadius - how far to search
    * \param countIndent - debugging tool
    */
-  void findGraphNeighbors(const DenseVertex& denseV, std::vector<DenseVertex>& graphNeighborhood,
-                          std::vector<DenseVertex>& visibleNeighborhood, double searchRadius, std::size_t coutIndent);
-
   void findGraphNeighbors(base::State* state, std::vector<DenseVertex>& graphNeighborhood,
+                          std::vector<DenseVertex>& visibleNeighborhood, double searchRadius, std::size_t threadID, std::size_t coutIndent);
+
+  void findGraphNeighbors(const DenseVertex& denseV, std::vector<DenseVertex>& graphNeighborhood,
                           std::vector<DenseVertex>& visibleNeighborhood, double searchRadius, std::size_t coutIndent);
 
   /** \brief Shortcut for visualizing an edge */
@@ -465,14 +465,8 @@ protected:
   /** \brief Sampler user for generating valid samples in the state space */
   base::ValidStateSamplerPtr sampler_;  // TODO(davetcoleman): remove this unused sampler
 
-  /** \brief Determine if a save is required */
-  bool dataUnsaved_ = false;
-
-  /** \brief Helper class for storing each plannerData instance */
-  // ompl::base::PlannerDataStorage plannerDataStorage_;
-
   /** \brief Nearest neighbors data structure */
-  boost::shared_ptr<NearestNeighbors<DenseVertex> > nn_;
+  std::shared_ptr<NearestNeighbors<DenseVertex> > nn_;
 
   /** \brief Connectivity graph */
   DenseGraph g_;

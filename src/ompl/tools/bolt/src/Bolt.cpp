@@ -74,7 +74,7 @@ void Bolt::initialize()
   denseDB_.reset(new DenseDB(si_, visual_));
 
   // Load the Retrieve repair database. We do it here so that setRepairPlanner() works
-  boltPlanner_ = ob::PlannerPtr(new BoltRetrieveRepair(si_, denseDB_));  // TODO(davetcoleman): pass in visual_
+  boltPlanner_ = BoltRetrieveRepairPtr(new BoltRetrieveRepair(si_, denseDB_));  // TODO(davetcoleman): pass in visual_
 
   std::size_t numThreads = boost::thread::hardware_concurrency();
   OMPL_INFORM("Bolt Framework initialized using %u threads", numThreads);
@@ -141,6 +141,36 @@ base::PlannerStatus Bolt::solve(const base::PlannerTerminationCondition &ptc)
   return lastStatus_;
 }
 
+void Bolt::visualize()
+{
+  // Optionally visualize raw trajectory
+  if (visualizeRawTrajectory_)
+  {
+    ompl::base::PathPtr originalPath = boltPlanner_->getOriginalSolutionPath();
+
+    // Make the chosen path a different color and thickness
+    visual_->viz5Path(originalPath, /*style*/ 1);
+    visual_->viz5Trigger();
+
+    // Don't show raw trajectory twice in larger dimensions
+    if (si_->getStateSpace()->getDimension() == 3)
+    {
+      visual_->viz6Path(originalPath, /*style*/ 1);
+      visual_->viz6Trigger();
+    }
+  }
+
+  const ompl::base::PathPtr pathSolutionBase = pdef_->getSolutionPath();
+
+  // Show smoothed & interpolated path
+  visual_->viz6Path(pathSolutionBase, /*style*/ 2);
+  visual_->viz6Trigger();
+
+  // Show robot animated if not 2D
+  if (si_->getStateSpace()->getDimension() > 3)
+    visual_->viz6Path(pathSolutionBase, /*style*/ 3);
+}
+
 void Bolt::logResults()
 {
   // Create log
@@ -181,6 +211,9 @@ void Bolt::logResults()
         std::cout << "Bolt Finished - solution found in " << std::setprecision(5) << planTime_ << " seconds with "
                   << solutionPath.getStateCount() << " states" << std::endl;
         std::cout << ANSI_COLOR_RESET;
+
+        // Show in Rviz
+        visualize();
 
         // Error check for repeated states
         if (!checkRepeatedStates(solutionPath))
@@ -328,14 +361,14 @@ void Bolt::printLogs(std::ostream &out) const
   out << "  DenseDB                        " << std::endl;
   out << "    Vertices:                    " << denseDB_->getNumVertices() << std::endl;
   out << "    Edges:                       " << denseDB_->getNumEdges() << std::endl;
-  out << "    Start/Goal States Added:     " << getRetrieveRepairPlanner().numStartGoalStatesAddedToDense_ << std::endl;
+  //out << "    Start/Goal States Added:     " << stats_.numStartGoalStatesAddedToDense_ << std::endl;
   out << "  SparseDB                       " << std::endl;
   out << "    Vertices:                    " << sparseDB->getNumVertices() << " (" << vertPercent << "%)" << std::endl;
   out << "    Edges:                       " << sparseDB->getNumEdges() << " (" << edgePercent << "%)" << std::endl;
   out << "    Regenerations:               " << sparseDB->numGraphGenerations_ << std::endl;
   out << "    Disjoint Samples Added:      " << sparseDB->numSamplesAddedForDisjointSets_ << std::endl;
   out << "    Sparse Delta Fraction:       " << sparseDB->sparseDeltaFraction_ << std::endl;
-  out << "  Average planning time:         " << stats_.getAveragePlanningTime() << " seconds" << std::endl;
+  out << "  Average planning time:         " << std::setprecision(4) << stats_.getAveragePlanningTime() << " seconds" << std::endl;
   out << "  Average insertion time:        " << stats_.getAverageInsertionTime() << " seconds" << std::endl;
   out << std::endl;
 }

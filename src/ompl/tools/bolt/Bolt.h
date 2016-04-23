@@ -111,9 +111,9 @@ public:
   }
 
   /** \brief Get a pointer to the retrieve repair planner */
-  BoltRetrieveRepair &getRetrieveRepairPlanner() const
+  BoltRetrieveRepairPtr getRetrieveRepairPlanner() const
   {
-    return static_cast<BoltRetrieveRepair &>(*boltPlanner_);
+    return boltPlanner_;
   }
 
   /** \brief Set the planner to use for repairing experience paths
@@ -132,6 +132,8 @@ public:
 
   /** \brief Run the planner for up to a specified amount of time (default is 1 second) */
   virtual base::PlannerStatus solve(double time = 1.0);
+
+  void visualize();
 
   /** \brief Helper function for logging data to file */
   void logResults();
@@ -193,7 +195,7 @@ protected:
   base::VisualizerPtr visual_;
 
   /**  The maintained experience planner instance */
-  base::PlannerPtr boltPlanner_;
+  BoltRetrieveRepairPtr boltPlanner_;
 
   /** \brief A shared object between all the planners for saving and loading previous experience */
   DenseDBPtr denseDB_;
@@ -201,6 +203,9 @@ protected:
   /** \brief Accumulated experiences to be later added to experience database */
   std::vector<geometric::PathGeometric> queuedSolutionPaths_;
 
+public:
+  /** \brief Visualize original solution from graph before smoothing */
+  bool visualizeRawTrajectory_ = false;
 };  // end of class Bolt
 
 }  // namespace bolt

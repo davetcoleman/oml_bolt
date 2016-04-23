@@ -316,7 +316,8 @@ bool DenseDB::postProcessPath(og::PathGeometric &solutionPath)
   std::vector<DenseVertex> graphNeighborhood;
   std::vector<DenseVertex> visibleNeighborhood;
   std::size_t coutIndent = 0;
-  findGraphNeighbors(currentPathState, graphNeighborhood, visibleNeighborhood, sparseDB_->sparseDelta_, coutIndent);
+  const std::size_t numThreads = 0;
+  findGraphNeighbors(currentPathState, graphNeighborhood, visibleNeighborhood, sparseDB_->sparseDelta_, numThreads, coutIndent);
 
   std::vector<DenseVertex> roadmapPath;
 
@@ -1061,14 +1062,21 @@ void DenseDB::removeVertex(DenseVertex v)
   boost::remove_vertex(v, g_);
 }
 
-void DenseDB::findGraphNeighbors(const DenseVertex &denseV, std::vector<DenseVertex> &graphNeighborhood,
+void DenseDB::findGraphNeighbors(base::State *state, std::vector<DenseVertex> &graphNeighborhood,
                                  std::vector<DenseVertex> &visibleNeighborhood, double searchRadius,
-                                 std::size_t coutIndent)
+                                 std::size_t threadID, std::size_t coutIndent)
 {
-  findGraphNeighbors(stateProperty_[denseV], graphNeighborhood, visibleNeighborhood, searchRadius, coutIndent);
+  // Set a queryVertex to give us a DenseVertex
+  stateProperty_[queryVertices_[threadID]] = state;
+
+  // Search
+  findGraphNeighbors(queryVertices_[threadID], graphNeighborhood, visibleNeighborhood, searchRadius, coutIndent);
+
+  // Reset a queryVertex
+  stateProperty_[queryVertices_[threadID]] = NULL;
 }
 
-void DenseDB::findGraphNeighbors(base::State *state, std::vector<DenseVertex> &graphNeighborhood,
+void DenseDB::findGraphNeighbors(const DenseVertex &denseV, std::vector<DenseVertex> &graphNeighborhood,
                                  std::vector<DenseVertex> &visibleNeighborhood, double searchRadius,
                                  std::size_t coutIndent)
 {
@@ -1076,17 +1084,13 @@ void DenseDB::findGraphNeighbors(base::State *state, std::vector<DenseVertex> &g
   if (verbose)
     std::cout << std::string(coutIndent, ' ') << "findGraphNeighbors()" << std::endl;
 
-  // Search
-  const std::size_t threadID = 0;
-  stateProperty_[queryVertices_[threadID]] = state;
-  nn_->nearestR(queryVertices_[threadID], searchRadius, graphNeighborhood);
-  stateProperty_[queryVertices_[threadID]] = NULL;
+  nn_->nearestR(denseV, searchRadius, graphNeighborhood);
 
   // Now that we got the neighbors from the NN, remove any we can't see
   for (DenseVertex &denseV : graphNeighborhood)
   // for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
   {
-    if (si_->checkMotion(state, stateProperty_[denseV]))
+    if (si_->checkMotion(stateProperty_[denseV], stateProperty_[denseV]))
     {
       visibleNeighborhood.push_back(denseV);
     }
@@ -1253,8 +1257,11 @@ bool DenseDB::sameComponent(const DenseVertex &v1, const DenseVertex &v2)
 void DenseDB::removeInvalidVertices()
 {
   OMPL_INFORM("Removing invalid vertices");
-
+  bool actuallyRemove = true;
   std::size_t totalInvalid = 0;  // invalid states
+
+  if (actuallyRemove)
+    OMPL_WARN("Actually deleting verticies and resetting edge cache");
 
   typedef boost::graph_traits<DenseGraph>::vertex_iterator VertexIterator;
   for (VertexIterator vertexIt = boost::vertices(g_).first; vertexIt != boost::vertices(g_).second; ++vertexIt)
@@ -1262,13 +1269,8 @@ void DenseDB::removeInvalidVertices()
     if (*vertexIt <= queryVertices_.back())
       continue;
 
-    if (*vertexIt > 17000)
-    {
-      if (*vertexIt % 1000 == 0)
-        std::cout << "Checking vertex " << *vertexIt << std::endl;
-    }
-    else
-      continue;
+    if (*vertexIt % 1000 == 0)
+      std::cout << "Checking vertex " << *vertexIt << std::endl;
 
     // Check if state is valid
     if (!si_->isValid(stateProperty_[*vertexIt]))
@@ -1280,8 +1282,11 @@ void DenseDB::removeInvalidVertices()
       visual_->viz5Trigger();
       //usleep(0.25 * 1000000);
 
-      removeVertex(*vertexIt);
-      vertexIt--; // backtrack one vertex
+      if (actuallyRemove)
+      {
+        removeVertex(*vertexIt);
+        vertexIt--; // backtrack one vertex
+      }
     }
   }
 
@@ -1289,10 +1294,12 @@ void DenseDB::removeInvalidVertices()
   {
     OMPL_ERROR("Total invalid: %u", totalInvalid);
 
-    // Must clear out edge cache since we changed the numbering of vertices
-    edgeCache_->clear();
-
-    dataUnsaved_ = true;
+    if (actuallyRemove)
+    {
+      // Must clear out edge cache since we changed the numbering of vertices
+      edgeCache_->clear();
+      graphUnsaved_ = true;
+    }
   }
 }
 

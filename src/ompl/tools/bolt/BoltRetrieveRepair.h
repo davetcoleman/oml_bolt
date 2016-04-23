@@ -259,6 +259,10 @@ public:
     numNodesClosed_++;
   }
 
+  std::shared_ptr<geometric::PathGeometric> getOriginalSolutionPath()
+  {
+    return originalSolutionPath_;
+  }
 
 protected:
   /**
@@ -280,7 +284,7 @@ protected:
   base::VisualizerPtr visual_;
 
   /** \brief Save the recalled path before smoothing for introspection later */
-  boost::shared_ptr<geometric::PathGeometric> originalSolutionPath_;
+  std::shared_ptr<geometric::PathGeometric> originalSolutionPath_;
 
   /** \brief The instance of the path simplifier */
   geometric::PathSimplifierPtr path_simplifier_;
@@ -306,9 +310,6 @@ public:
 
   /** \brief Output user feedback to console */
   bool verbose_;
-
-  /** \brief Visualize original solution from graph before smoothing */
-  bool visualizeRawTrajectory_;
 
   int numStartGoalStatesAddedToDense_;
 };

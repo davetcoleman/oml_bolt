@@ -84,15 +84,18 @@ bool EdgeCache::save()
     return false;
   }
 
-  try
-  {
-    boost::archive::binary_oarchive oa(out);
-    oa << collisionCheckEdgeCache_;
-  }
-  catch (boost::archive::archive_exception &ae)
-  {
-    OMPL_ERROR("Failed to save edge cache: %s", ae.what());
-    return false;
+  {  // Get write mutex
+    boost::lock_guard<boost::shared_mutex> writeLock(edgeCacheMutex_);
+    try
+    {
+      boost::archive::binary_oarchive oa(out);
+      oa << collisionCheckEdgeCache_;
+    }
+    catch (boost::archive::archive_exception &ae)
+    {
+      OMPL_ERROR("Failed to save edge cache: %s", ae.what());
+      return false;
+    }
   }
 
   out.close();

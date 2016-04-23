@@ -91,7 +91,7 @@ public:
 private:
   void generateVertices();
 
-  void createVertexThread(std::size_t threadID, double startJointValue, double endJointValue,
+  void generateVerticesThread(std::size_t threadID, double startJointValue, double endJointValue,
                           base::SpaceInformationPtr si);
 
   void recursiveDiscretization(std::size_t threadID, std::vector<double>& values, std::size_t jointID,
@@ -146,6 +146,8 @@ private:
   std::size_t eliminateDisjointSetsVerticesAddedUnsaved_;
   std::size_t eliminateDisjointSetsEdgesAdded_;
   bool stopSearchingDisjointSets_;
+
+  std::size_t numThreads_;
 
 public:
   /** \brief Various options for visualizing the algorithmns performance */

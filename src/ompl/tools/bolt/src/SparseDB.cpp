@@ -276,6 +276,96 @@ void SparseDB::clearEdgeCollisionStates()
     edgeCollisionStatePropertySparse_[e] = NOT_CHECKED;  // each edge has an unknown state
 }
 
+void SparseDB::preprocessSPARS()
+{
+  std::size_t numThreads = boost::thread::hardware_concurrency();
+
+  // Setup so ensure sparseDelta_ is correct
+  setup();
+
+  // Increase the sparseDelta
+  sparseDelta_ = getSecondarySparseDelta();
+
+  // Debugging
+  if (false)
+  {
+    OMPL_WARN("Overriding number of threads for testing to 1");
+    numThreads = 1;
+  }
+
+  // Setup threading
+  std::vector<boost::thread *> threads(numThreads);
+  OMPL_INFORM("Preprocessing SPRS graph using %u threads", numThreads);
+
+  // For each thread
+  for (std::size_t i = 0; i < threads.size(); ++i)
+  {
+    base::SpaceInformationPtr si(new base::SpaceInformation(si_->getStateSpace()));
+    si->setStateValidityChecker(si_->getStateValidityChecker());
+    si->setMotionValidator(si_->getMotionValidator());
+
+    threads[i] =
+      new boost::thread(boost::bind(&SparseDB::preprocessSPARSThread, this, i, numThreads, si));
+  }
+
+  // Join threads
+  for (std::size_t i = 0; i < threads.size(); ++i)
+  {
+    threads[i]->join();
+    delete threads[i];
+  }
+
+  denseDB_->graphUnsaved_ = true;
+}
+
+void SparseDB::preprocessSPARSThread(std::size_t threadID, std::size_t numThreads, base::SpaceInformationPtr si)
+{
+  const bool verbose = true;
+
+  // Choose start vertex, skip over the queryVertices
+  DenseVertex v1 = queryVertices_.size() + threadID;
+
+  std::size_t numVertices = denseDB_->getNumVertices(); // cache for speed
+  std::size_t debugFrequency = std::max(std::size_t(10), static_cast<std::size_t>(numVertices / 200));
+  std::size_t saveFrequency = std::max(std::size_t(1000), static_cast<std::size_t>(numVertices / 20));
+
+  if (verbose)
+    std::cout << "Thread " << threadID << " starting on vertex " << v1 << " debugFrequency: " << debugFrequency << std::endl;
+
+  // Error check
+  assert(sparseDelta_ > 0.0001);
+  assert(numVertices > 0);
+  assert(v1 < numVertices);
+
+  std::vector<DenseVertex> graphNeighborhood;
+  while (v1 < numVertices)
+  {
+    // Feedback
+    if (v1 % debugFrequency == 0)
+    {
+      std::cout << "Preprocessing spars progress: " << (v1 / double(numVertices) * 100.0) << " %" << std::endl;
+    }
+    if (v1 % saveFrequency == 0)
+    {
+      edgeCache_->save();
+    }
+
+    // Search
+    graphNeighborhood.clear();
+    denseDB_->nn_->nearestR(v1, sparseDelta_, graphNeighborhood);
+
+    // Collision check edges
+    for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
+    {
+      const DenseVertex v2 = graphNeighborhood[i];
+      edgeCache_->checkMotionWithCache(v1, v2, threadID);
+    }
+
+    // Increment
+    v1 += numThreads;
+  }
+}
+
 void SparseDB::createSPARS()
 {
   // Benchmark runtime
@@ -316,8 +406,8 @@ void SparseDB::createSPARS()
     eliminateDisjointSets();
     denseDB_->displayDatabase();
   }
-  else
-    OMPL_WARN("Skipping SPARSE disjoint set fixing");
+  //else
+  //OMPL_WARN("Skipping SPARSE disjoint set fixing");
 
   // Save collision cache
   edgeCache_->save();
@@ -388,7 +478,7 @@ void SparseDB::createSPARSOuterLoop()
     // Increase the sparse delta a bit, but only after the first loop
     if (loopAttempt == 1)
     {
-      sparseDelta_ = sparseDelta_ * 1.25;
+      sparseDelta_ = getSecondarySparseDelta();
       std::cout << std::string(coutIndent + 2, ' ') << "sparseDelta_ is now " << sparseDelta_ << std::endl;
       secondSparseInsertionAttempt_ = true;
 
@@ -422,7 +512,6 @@ bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOr
   std::size_t loopCount = 0;
   std::size_t originalVertexInsertion = vertexInsertionOrder.size();
   std::size_t debugFrequency = std::max(std::size_t(10), static_cast<std::size_t>(originalVertexInsertion / 20));
-  std::cout << "originalVertexInsertion: " << originalVertexInsertion << std::endl;
 
   for (std::list<WeightedVertex>::iterator vertexIt = vertexInsertionOrder.begin();
        vertexIt != vertexInsertionOrder.end();
@@ -1347,6 +1436,10 @@ double SparseDB::distanceFunction(const SparseVertex a, const SparseVertex b) co
   return si_->distance(getSparseStateConst(a), getSparseStateConst(b));
 }
 
+double SparseDB::getSecondarySparseDelta()
+{
+  return sparseDelta_ * 1.25;
+}
 
 }  // namespace bolt
 }  // namespace tools

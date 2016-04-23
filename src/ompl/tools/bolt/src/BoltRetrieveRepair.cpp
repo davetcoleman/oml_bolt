@@ -111,7 +111,6 @@ BoltRetrieveRepair::BoltRetrieveRepair(const base::SpaceInformationPtr &si, cons
   , denseDB_(denseDB)
   , smoothingEnabled_(true)
   , verbose_(true)
-  , visualizeRawTrajectory_(true)
   , numStartGoalStatesAddedToDense_(0)
 {
   // Copy in needed objects
@@ -173,6 +172,18 @@ base::PlannerStatus BoltRetrieveRepair::solve(const base::PlannerTerminationCond
   const base::State *startState = pis_.nextStart();  // PlannerInputStates
   const base::State *goalState = pis_.nextGoal(ptc);
 
+  if (startState == nullptr)
+  {
+    OMPL_ERROR("No start state found");
+    return base::PlannerStatus::ABORT;
+  }
+
+  if (goalState == nullptr)
+  {
+    OMPL_ERROR("No goal state found");
+    return base::PlannerStatus::ABORT;
+  }
+
   // Error check task planning
   if (denseDB_->getUseTaskPlanning())
   {
@@ -192,7 +203,7 @@ base::PlannerStatus BoltRetrieveRepair::solve(const base::PlannerTerminationCond
   ob::PathPtr pathSolutionBase(new og::PathGeometric(si_));
   og::PathGeometric &geometricSolution = static_cast<og::PathGeometric &>(*pathSolutionBase);
 
-  // Search for previous solution in database
+  // Search
   if (!getPathOffGraph(startState, goalState, geometricSolution, ptc))
   {
     OMPL_WARN("BoltRetrieveRepair::solve() No near start or goal found");
@@ -208,21 +219,6 @@ base::PlannerStatus BoltRetrieveRepair::solve(const base::PlannerTerminationCond
   // All save trajectories should be at least 1 state long, then we append the start and goal states, for min of 3
   assert(geometricSolution.getStateCount() >= 3);
 
-  // Optionally visualize raw trajectory
-  if (visualizeRawTrajectory_)
-  {
-    // Make the chosen path a different color and thickness
-    visual_->viz5Path(pathSolutionBase, /*style*/ 1);
-    visual_->viz5Trigger();
-
-    // Don't show raw trajectory twice in larger dimensions
-    if (si_->getStateSpace()->getDimension() == 3)
-    {
-      visual_->viz6Path(pathSolutionBase, /*style*/ 1);
-      visual_->viz6Trigger();
-    }
-  }
-
   // Smooth the result
   if (smoothingEnabled_)
   {
@@ -231,14 +227,6 @@ base::PlannerStatus BoltRetrieveRepair::solve(const base::PlannerTerminationCond
 
   // Add more points to path
   geometricSolution.interpolate();
-
-  // Show smoothed & interpolated path
-  visual_->viz6Path(pathSolutionBase, /*style*/ 2);
-  visual_->viz6Trigger();
-
-  // Show robot animated if not 2D
-  if (si_->getStateSpace()->getDimension() > 3)
-    visual_->viz6Path(pathSolutionBase, /*style*/ 3);
 
   // Finished
   approxdif = 0;
@@ -1071,7 +1059,7 @@ double BoltRetrieveRepair::astarHeuristic(const SparseVertex a, const SparseVert
 
     // dist = std::max(0.0, dist - popularityComponent);
   }
-  else  // method 4
+  else if (false)  // method 4
   {
     dist *= (1 + sparseDB_->percentMaxExtentUnderestimate_);
   }
