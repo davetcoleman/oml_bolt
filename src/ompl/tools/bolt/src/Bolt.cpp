@@ -64,7 +64,7 @@ void Bolt::initialize()
   OMPL_INFORM("Initializing Bolt Framework");
 
   // Initalize visualizer class
-  visual_.reset(new base::Visualizer());
+  visual_.reset(new Visualizer());
 
   recallEnabled_ = true;
   scratchEnabled_ = true;

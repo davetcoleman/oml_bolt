@@ -43,10 +43,10 @@
 #include <ompl/base/State.h>
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/base/PlannerTerminationCondition.h>
+#include <ompl/util/Hash.h>
 
 // Boost
 #include <boost/range/adaptor/map.hpp>
-#include <boost/unordered_map.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/filtered_graph.hpp>
@@ -55,6 +55,9 @@
 #include <boost/graph/connected_components.hpp>
 #include <boost/property_map/property_map.hpp>
 #include <boost/pending/disjoint_sets.hpp>
+
+// C++
+#include <unordered_map>
 
 namespace ompl
 {
@@ -86,6 +89,116 @@ enum GuardType
 /** \brief The type used internally for representing vertex IDs */
 typedef unsigned long int VertexIndexType;  // TODO(davetcoleman): just use size_t?
 
+////////////////////////////////////////////////////////////////////////////////////////
+// SPARSE INTERFACE BOOK KEEPING
+////////////////////////////////////////////////////////////////////////////////////////
+
+/** \brief Pair of vertices which support an interface. */
+typedef std::pair<VertexIndexType, VertexIndexType> VertexPair;
+
+////////////////////////////////////////////////////////////////////////////////////////
+/** \brief Interface information storage class, which does bookkeeping for criterion four. */
+struct InterfaceData
+{
+  /** \brief States which lie inside the visibility region of a vertex and support an interface. */
+  base::State* pointA_;
+  base::State* pointB_;
+
+  /** \brief States which lie just outside the visibility region of a vertex and support an interface. */
+  base::State* sigmaA_;
+  base::State* sigmaB_;
+
+  /** \brief Last known distance between the two interfaces supported by points_ and sigmas. */
+  double last_distance_;
+
+  /** \brief Constructor */
+  InterfaceData()
+    : pointA_(nullptr)
+    , pointB_(nullptr)
+    , sigmaA_(nullptr)
+    , sigmaB_(nullptr)
+    , last_distance_(std::numeric_limits<double>::infinity())
+  {
+  }
+
+  /** \brief Clears the given interface data. */
+  void clear(const base::SpaceInformationPtr& si)
+  {
+    if (pointA_)
+    {
+      si->freeState(pointA_);
+      pointA_ = nullptr;
+    }
+    if (pointB_)
+    {
+      si->freeState(pointB_);
+      pointB_ = nullptr;
+    }
+    if (sigmaA_)
+    {
+      si->freeState(sigmaA_);
+      sigmaA_ = nullptr;
+    }
+    if (sigmaB_)
+    {
+      si->freeState(sigmaB_);
+      sigmaB_ = nullptr;
+    }
+    last_distance_ = std::numeric_limits<double>::infinity();
+  }
+
+  /** \brief Sets information for the first interface (i.e. interface with smaller index vertex). */
+  void setFirst(const base::State* p, const base::State* s, const base::SpaceInformationPtr& si)
+  {
+    if (pointA_)
+      si->copyState(pointA_, p);
+    else
+      pointA_ = si->cloneState(p);
+    if (sigmaA_)
+      si->copyState(sigmaA_, s);
+    else
+      sigmaA_ = si->cloneState(s);
+    if (pointB_)
+      last_distance_ = si->distance(pointA_, pointB_);
+  }
+
+  /** \brief Sets information for the second interface (i.e. interface with larger index vertex). */
+  void setSecond(const base::State* p, const base::State* s, const base::SpaceInformationPtr& si)
+  {
+    if (pointB_)
+      si->copyState(pointB_, p);
+    else
+      pointB_ = si->cloneState(p);
+    if (sigmaB_)
+      si->copyState(sigmaB_, s);
+    else
+      sigmaB_ = si->cloneState(s);
+    if (pointA_)
+      last_distance_ = si->distance(pointA_, pointB_);
+  }
+};
+
+/** \brief the hash which maps pairs of neighbor points to pairs of states */
+typedef std::unordered_map<VertexPair, InterfaceData> InterfaceHash;
+
+////////////////////////////////////////////////////////////////////////////////////////
+// The InterfaceHash structure is wrapped inside of this struct due to a compilation error on
+// GCC 4.6 with Boost 1.48.  An implicit assignment operator overload does not compile with these
+// components, so an explicit overload is given here.
+// Remove this struct when the minimum Boost requirement is > v1.48.
+// TODO remove this
+struct InterfaceHashStruct
+{
+  InterfaceHashStruct& operator=(const InterfaceHashStruct& rhs)
+  {
+    interfaceHash = rhs.interfaceHash;
+    return *this;
+  }
+  InterfaceHash interfaceHash;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////
+
 /** \brief Boost vertex properties */
 struct vertex_state_t
 {
@@ -97,15 +210,10 @@ struct vertex_dense_pointer_t
   typedef boost::vertex_property_tag kind;
 };
 
-// struct vertex_list_t
-// {
-//     typedef boost::vertex_property_tag kind;
-// };
-
-// struct vertex_interface_list_t
-// {
-//     typedef boost::vertex_property_tag kind;
-//};
+struct vertex_interface_data_t
+{
+    typedef boost::vertex_property_tag kind;
+};
 
 struct vertex_sparse_rep_t
 {
@@ -136,27 +244,6 @@ enum EdgeCollisionState
   NOT_CHECKED,
   IN_COLLISION,
   FREE
-};
-
-////////////////////////////////////////////////////////////////////////////////////////
-// INTERFACE PROPERTIES
-////////////////////////////////////////////////////////////////////////////////////////
-
-/** \brief Hash for storing interface information. */
-typedef boost::unordered_map<VertexIndexType, std::set<VertexIndexType>, boost::hash<VertexIndexType> > InterfaceHash;
-
-// The InterfaceHash structure is wrapped inside of this struct due to a compilation error on
-// GCC 4.6 with Boost 1.48.  An implicit assignment operator overload does not compile with these
-// components, so an explicit overload is given here.
-// Remove this struct when the minimum Boost requirement is > v1.48.
-struct InterfaceHashStruct
-{
-  InterfaceHashStruct& operator=(const InterfaceHashStruct& rhs)
-  {
-    interfaceHash = rhs.interfaceHash;
-    return *this;
-  }
-  InterfaceHash interfaceHash;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -197,10 +284,9 @@ typedef boost::property<vertex_dense_pointer_t, VertexIndexType,
         boost::property<boost::vertex_predecessor_t, VertexIndexType,
         boost::property<boost::vertex_rank_t, VertexIndexType,
         boost::property<vertex_type_t, GuardType,
-        boost::property<vertex_popularity_t, double
-        //boost::property<vertex_list_t, std::set<VertexIndexType>,
-        //boost::property<vertex_interface_list_t, InterfaceHashStruct > >
-        > > > > > SparseVertexProperties;
+        boost::property<vertex_popularity_t, double,
+        boost::property<vertex_interface_data_t, InterfaceHashStruct
+        > > > > > > SparseVertexProperties;
 // clang-format on
 
 /** Wrapper for the double assigned to an edge as its weight property. */
@@ -304,15 +390,15 @@ struct WeightedVertex
   {
   }
 
-  bool operator ==(const WeightedVertex& wv) const
+  bool operator==(const WeightedVertex& wv) const
   {
     return wv.v_ == v_;
   }
 
   template <typename Archive>
-  void serialize(Archive &ar, const unsigned int /*version*/)
+  void serialize(Archive& ar, const unsigned int /*version*/)
   {
-    ar &v_;
+    ar& v_;
   }
 
   DenseVertex v_;

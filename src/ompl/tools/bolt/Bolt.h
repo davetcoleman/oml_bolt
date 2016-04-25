@@ -41,7 +41,7 @@
 #include <ompl/tools/experience/ExperienceSetup.h>  // the parent class
 
 #include <ompl/tools/bolt/DenseDB.h>
-#include <ompl/tools/bolt/Visualizer.h>
+#include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/BoltRetrieveRepair.h>
 #include <ompl/tools/bolt/Discretizer.h>
 
@@ -182,17 +182,9 @@ public:
   /** \brief Allow accumlated experiences to be processed */
   bool doPostProcessing();
 
-  /** \brief Get class for managing various visualization features */
-  base::VisualizerPtr getVisual()
-  {
-    return visual_;
-  }
-
   void benchmarkPerformance();
 
 protected:
-  /** \brief Class for managing various visualization features */
-  base::VisualizerPtr visual_;
 
   /**  The maintained experience planner instance */
   BoltRetrieveRepairPtr boltPlanner_;

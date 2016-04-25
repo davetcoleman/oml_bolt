@@ -46,7 +46,7 @@
 //#include <ompl/base/PlannerData.h>
 //#include <ompl/base/PlannerDataStorage.h>
 #include <ompl/datastructures/NearestNeighbors.h>
-#include <ompl/tools/bolt/Visualizer.h>
+#include <ompl/tools/debug/Visualizer.h> 
 #include <ompl/tools/bolt/SparseDB.h>
 #include <ompl/tools/bolt/BoltGraph.h>
 
@@ -174,7 +174,7 @@ public:
   /** \brief Constructor needs the state space used for planning.
    *  \param space - state space
    */
-  DenseDB(base::SpaceInformationPtr si, base::VisualizerPtr visual);
+  DenseDB(base::SpaceInformationPtr si, VisualizerPtr visual);
 
   /** \brief Deconstructor */
   virtual ~DenseDB(void);
@@ -409,7 +409,7 @@ public:
   }
 
   /** \brief Get class for managing various visualization features */
-  base::VisualizerPtr getVisual()
+  VisualizerPtr getVisual()
   {
     return visual_;
   }
@@ -457,7 +457,7 @@ protected:
   base::SpaceInformationPtr si_;
 
   /** \brief Class for managing various visualization features */
-  base::VisualizerPtr visual_;
+  VisualizerPtr visual_;
 
   /** \brief Class to store lighter version of graph */
   SparseDBPtr sparseDB_;

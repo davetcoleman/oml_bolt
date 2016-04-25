@@ -47,7 +47,7 @@
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/datastructures/NearestNeighbors.h>
 #include <ompl/base/PlannerTerminationCondition.h>
-#include <ompl/tools/bolt/Visualizer.h>
+#include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/DenseDB.h>
 #include <ompl/tools/bolt/BoltGraph.h>
 #include <ompl/tools/bolt/EdgeCache.h>
@@ -86,7 +86,6 @@ class SparseDB
   friend class Discretizer;
 
 public:
-
   ////////////////////////////////////////////////////////////////////////////////////////
   // SparseDB MEMBER FUNCTIONS
   ////////////////////////////////////////////////////////////////////////////////////////
@@ -94,7 +93,7 @@ public:
   /** \brief Constructor needs the state space used for planning.
    *  \param space - state space
    */
-  SparseDB(base::SpaceInformationPtr si, DenseDB* denseDB, base::VisualizerPtr visual, EdgeCachePtr edgeCache);
+  SparseDB(base::SpaceInformationPtr si, DenseDB* denseDB, VisualizerPtr visual, EdgeCachePtr edgeCache);
 
   /** \brief Deconstructor */
   virtual ~SparseDB(void);
@@ -109,7 +108,7 @@ public:
    *  \param vertexPath
    *  \return true if candidate solution found
    */
-  //bool astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex>& vertexPath);
+  // bool astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex>& vertexPath);
 
   /** \brief Print info to screen */
   void debugVertex(const ompl::base::PlannerDataVertex& vertex);
@@ -197,14 +196,54 @@ public:
   bool checkAddInterface(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
                          std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
                          std::size_t coutIndent);
-  void getInterfaceNeighborhood(DenseVertex denseV, std::vector<DenseVertex>& interfaceNeighborhood,
-                                std::size_t coutIndent);
+  bool checkAddQuality(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
+                       std::vector<SparseVertex>& visibleNeighborhood, base::State* workState,
+                       SparseVertex& newVertex, std::size_t coutIndent);
+
+  /* ----------------------------------------------------------------------------------------*/
+  // 4th Criteria
+  /* ----------------------------------------------------------------------------------------*/
+
+  /** \brief Checks vertex v for short paths through its region and adds when appropriate. */
+  bool checkAddPath(SparseVertex v, std::size_t coutIndent);
+
+  /** \brief Finds the representative of the input state, st  */
+  SparseVertex findGraphRepresentative(base::State* st, std::size_t coutIndent);
+
+  /** \brief Finds representatives of samples near candidateState_ which are not his representative */
+  void findCloseRepresentatives(base::State* workState, const base::State* candidateState, SparseVertex candidateRep,
+                                std::map<SparseVertex, base::State*>& closeRepresentatives, std::size_t coutIndent);
+
+  /** \brief High-level method which updates pair point information for repV_ with neighbor r */
+  void updatePairPoints(SparseVertex rep, const base::State* q, SparseVertex r, const base::State* s, std::size_t coutIndent);
+
+  /** \brief Computes all nodes which qualify as a candidate v" for v and vp */
+  void computeVPP(SparseVertex v, SparseVertex vp, std::vector<SparseVertex>& VPPs, std::size_t coutIndent);
+
+  /** \brief Computes all nodes which qualify as a candidate x for v, v', and v" */
+  void computeX(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::vector<SparseVertex>& Xs, std::size_t coutIndent);
+
+  /** \brief Rectifies indexing order for accessing the vertex data */
+  VertexPair index(SparseVertex vp, SparseVertex vpp);
+
+  /** \brief Retrieves the Vertex data associated with v,vp,vpp */
+  InterfaceData& getData(SparseVertex v, SparseVertex vp, SparseVertex vpp);
+
+  /** \brief Performs distance checking for the candidate new state, q against the current information */
+  void distanceCheck(SparseVertex rep, const base::State* q, SparseVertex r, const base::State* s, SparseVertex rp);
+
+  /** \brief When a new guard is added at state st, finds all guards who must abandon their interface information and
+   * deletes that information */
+  void abandonLists(base::State* st);
+
+  /* ----------------------------------------------------------------------------------------*/
+
   /**
    * \brief Get neighbors within sparseDelta radius
    * \param denseV - origin state to search from
    * \param graphNeighborhood - resulting nearby states
    * \param visibleNeighborhood - resulting nearby states that are visible
-   * \param countIndent - debugging tool
+   * \param coutIndent - debugging tool
    */
   void findGraphNeighbors(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
                           std::vector<SparseVertex>& visibleNeighborhood, std::size_t threadID, std::size_t coutIndent);
@@ -213,9 +252,14 @@ public:
 
   bool sameComponent(SparseVertex v1, SparseVertex v2);
 
+  /** \brief Add vertices to graph */
+  SparseVertex addVertex(base::State* state, const GuardType &type);
   SparseVertex addVertex(DenseVertex denseV, const GuardType& type);
-  std::size_t getVizVertexType(const GuardType& type);
+
+  /** \brief Add edge to graph */
   void addEdge(SparseVertex v1, SparseVertex v2, std::size_t visualColor, std::size_t coutIndent);
+
+  std::size_t getVizVertexType(const GuardType& type);
 
   /** \brief Show in visualizer the sparse graph */
   void displaySparseDatabase(bool showVertices = false);
@@ -236,6 +280,10 @@ public:
   double getSecondarySparseDelta();
 
 protected:
+
+  /** \brief Short name of this class */
+  const std::string name_ = "SparseDB";
+
   /** \brief The created space information */
   base::SpaceInformationPtr si_;
 
@@ -243,7 +291,7 @@ protected:
   DenseDB* denseDB_;
 
   /** \brief Class for managing various visualization features */
-  base::VisualizerPtr visual_;
+  VisualizerPtr visual_;
 
   /** \brief Speed up collision checking by saving redundant checks and using file storage */
   EdgeCachePtr edgeCache_;
@@ -272,11 +320,8 @@ protected:
   /** \brief Access to the SPARS vertex type for the vertices */
   boost::property_map<SparseGraph, vertex_type_t>::type typePropertySparse_;
 
-  /** \brief Access to all non-interface supporting vertices of the sparse nodes */
-  // boost::property_map<SparseGraph, vertex_list_t>::type nonInterfaceListsProperty_;
-
-  /** \brief Access to the interface-supporting vertice hashes of the sparse nodes */
-  // boost::property_map<SparseGraph, vertex_interface_list_t>::type interfaceListsProperty_;
+  /** \brief Access to the interface pair information for the vertices */
+  boost::property_map<SparseGraph, vertex_interface_data_t>::type interfaceDataProperty_;
 
   /** \brief Access to the popularity of each node */
   boost::property_map<SparseGraph, vertex_popularity_t>::type vertexPopularity_;
@@ -286,7 +331,10 @@ protected:
                        boost::property_map<SparseGraph, boost::vertex_predecessor_t>::type> disjointSets_;
 
   /** \brief A path simplifier used to simplify dense paths added to S */
-  geometric::PathSimplifierPtr psimp_;
+  geometric::PathSimplifierPtr pathSimplifier_;
+
+  /** \brief Sampler user for generating valid samples in the state space */
+  base::ValidStateSamplerPtr sampler_;
 
   /** \brief Special flag for tracking mode when inserting into sparse graph */
   bool secondSparseInsertionAttempt_ = false;
@@ -294,8 +342,8 @@ protected:
   /** \brief Amount of sub-optimality allowed */
   double sparseDelta_ = 2.0;
 
-  /** \brief For debugging */
-  bool specialMode_ = false;
+  /** \brief Number of sample points to use when trying to detect interfaces. */
+  std::size_t nearSamplePoints_;
 
   /** \brief Show what nodes are added on top of the regular SPARS graph */
   bool visualizeOverlayNodes_ = false;
@@ -304,7 +352,6 @@ protected:
   double maxExtent_;
 
 public:
-
   /** \brief SPARS parameter for dense graph connection distance as a fraction of max. extent */
   double denseDeltaFraction_ = 0.05;
 
@@ -327,10 +374,11 @@ public:
 
   /** \brief Show the sparse graph being generated */
   bool visualizeSparsGraph_ = false;
+  bool visualizeQualityCriteria_ = true;
   double visualizeSparsGraphSpeed_ = 0.0;
   bool visualizeDatabaseVertices_ = true;
   bool visualizeDatabaseEdges_ = true;
-  bool visualizeDenseRepresentatives_ = false;
+  bool visualizeDenseRepresentatives_ = false; // TODO use this
   bool visualizeNodePopularity_ = false;
 
   /** \brief Method for ordering of vertex insertion */

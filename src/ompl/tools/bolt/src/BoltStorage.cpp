@@ -110,7 +110,7 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
   std::size_t errorCheckNumQueryVertices = 0;
   foreach (const DenseVertex v, boost::vertices(denseDB_->g_))
   {
-    // Skip the query vertex that is NULL
+    // Skip the query vertex that is nullptr
     if (v <= denseDB_->queryVertices_.back())
     {
       errorCheckNumQueryVertices++;

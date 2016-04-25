@@ -41,7 +41,7 @@
 
 // OMPL
 #include <ompl/base/StateSpace.h>
-#include <ompl/tools/bolt/Visualizer.h>
+#include <ompl/tools/debug/Visualizer.h> 
 #include <ompl/tools/bolt/BoltGraph.h>
 #include <ompl/tools/bolt/DenseDB.h>
 #include <ompl/tools/bolt/EdgeCache.h>
@@ -68,7 +68,7 @@ public:
   /** \brief Constructor needs the state space used for planning.
    *  \param space - state space
    */
-  Discretizer(base::SpaceInformationPtr si, DenseDB* denseDB, EdgeCachePtr edgeCache, base::VisualizerPtr visual);
+  Discretizer(base::SpaceInformationPtr si, DenseDB* denseDB, EdgeCachePtr edgeCache, VisualizerPtr visual);
 
   /** \brief Deconstructor */
   virtual ~Discretizer(void);
@@ -121,7 +121,7 @@ private:
   EdgeCachePtr edgeCache_;
 
   /** \brief Class for managing various visualization features */
-  base::VisualizerPtr visual_;
+  VisualizerPtr visual_;
 
   // Prevent two vertices from being added to graph at same time
   boost::mutex vertexMutex_;

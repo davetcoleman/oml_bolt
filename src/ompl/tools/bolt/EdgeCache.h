@@ -66,7 +66,7 @@ class EdgeCache
 public:
 
   /** \brief Constructor */
-  EdgeCache(base::SpaceInformationPtr si, DenseDB *denseDB, base::VisualizerPtr visual);
+  EdgeCache(base::SpaceInformationPtr si, DenseDB *denseDB, VisualizerPtr visual);
 
   /** \brief Save cache to file */
   bool save();
@@ -109,7 +109,7 @@ private:
   DenseDB* denseDB_;
 
   /** \brief Class for managing various visualization features */
-  base::VisualizerPtr visual_;
+  VisualizerPtr visual_;
 
   /** \brief Cache previously performed collision checks */
   EdgeCacheMap collisionCheckEdgeCache_;

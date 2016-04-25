@@ -47,7 +47,7 @@ bool SparseDB::findSparseRepresentatives()
     // Search
     getSparseState(queryVertex_) = state;
     nn_->nearestR(queryVertex_, sparseDelta_, graphNeighborhood);
-    getSparseState(queryVertex_) = NULL;
+    getSparseState(queryVertex_) = nullptr;
 
     // Find the closest sparse node that has a local free path
     bool foundRepresentative = false;

@@ -61,7 +61,7 @@ namespace tools
 namespace bolt
 {
 Discretizer::Discretizer(base::SpaceInformationPtr si, DenseDB *denseDB, EdgeCachePtr edgeCache,
-                         base::VisualizerPtr visual)
+                         VisualizerPtr visual)
   : si_(si), denseDB_(denseDB), edgeCache_(edgeCache), visual_(visual)
 {
   numThreads_ = boost::thread::hardware_concurrency();
@@ -397,7 +397,7 @@ void Discretizer::recursiveDiscretization(std::size_t threadID, std::vector<doub
         // Candidate node has already (just) been added
         if (threadID < 6)
         {
-          visual_->vizState(threadID + 1, candidateState, /*green arm*/ 1, 1);
+          visual_->vizState(threadID + 1, candidateState, /*mode arm*/ 1, GREEN, 1);
           visual_->vizTrigger(threadID + 1);
         }
       }
@@ -608,7 +608,7 @@ void Discretizer::getVertexNeighbors(base::State *state, std::vector<DenseVertex
 {
   denseDB_->stateProperty_[denseDB_->queryVertices_[threadID]] = state;
   getVertexNeighbors(denseDB_->queryVertices_[threadID], graphNeighborhood);
-  denseDB_->stateProperty_[denseDB_->queryVertices_[threadID]] = NULL;
+  denseDB_->stateProperty_[denseDB_->queryVertices_[threadID]] = nullptr;
 }
 
 void Discretizer::getVertexNeighbors(DenseVertex v1, std::vector<DenseVertex> &graphNeighborhood)
@@ -752,7 +752,7 @@ void Discretizer::eliminateDisjointSetsThread(std::size_t threadID, base::SpaceI
 
           if (false)  // Visualize
           {
-            visual_->viz6State(candidateState, /*robot state*/ 10, base::CYAN);
+            visual_->viz6State(candidateState, /*robot state*/ 10, tools::CYAN, 0);
             visual_->viz6Trigger();
           }
 

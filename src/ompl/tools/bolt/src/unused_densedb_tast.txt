@@ -144,7 +144,7 @@ void DenseDB::generateTaskSpace()
   OMPL_INFORM("Adding task space vertices");
   foreach (DenseVertex v, boost::vertices(g_))
   {
-    // The first vertex (id=0) should have a NULL state because it is used for searching
+    // The first vertex (id=0) should have a nullptr state because it is used for searching
     if (!stateProperty_[v])
     {
       continue;
@@ -221,7 +221,7 @@ void DenseDB::getNeighborsAtLevel(const base::State *origState, const std::size_
   // Get nearby state
   stateProperty_[queryVertex_] = searchState;
   nn_->nearestK(queryVertex_, kNeighbors, neighbors);
-  stateProperty_[queryVertex_] = NULL;  // Set search vertex to NULL to prevent segfault on class unload of memory
+  stateProperty_[queryVertex_] = nullptr;  // Set search vertex to nullptr to prevent segfault on class unload of memory
   si_->getStateSpace()->freeState(searchState);
 
   // Run various checks

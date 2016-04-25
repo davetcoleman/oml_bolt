@@ -55,7 +55,7 @@ namespace tools
 {
 namespace bolt
 {
-EdgeCache::EdgeCache(base::SpaceInformationPtr si, DenseDB *denseDB, base::VisualizerPtr visual)
+EdgeCache::EdgeCache(base::SpaceInformationPtr si, DenseDB *denseDB, VisualizerPtr visual)
   : si_(si), denseDB_(denseDB), visual_(visual)
 {
   resetCounters();

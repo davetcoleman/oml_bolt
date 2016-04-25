@@ -41,7 +41,7 @@
 #include <ompl/geometric/PathGeometric.h>
 #include <ompl/geometric/PathSimplifier.h>
 #include <ompl/tools/bolt/DenseDB.h>
-#include <ompl/tools/bolt/Visualizer.h>
+#include <ompl/tools/debug/Visualizer.h> 
 
 // Boost
 #include <boost/lambda/bind.hpp>
@@ -239,7 +239,7 @@ public:
   double astarHeuristic(const SparseVertex a, const SparseVertex b) const;
 
   /** \brief Get class for managing various visualization features */
-  base::VisualizerPtr getVisual()
+  VisualizerPtr getVisual()
   {
     return visual_;
   }
@@ -281,7 +281,7 @@ protected:
   SparseDBPtr sparseDB_;
 
   /** \brief Class for managing various visualization features */
-  base::VisualizerPtr visual_;
+  VisualizerPtr visual_;
 
   /** \brief Save the recalled path before smoothing for introspection later */
   std::shared_ptr<geometric::PathGeometric> originalSolutionPath_;
