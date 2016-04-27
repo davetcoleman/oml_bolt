@@ -397,7 +397,7 @@ void Discretizer::recursiveDiscretization(std::size_t threadID, std::vector<doub
         // Candidate node has already (just) been added
         if (threadID < 6)
         {
-          visual_->vizState(threadID + 1, candidateState, /*mode arm*/ 1, GREEN, 1);
+          visual_->vizState(threadID + 1, candidateState, tools::SMALL, tools::GREEN, 1);
           visual_->vizTrigger(threadID + 1);
         }
       }
@@ -752,7 +752,7 @@ void Discretizer::eliminateDisjointSetsThread(std::size_t threadID, base::SpaceI
 
           if (false)  // Visualize
           {
-            visual_->viz6State(candidateState, /*robot state*/ 10, tools::CYAN, 0);
+            visual_->viz6State(candidateState, tools::ROBOT, tools::CYAN, 0);
             visual_->viz6Trigger();
           }
 

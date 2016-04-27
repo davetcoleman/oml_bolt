@@ -86,14 +86,14 @@ otb::DenseDB::CustomAstarVisitor::CustomAstarVisitor(DenseVertex goal, DenseDB *
 void otb::DenseDB::CustomAstarVisitor::discover_vertex(DenseVertex v, const DenseGraph &) const
 {
   if (parent_->visualizeAstar_)
-    parent_->getVisual()->viz4State(parent_->stateProperty_[v], /*mode=*/1, tools::GREEN, 1);
+    parent_->getVisual()->viz4State(parent_->stateProperty_[v], tools::SMALL, tools::GREEN, 1);
 }
 
 void otb::DenseDB::CustomAstarVisitor::examine_vertex(DenseVertex v, const DenseGraph &) const
 {
   if (parent_->visualizeAstar_)
   {
-    parent_->getVisual()->viz4State(parent_->stateProperty_[v], /*mode=*/5, tools::BLACK, 1);
+    parent_->getVisual()->viz4State(parent_->stateProperty_[v], tools::MEDIUM, tools::BLACK, 1);
     parent_->getVisual()->viz4Trigger();
     usleep(parent_->visualizeAstarSpeed_ * 1000000);
   }
@@ -179,7 +179,8 @@ bool DenseDB::load()
   OMPL_INFORM("DenseDB: load()");
 
   // Error checking
-  if (getNumEdges() > queryVertices_.size() || getNumVertices() > queryVertices_.size())  // the search verticie may already be there
+  if (getNumEdges() > queryVertices_.size() ||
+      getNumVertices() > queryVertices_.size())  // the search verticie may already be there
   {
     OMPL_INFORM("Database is not empty, unable to load from file");
     return true;
@@ -305,8 +306,8 @@ bool DenseDB::postProcessPath(og::PathGeometric &solutionPath)
 
   if (visualizeSnapPath_)  // Clear old path
   {
-    visual_->viz5State(nullptr, /*deleteAllMarkers*/ 0, 0, 0);
-    visual_->viz4State(nullptr, /*deleteAllMarkers*/ 0, 0, 0);
+    visual_->viz5DeleteAllMarkers();
+    visual_->viz4DeleteAllMarkers();
   }
 
   // Get starting state
@@ -317,7 +318,8 @@ bool DenseDB::postProcessPath(og::PathGeometric &solutionPath)
   std::vector<DenseVertex> visibleNeighborhood;
   std::size_t coutIndent = 0;
   const std::size_t numThreads = 0;
-  findGraphNeighbors(currentPathState, graphNeighborhood, visibleNeighborhood, sparseDB_->sparseDelta_, numThreads, coutIndent);
+  findGraphNeighbors(currentPathState, graphNeighborhood, visibleNeighborhood, sparseDB_->sparseDelta_, numThreads,
+                     coutIndent);
 
   std::vector<DenseVertex> roadmapPath;
 
@@ -384,7 +386,7 @@ bool DenseDB::postProcessPathWithNeighbors(og::PathGeometric &solutionPath,
 
     if (visualizeSnapPath_)  // Add first state
     {
-      visual_->viz5State(stateProperty_[prevGraphVertex], /*mode=*/1, tools::GREEN, 1);
+      visual_->viz5State(stateProperty_[prevGraphVertex], tools::SMALL, tools::GREEN, 1);
     }
 
     // Add this start state
@@ -517,7 +519,7 @@ bool DenseDB::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<Den
       if (visualizeSnapPath_)  // Visualize
       {
         // Show the node we're currently considering going through
-        visual_->viz5State(stateProperty_[candidateVertex], /*regular*/ 4, tools::PURPLE, 1);
+        visual_->viz5State(stateProperty_[candidateVertex], tools::MEDIUM, tools::PURPLE, 1);
         // edge between the state on the original inputPath and its neighbor we are currently considering
         double color = 25;  // light green
         visual_->viz5Edge(currentPathState, stateProperty_[candidateVertex], color);
@@ -618,7 +620,7 @@ bool DenseDB::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<Den
     std::cout << std::string(currVertexIndex, ' ') << "TODO remove this viz" << std::endl;
 
     // Show the node we're currently considering going through
-    visual_->viz5State(stateProperty_[prevGraphVertex], /*Medium, translucent outline*/ 4, tools::PURPLE, 3);
+    visual_->viz5State(stateProperty_[prevGraphVertex], tools::VARIABLE_SIZE, tools::PURPLE, 3);
     visual_->viz5Trigger();
     usleep(0.001 * 1000000);
 
@@ -805,7 +807,7 @@ void DenseDB::initializeQueryState()
   if (boost::num_vertices(g_) > 0)
   {
     assert(boost::num_vertices(g_) >= numThreads);
-    return; // assume its already been setup
+    return;  // assume its already been setup
   }
 
   // Create a query state for each possible thread
@@ -853,7 +855,7 @@ void DenseDB::displayDatabase()
   OMPL_INFORM("Displaying database");
 
   // Clear old database
-  visual_->viz1State(nullptr, /*deleteAllMarkers*/ 0, 0, 0);
+  visual_->viz1DeleteAllMarkers();
 
   if (visualizeDatabaseVertices_)
   {
@@ -872,7 +874,7 @@ void DenseDB::displayDatabase()
       // Check for null states
       if (stateProperty_[v])
       {
-        visual_->viz1State(stateProperty_[v], /*mode=*/6, tools::BLUE, 1);
+        visual_->viz1State(stateProperty_[v], tools::SMALL, tools::BLUE, 1);
       }
 
       // Prevent cache from getting too big
@@ -979,7 +981,7 @@ otb::DenseVertex DenseDB::addVertex(base::State *state, const GuardType &type)
   // Add properties
   typeProperty_[v] = type;
   stateProperty_[v] = state;
-  representativesProperty_[v] = 0; // which sparse vertex reps this dense vertex
+  representativesProperty_[v] = 0;  // which sparse vertex reps this dense vertex
 
   // Connected component tracking
   disjointSets_.make_set(v);
@@ -1143,7 +1145,7 @@ void DenseDB::connectNewVertex(DenseVertex v1)
   // Visualize new vertex
   if (visualizeAddSample_)
   {
-    visual_->viz1State(stateProperty_[v1], /*mode=*/1, tools::GREEN, 1);
+    visual_->viz1State(stateProperty_[v1], tools::SMALL, tools::GREEN, 1);
   }
 
   // Connect to nearby vertices
@@ -1156,7 +1158,8 @@ void DenseDB::connectNewVertex(DenseVertex v1)
   const std::size_t threadID = 0;
   stateProperty_[queryVertices_[threadID]] = stateProperty_[v1];
   nn_->nearestK(queryVertices_[threadID], findNearestKNeighbors + numSameVerticiesFound, graphNeighborhood);
-  stateProperty_[queryVertices_[threadID]] = nullptr;  // Set search vertex to nullptr to prevent segfault on class unload of memory
+  stateProperty_[queryVertices_[threadID]] =
+      nullptr;  // Set search vertex to nullptr to prevent segfault on class unload of memory
 
   // For each nearby vertex, add an edge
   std::size_t errorCheckNumSameVerticies = 0;  // sanity check
@@ -1279,14 +1282,14 @@ void DenseDB::removeInvalidVertices()
       OMPL_ERROR("State %u is not valid", *vertexIt);
       totalInvalid++;
 
-      visual_->viz5State(stateProperty_[*vertexIt], /*robot state*/ 10, tools::RED, 0);
+      visual_->viz5State(stateProperty_[*vertexIt], tools::ROBOT, tools::RED, 0);
       visual_->viz5Trigger();
-      //usleep(0.25 * 1000000);
+      // usleep(0.25 * 1000000);
 
       if (actuallyRemove)
       {
         removeVertex(*vertexIt);
-        vertexIt--; // backtrack one vertex
+        vertexIt--;  // backtrack one vertex
       }
     }
   }
@@ -1367,12 +1370,12 @@ void DenseDB::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
     BOOST_ASSERT_MSG(freq > 0, "Frequnecy must be at least 1");
 
     if (freq == maxDisjointSetSize)  // any subgraph that is smaller than the full graph
-      continue; // the main disjoint set is not considered a disjoint set
+      continue;                      // the main disjoint set is not considered a disjoint set
 
     // Visualize sets of size one
     if (freq == 1 && true)
     {
-      visual_->viz5State(stateProperty_[v1], /*robot state*/ 10, tools::RED, 0);
+      visual_->viz5State(stateProperty_[v1], tools::ROBOT, tools::RED, 0);
       visual_->viz5Trigger();
       usleep(1.0 * 1000000);
     }
@@ -1381,7 +1384,7 @@ void DenseDB::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
     if (freq > 1 && freq < 1000)
     {
       // Clear markers
-      visual_->viz4State(nullptr, /*deleteAllMarkers*/ 0, 0, 0);
+      visual_->viz4DeleteAllMarkers();
 
       // Visualize this subgraph that is disconnected
       // Loop through every every vertex and check if its part of this group
@@ -1390,7 +1393,7 @@ void DenseDB::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
       {
         if (boost::get(boost::get(boost::vertex_predecessor, g_), *v2) == v1)
         {
-          visual_->viz4State(stateProperty_[*v2], /*large*/3, tools::RED, 0);
+          visual_->viz4State(stateProperty_[*v2], tools::LARGE, tools::RED, 0);
 
           // Show state's edges
           foreach (DenseEdge edge, boost::out_edges(*v2, g_))
@@ -1402,15 +1405,14 @@ void DenseDB::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
           visual_->viz4Trigger();
 
           // Show this robot state
-          visual_->viz4State(stateProperty_[*v2], /*robot state*/ 10, tools::DEFAULT, 0);
+          visual_->viz4State(stateProperty_[*v2], tools::ROBOT, tools::DEFAULT, 0);
 
-          usleep(0.1*1000000);
+          usleep(0.1 * 1000000);
         }
       }
       if (true)
       {
-
-        usleep(2*1000000);
+        usleep(2 * 1000000);
       }
     }
   }

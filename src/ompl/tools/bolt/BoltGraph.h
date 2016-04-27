@@ -109,7 +109,7 @@ struct InterfaceData
   base::State* sigmaB_;
 
   /** \brief Last known distance between the two interfaces supported by points_ and sigmas. */
-  double last_distance_;
+  double lastDistance_;
 
   /** \brief Constructor */
   InterfaceData()
@@ -117,7 +117,7 @@ struct InterfaceData
     , pointB_(nullptr)
     , sigmaA_(nullptr)
     , sigmaB_(nullptr)
-    , last_distance_(std::numeric_limits<double>::infinity())
+    , lastDistance_(std::numeric_limits<double>::infinity())
   {
   }
 
@@ -144,7 +144,7 @@ struct InterfaceData
       si->freeState(sigmaB_);
       sigmaB_ = nullptr;
     }
-    last_distance_ = std::numeric_limits<double>::infinity();
+    lastDistance_ = std::numeric_limits<double>::infinity();
   }
 
   /** \brief Sets information for the first interface (i.e. interface with smaller index vertex). */
@@ -159,7 +159,7 @@ struct InterfaceData
     else
       sigmaA_ = si->cloneState(s);
     if (pointB_)
-      last_distance_ = si->distance(pointA_, pointB_);
+      lastDistance_ = si->distance(pointA_, pointB_);
   }
 
   /** \brief Sets information for the second interface (i.e. interface with larger index vertex). */
@@ -174,7 +174,7 @@ struct InterfaceData
     else
       sigmaB_ = si->cloneState(s);
     if (pointA_)
-      last_distance_ = si->distance(pointA_, pointB_);
+      lastDistance_ = si->distance(pointA_, pointB_);
   }
 };
 

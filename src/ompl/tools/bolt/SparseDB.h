@@ -75,6 +75,19 @@ OMPL_CLASS_FORWARD(SparseDB);
 OMPL_CLASS_FORWARD(DenseDB);
 /// @endcond
 
+#define BOLT_DEBUG(indent, token) { std::stringstream o; o << token; \
+    { if (checksVerbose_)                                             \
+        std::cout << std::string(indent, ' ') << o.str() << std::endl; } }
+#define BOLT_COLOR_DEBUG(indent, token, color) { std::stringstream o; o << token; \
+    { if (checksVerbose_) {                                              \
+        std::cout << color << std::string(indent, ' ') << o.str() << ANSI_COLOR_RESET << std::endl; } } }
+#define BOLT_RED_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_RED); }
+#define BOLT_GREEN_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_GREEN); }
+#define BOLT_YELLOW_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_YELLOW); }
+#define BOLT_BLUE_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_BLUE); }
+#define BOLT_MAGENTA_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_MAGENTA); }
+#define BOLT_CYAN_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_CYAN); }
+
 /** \class ompl::tools::bolt::::SparseDBPtr
     \brief A boost shared pointer wrapper for ompl::tools::SparseDB */
 
@@ -190,38 +203,45 @@ public:
   /* ----------------------------------------------------------------------------------------*/
   /** \brief SPARS-related functions */
   bool checkAddCoverage(DenseVertex denseV, std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
-                        std::size_t coutIndent);
+                        std::size_t indent);
   bool checkAddConnectivity(DenseVertex denseV, std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
-                            std::size_t coutIndent);
+                            std::size_t indent);
   bool checkAddInterface(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
                          std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
-                         std::size_t coutIndent);
+                         std::size_t indent);
   bool checkAddQuality(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
                        std::vector<SparseVertex>& visibleNeighborhood, base::State* workState,
-                       SparseVertex& newVertex, std::size_t coutIndent);
+                       SparseVertex& newVertex, std::size_t indent);
 
   /* ----------------------------------------------------------------------------------------*/
   // 4th Criteria
   /* ----------------------------------------------------------------------------------------*/
 
-  /** \brief Checks vertex v for short paths through its region and adds when appropriate. */
-  bool checkAddPath(SparseVertex v, std::size_t coutIndent);
+  /** \brief Checks vertex v for short paths through its region and adds when appropriate.
+   *         Referred to as 'Test_Add_paths' in paper
+   */
+  bool checkAddPath(SparseVertex candidateRep, std::size_t indent);
 
   /** \brief Finds the representative of the input state, st  */
-  SparseVertex findGraphRepresentative(base::State* st, std::size_t coutIndent);
+  SparseVertex findGraphRepresentative(base::State* st, std::size_t indent);
 
   /** \brief Finds representatives of samples near candidateState_ which are not his representative */
   void findCloseRepresentatives(base::State* workState, const base::State* candidateState, SparseVertex candidateRep,
-                                std::map<SparseVertex, base::State*>& closeRepresentatives, std::size_t coutIndent);
+                                std::map<SparseVertex, base::State*>& closeRepresentatives, std::size_t indent);
 
-  /** \brief High-level method which updates pair point information for repV_ with neighbor r */
-  void updatePairPoints(SparseVertex rep, const base::State* q, SparseVertex r, const base::State* s, std::size_t coutIndent);
+  /** \brief Updates pair point information for a representative with neighbor r
+             Referred to as 'Update_Points' in paper
+   */
+  void updatePairPoints(SparseVertex candidateRep, const base::State* candidateState, SparseVertex closestNeighbor,
+                        const base::State* sampledNeighbor, std::size_t indent);
 
   /** \brief Computes all nodes which qualify as a candidate v" for v and vp */
-  void computeVPP(SparseVertex v, SparseVertex vp, std::vector<SparseVertex>& VPPs, std::size_t coutIndent);
+  void getAdjVerticesOfV1UnconnectedToV2(SparseVertex v1, SparseVertex v2, std::vector<SparseVertex>& adjVerticesUnconnected,
+                                     std::size_t indent);
 
   /** \brief Computes all nodes which qualify as a candidate x for v, v', and v" */
-  void computeX(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::vector<SparseVertex>& Xs, std::size_t coutIndent);
+  void getMaxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::vector<SparseVertex>& path,
+                         std::size_t indent);
 
   /** \brief Rectifies indexing order for accessing the vertex data */
   VertexPair index(SparseVertex vp, SparseVertex vpp);
@@ -230,7 +250,7 @@ public:
   InterfaceData& getData(SparseVertex v, SparseVertex vp, SparseVertex vpp);
 
   /** \brief Performs distance checking for the candidate new state, q against the current information */
-  void distanceCheck(SparseVertex rep, const base::State* q, SparseVertex r, const base::State* s, SparseVertex rp);
+  void distanceCheck(SparseVertex candidateRep, const base::State* candidateState, SparseVertex r, const base::State* s, SparseVertex rp, std::size_t indent);
 
   /** \brief When a new guard is added at state st, finds all guards who must abandon their interface information and
    * deletes that information */
@@ -243,10 +263,10 @@ public:
    * \param denseV - origin state to search from
    * \param graphNeighborhood - resulting nearby states
    * \param visibleNeighborhood - resulting nearby states that are visible
-   * \param coutIndent - debugging tool
+   * \param indent - debugging tool
    */
   void findGraphNeighbors(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
-                          std::vector<SparseVertex>& visibleNeighborhood, std::size_t threadID, std::size_t coutIndent);
+                          std::vector<SparseVertex>& visibleNeighborhood, std::size_t threadID, std::size_t indent);
 
   DenseVertex getInterfaceNeighbor(DenseVertex q, SparseVertex rep);
 
@@ -257,7 +277,7 @@ public:
   SparseVertex addVertex(DenseVertex denseV, const GuardType& type);
 
   /** \brief Add edge to graph */
-  void addEdge(SparseVertex v1, SparseVertex v2, std::size_t visualColor, std::size_t coutIndent);
+  void addEdge(SparseVertex v1, SparseVertex v2, std::size_t visualColor, std::size_t indent);
 
   std::size_t getVizVertexType(const GuardType& type);
 
@@ -278,6 +298,8 @@ public:
   double distanceFunction(const SparseVertex a, const SparseVertex b) const;
 
   double getSecondarySparseDelta();
+
+  bool hasEdge(SparseVertex v1, SparseVertex v2);
 
 protected:
 
@@ -350,6 +372,8 @@ protected:
 
   /** \brief Cache the maximum extent for later re-use */
   double maxExtent_;
+
+  bool useFourthCriteria_;
 
 public:
   /** \brief SPARS parameter for dense graph connection distance as a fraction of max. extent */
