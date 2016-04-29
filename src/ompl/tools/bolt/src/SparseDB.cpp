@@ -977,7 +977,7 @@ bool SparseDB::addStateToRoadmap(DenseVertex denseV, SparseVertex &newVertex, Gu
 bool SparseDB::checkAddCoverage(DenseVertex denseV, std::vector<SparseVertex> &visibleNeighborhood,
                                 SparseVertex &newVertex, std::size_t indent)
 {
-  BOLT_GREEN_DEBUG(indent, "checkAddCoverage() Are other nodes around it visible?");
+  BOLT_BLUE_DEBUG(indent, "checkAddCoverage() Are other nodes around it visible?");
 
   // Only add a node for coverage if it has no neighbors
   if (visibleNeighborhood.size() > 0)
@@ -1000,7 +1000,7 @@ bool SparseDB::checkAddCoverage(DenseVertex denseV, std::vector<SparseVertex> &v
 bool SparseDB::checkAddConnectivity(DenseVertex denseV, std::vector<SparseVertex> &visibleNeighborhood,
                                     SparseVertex &newVertex, std::size_t indent)
 {
-  BOLT_GREEN_DEBUG(indent, "checkAddConnectivity() Does this node connect two disconnected components?");
+  BOLT_BLUE_DEBUG(indent, "checkAddConnectivity() Does this node connect two disconnected components?");
 
   // If less than 2 neighbors there is no way to find a pair of nodes in different connected components
   if (visibleNeighborhood.size() < 2)
@@ -1085,7 +1085,7 @@ bool SparseDB::checkAddInterface(DenseVertex denseV, std::vector<SparseVertex> &
                                  std::vector<SparseVertex> &visibleNeighborhood, SparseVertex &newVertex,
                                  std::size_t indent)
 {
-  BOLT_GREEN_DEBUG(indent, "checkAddInterface() Does this node's neighbor's need it to better connect them?");
+  BOLT_BLUE_DEBUG(indent, "checkAddInterface() Does this node's neighbor's need it to better connect them?");
 
   // If we have at least 2 neighbors
   // TODO(davetcoleman): why only the first two nodes??
@@ -1143,7 +1143,7 @@ bool SparseDB::checkAddQuality(DenseVertex denseV, std::vector<SparseVertex> &gr
                                std::vector<SparseVertex> &visibleNeighborhood, base::State *workState,
                                SparseVertex &newVertex, std::size_t indent)
 {
-  BOLT_GREEN_DEBUG(indent, "checkAddQuality() Ensure SPARS asymptotic optimality");
+  BOLT_BLUE_DEBUG(indent, "checkAddQuality() Ensure SPARS asymptotic optimality");
 
   if (visibleNeighborhood.empty())
   {
@@ -1151,50 +1151,88 @@ bool SparseDB::checkAddQuality(DenseVertex denseV, std::vector<SparseVertex> &gr
     return false;
   }
 
-  base::State *candidateState = getDenseState(denseV);
-  SparseVertex candidateRep = visibleNeighborhood[0];  // just to simplify reading the code
+  base::State *candidateState = getDenseState(denseV); // paper's name: q
+  SparseVertex candidateRep = visibleNeighborhood[0];  // paper's name: v
 
   if (visualizeQualityCriteria_)
   {
     visual_->viz3DeleteAllMarkers();
+
+    visual_->viz3Edge(candidateState, getSparseState(candidateRep), tools::eORANGE);
+
+    // Show candidate state
     visual_->viz3State(candidateState, tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, denseDelta_);
-    visual_->viz3State(candidateState, tools::LARGE, tools::PURPLE, denseDelta_);
+    visual_->viz3State(candidateState, tools::LARGE, tools::RED, 0);
+
+    // Show candidate state's representative
+    visual_->viz3State(getSparseState(candidateRep), tools::LARGE, tools::BLUE, 0);
+
+    // Show candidate state's representative's neighbors
+    foreach (SparseVertex adjVertex, boost::adjacent_vertices(candidateRep, g_))
+    {
+      visual_->viz3Edge(getSparseState(adjVertex), getSparseState(candidateRep), tools::eGREEN);
+      visual_->viz3State(getSparseState(adjVertex), tools::LARGE, tools::PURPLE, 0);
+    }
+
     visual_->viz3Trigger();
     usleep(0.001 * 1000000);
   }
 
   bool added = false;
   std::map<SparseVertex, base::State *> closeRepresentatives; // [nearSampledRep, nearSampledState]
-  findCloseRepresentatives(workState, candidateState, candidateRep, closeRepresentatives, indent + 2);
+  findCloseRepresentatives(workState, candidateState, candidateRep, closeRepresentatives, indent + 4);
 
-  BOLT_DEBUG(indent, "back in checkAddQuality(): Found " << closeRepresentatives.size() << " close representatives");
+  if (closeRepresentatives.size())
+  {
+    BOLT_GREEN_DEBUG(indent + 2, "back in checkAddQuality(): Found " << closeRepresentatives.size() << " close representatives ---------------------------");
+  }
+  else
+  {
+    BOLT_RED_DEBUG(indent + 2, "back in checkAddQuality(): Found " << closeRepresentatives.size() << " close representatives ---------------------------");
+  }
 
   // For each pair of close representatives
   for (std::map<SparseVertex, base::State *>::iterator it = closeRepresentatives.begin();
        it != closeRepresentatives.end(); ++it)
   {
-    BOLT_DEBUG(indent + 2, " Looping through close representatives");
-    SparseVertex nearSampledRep = it->first;
-    base::State *nearSampledState = it->second;
+    BOLT_DEBUG(indent + 4, " Looping through close representatives");
+    base::State *nearSampledState = it->second; // paper: q'
+    SparseVertex nearSampledRep = it->first; // paper: v'
 
     if (visualizeQualityCriteria_) // Visualization
     {
-      visual_->viz3State(nearSampledState, tools::MEDIUM, tools::CYAN, 0);
+      visual_->viz3Edge(getSparseState(nearSampledRep), nearSampledState, tools::eRED);
+
+      visual_->viz3State(nearSampledState, tools::MEDIUM, tools::GREEN, 0);
 
       // Replicate a regular vertex visualization
       visual_->viz3State(getSparseState(nearSampledRep), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
-      visual_->viz3State(getSparseState(nearSampledRep), tools::MEDIUM, tools::BLACK, sparseDelta_);
+      visual_->viz3State(getSparseState(nearSampledRep), tools::LARGE, tools::PURPLE, sparseDelta_);
 
-      visual_->viz3Edge(getSparseState(nearSampledRep), nearSampledState, tools::eRED);
       visual_->viz3Trigger();
       usleep(0.001 * 1000000);
     }
 
-    // Update interface book keeping
+    // Update interface bookkeeping
+    // Process:
+    // 1. Get adjacent vertieces of the candidateRep (v) that are unconnected to nearSampledRep (v')
+    //      e.g. v''
+    // 2. For every adj vertex that is unconnected to v'
+    // 3. Check distance:
+    //    3.1. Get the interface data stored on vertex candidateRep(v) for max distance between
+    //           nearSampledRep (v') and adjVertexUnconnected (v'')
+    //    3.2. Add the candidateState (q) and nearSampledState (q') as 'first'
+
+    // Attempt to update bookkeeping for candidateRep (v)
     updatePairPoints(candidateRep, candidateState, nearSampledRep, nearSampledState, indent + 4);
+
+    // ALSO attempt to update bookkeeping for neighboring node nearSampleRep (v')
     updatePairPoints(nearSampledRep, nearSampledState, candidateRep, candidateState, indent + 4);
+
     // TODO: track if updatePairPoints() made any changes, and skip checkAddPath if it didn't
   }
+
+  BOLT_DEBUG(indent + 2, "Done updating pair points");
 
   // Attempt to find shortest path through closest neighbour
   if (checkAddPath(candidateRep, indent + 4))
@@ -1207,7 +1245,7 @@ bool SparseDB::checkAddQuality(DenseVertex denseV, std::vector<SparseVertex> &gr
   for (std::map<SparseVertex, base::State *>::iterator it = closeRepresentatives.begin();
        it != closeRepresentatives.end(); ++it)
   {
-    BOLT_DEBUG(indent + 2, "Looping through close representatives to add path");
+    BOLT_YELLOW_DEBUG(indent + 2, "Looping through close representatives to add path ===============");
     checkAddPath(it->first, indent + 4);
 
     // Delete
@@ -1228,58 +1266,84 @@ bool SparseDB::checkAddQuality(DenseVertex denseV, std::vector<SparseVertex> &gr
 
 bool SparseDB::checkAddPath(SparseVertex candidateRep, std::size_t indent)
 {
-  BOLT_GREEN_DEBUG(indent, "checkAddPath() Checks vertex for shortest paths through its region and adds when "
-                          "appropriate");
-
+  BOLT_CYAN_DEBUG(indent, "checkAddPath()");
   bool spannerPropertyWasViolated = false;
 
   // Candidate x vertices as described in the method, filled by function getMaxSpannerPath().
-  std::vector<SparseVertex> maxPath;
+  std::vector<SparseVertex> qualifiedVertices;
 
   // Candidate v" vertices as described in the method, filled by function getAdjVerticesOfV1UnconnectedToV2().
   std::vector<SparseVertex> adjVerticesUnconnected;
 
-  // Get adjacent vertices
+  // Copy adjacent vertices into vector because we might add additional edges during this function
   std::vector<SparseVertex> adjVertices;
   foreach (SparseVertex adjVertex, boost::adjacent_vertices(candidateRep, g_))
     adjVertices.push_back(adjVertex);
 
   BOLT_DEBUG(indent + 2, "Vertex " << candidateRep << " has " << adjVertices.size() << " adjacent vertices, looping:");
 
+  // Loop through adjacent vertices
   for (std::size_t i = 0; i < adjVertices.size() && !spannerPropertyWasViolated; ++i)
   {
     SparseVertex vp = adjVertices[i];  // vp = v' from paper
 
     BOLT_DEBUG(indent + 4, "Checking v' = " << vp);
 
+    if (visualizeQualityCriteria_) // visualize
+    {
+      visual_->viz5DeleteAllMarkers();
+
+      // Show edge between them
+      visual_->viz5Edge(getSparseState(vp), getSparseState(candidateRep), tools::eGREEN);
+
+      // Show candidate rep
+      visual_->viz5State(getSparseState(candidateRep), tools::LARGE, tools::BLUE, 0);
+
+      // Show adjacent state
+      visual_->viz5State(getSparseState(vp), tools::LARGE, tools::PURPLE, 0);
+    }
+
     // Compute all nodes which qualify as a candidate v" for v and vp
     getAdjVerticesOfV1UnconnectedToV2(candidateRep, vp, adjVerticesUnconnected, indent + 6);
 
-    // Loop through resulting adj vertices
+    // for each vertex v'' that is adjacent to v (has a valid edge) and does not share an edge with v'
     foreach (SparseVertex vpp, adjVerticesUnconnected)  // vpp = v'' from paper
     {
       BOLT_DEBUG(indent + 6, "Checking v'' = " << vpp);
 
-      // Computes all nodes which qualify as a candidate x for v, v', and v"
-      getMaxSpannerPath(candidateRep, vp, vpp, maxPath, indent + 8);
+      if (visualizeQualityCriteria_)
+      {
+        // Show adjacent states
+        visual_->viz5State(getSparseState(vpp), tools::LARGE, tools::LIME_GREEN, 0);
+      }
 
-      BOLT_DEBUG(indent + 6, "maxPath size: " << maxPath.size());
+      // Computes all nodes which qualify as a candidate x for v, v', and v"
+      getMaxSpannerPath(candidateRep, vp, vpp, qualifiedVertices, indent + 8);
 
       // Find the maximum spanner distance
+      BOLT_DEBUG(indent + 6, "Find the maximum spanner distance between v' and v''");
       double maxDist = 0.0;
-      foreach (SparseVertex pathVertex, maxPath)
+      foreach (SparseVertex qualifiedVertex, qualifiedVertices)
       {
+        BOLT_DEBUG(indent + 8, "Vertex: " << qualifiedVertex);
+        if (visualizeQualityCriteria_)
+          visual_->viz5State(getSparseState(qualifiedVertex), tools::SMALL, tools::PINK, 0);
+
         double tempDist = (si_->distance(getSparseState(vp), getSparseState(candidateRep)) +
-                           si_->distance(getSparseState(candidateRep), getSparseState(pathVertex))) /
-                          2.0;
+                           si_->distance(getSparseState(candidateRep), getSparseState(qualifiedVertex))) /
+          2.0; // do we divide by 2 because of the midpoint path?? TODO(davetcoleman): figure out this proof
         if (tempDist > maxDist)
           maxDist = tempDist;
       }
+      BOLT_DEBUG(indent + 6, "Max distance: " << maxDist);
 
-      InterfaceData &iData = getData(candidateRep, vp, vpp);
+      InterfaceData &iData = getData(candidateRep, vp, vpp, indent + 8);
+
+      if (iData.lastDistance_ == 0)
+        BOLT_RED_DEBUG(indent + 6, "last distance is 0");
 
       // Check if spanner property violated
-      if (maxDist > stretchFactor_ * iData.lastDistance_)
+      if (iData.lastDistance_ > 0 && maxDist > stretchFactor_ * iData.lastDistance_) // DTC added zero check
       {
         BOLT_DEBUG(indent + 6, "Spanner property violated - the max dist was " << maxDist);
         BOLT_DEBUG(indent + 6, "  The stretch factor dist is " << (stretchFactor_ * iData.lastDistance_)
@@ -1296,22 +1360,25 @@ bool SparseDB::checkAddPath(SparseVertex candidateRep, std::size_t indent)
         }
         else
         {
+          std::cout << "Path geometric adding path... " << std::endl;
+          exit(0);
+
           geometric::PathGeometric *p = new geometric::PathGeometric(si_);
           if (vp < vpp)
           {
-            p->append(iData.sigmaA_);
-            p->append(iData.pointA_);
+            p->append(iData.interface1Outside_);
+            p->append(iData.interface1Inside_);
             p->append(getSparseState(candidateRep));
-            p->append(iData.pointB_);
-            p->append(iData.sigmaB_);
+            p->append(iData.interface2Inside_);
+            p->append(iData.interface2Outside_);
           }
           else
           {
-            p->append(iData.sigmaB_);
-            p->append(iData.pointB_);
+            p->append(iData.interface2Outside_);
+            p->append(iData.interface2Inside_);
             p->append(getSparseState(candidateRep));
-            p->append(iData.pointA_);
-            p->append(iData.sigmaA_);
+            p->append(iData.interface1Inside_);
+            p->append(iData.interface1Outside_);
           }
 
           BOLT_DEBUG(indent + 6, "Creating path");
@@ -1356,13 +1423,20 @@ bool SparseDB::checkAddPath(SparseVertex candidateRep, std::size_t indent)
   {
     BOLT_DEBUG(indent + 2, "Spanner property was NOT violated, SKIPPING");
   }
+  else
+  {
+      visual_->viz5Trigger();
+      usleep(0.001 * 1000000);
+      std::cout << "shutting down for viz of checkAddPath " << std::endl;
+      exit(0);
+  }
 
   return spannerPropertyWasViolated;
 }
 
 SparseVertex SparseDB::findGraphRepresentative(base::State *state, std::size_t indent)
 {
-  BOLT_GREEN_DEBUG(indent, "findGraphRepresentative()");
+  BOLT_BLUE_DEBUG(indent, "findGraphRepresentative()");
 
   std::vector<SparseVertex> graphNeighbors;
   const std::size_t threadID = 0;
@@ -1396,8 +1470,10 @@ void SparseDB::findCloseRepresentatives(base::State *workState, const base::Stat
                                         const SparseVertex candidateRep,
                                         std::map<SparseVertex, base::State *> &closeRepresentatives, std::size_t indent)
 {
-  BOLT_GREEN_DEBUG(indent, "findCloseRepresentatives()");
+  BOLT_BLUE_DEBUG(indent, "findCloseRepresentatives()");
   BOLT_DEBUG(indent + 2, "nearSamplePoints: " << nearSamplePoints_ << " denseDelta: " << denseDelta_);
+  const bool visualizeSampler = false;
+  base::State *sampledState = workState; // rename variable just to clarify what it represents temporarily
 
   assert(closeRepresentatives.empty());
 
@@ -1412,38 +1488,38 @@ void SparseDB::findCloseRepresentatives(base::State *workState, const base::Stat
     {
       BOLT_DEBUG(indent + 4, "Sample attempt " << attempt);
 
-      sampler_->sampleNear(workState, candidateState, denseDelta_);
-      si_->getStateSpace()->setLevel(workState, 0);
+      sampler_->sampleNear(sampledState, candidateState, denseDelta_);
+      si_->getStateSpace()->setLevel(sampledState, 0);
 
-      if (!si_->isValid(workState))
+      if (!si_->isValid(sampledState))
       {
         BOLT_DEBUG(indent + 6, "notValid ");
 
-        if (visualizeQualityCriteria_)
-          visual_->viz3State(workState, tools::SMALL, tools::RED, 0);
+        if (visualizeQualityCriteria_ && visualizeSampler)
+          visual_->viz3State(sampledState, tools::SMALL, tools::RED, 0);
 
         continue;
       }
-      if (si_->distance(candidateState, workState) > denseDelta_)
+      if (si_->distance(candidateState, sampledState) > denseDelta_)
       {
-        BOLT_DEBUG(indent + 6, "Distance too far " << si_->distance(candidateState, workState)
+        BOLT_DEBUG(indent + 6, "Distance too far " << si_->distance(candidateState, sampledState)
                                                    << " needs to be less than " << denseDelta_);
 
-        if (visualizeQualityCriteria_)
-          visual_->viz3State(workState, tools::SMALL, tools::RED, 0);
+        if (visualizeQualityCriteria_ && visualizeSampler)
+          visual_->viz3State(sampledState, tools::SMALL, tools::RED, 0);
         continue;
       }
-      if (!si_->checkMotion(candidateState, workState))
+      if (!si_->checkMotion(candidateState, sampledState))
       {
         BOLT_DEBUG(indent + 6, "Motion invalid ");
 
-        if (visualizeQualityCriteria_)
-          visual_->viz3State(workState, tools::SMALL, tools::RED, 0);
+        if (visualizeQualityCriteria_ && visualizeSampler)
+          visual_->viz3State(sampledState, tools::SMALL, tools::RED, 0);
         continue;
       }
 
-      if (visualizeQualityCriteria_)
-        visual_->viz3State(workState, tools::SMALL, tools::GREEN, 0);
+      if (visualizeQualityCriteria_ && visualizeSampler)
+        visual_->viz3State(sampledState, tools::SMALL, tools::GREEN, 0);
 
       foundValidSample = true;
       break;
@@ -1460,16 +1536,16 @@ void SparseDB::findCloseRepresentatives(base::State *workState, const base::Stat
       BOLT_DEBUG(indent + 4, "Found valid nearby sample");
 
     // Compute which sparse vertex represents this new candidate vertex
-    SparseVertex workStateRep = findGraphRepresentative(workState, indent + 6);
+    SparseVertex sampledStateRep = findGraphRepresentative(sampledState, indent + 6);
 
     // Check if sample is actually seen by somebody (it should be in all likelihood)
-    if (workStateRep == boost::graph_traits<SparseGraph>::null_vertex())
+    if (sampledStateRep == boost::graph_traits<SparseGraph>::null_vertex())
     {
       BOLT_DEBUG(indent + 4, "Sampled state has no representative (is null) ");
 
       // This guy can't be seen by anybody, so we should take this opportunity to add him
       BOLT_DEBUG(indent + 4, "Adding node for COVERAGE");
-      addVertex(si_->cloneState(workState), COVERAGE);
+      addVertex(si_->cloneState(sampledState), COVERAGE);
 
       BOLT_DEBUG(indent + 4, "STOP EFFORTS TO ADD A DENSE PATH");
 
@@ -1484,17 +1560,17 @@ void SparseDB::findCloseRepresentatives(base::State *workState, const base::Stat
     BOLT_DEBUG(indent + 4, "Sampled state has representative (is not null)");
 
     // If its representative is different than candidateState
-    if (candidateRep != workStateRep)
+    if (sampledStateRep != candidateRep)
     {
-      BOLT_DEBUG(indent + 4, "candidateRep != workStateRep ");
+      BOLT_DEBUG(indent + 4, "candidateRep != sampledStateRep ");
 
       // And we haven't already tracked this representative
-      if (closeRepresentatives.find(workStateRep) == closeRepresentatives.end())
+      if (closeRepresentatives.find(sampledStateRep) == closeRepresentatives.end())
       {
-        BOLT_DEBUG(indent + 4, ANSI_COLOR_BLUE << "Track the representative" << ANSI_COLOR_RESET);
+        BOLT_DEBUG(indent + 4, "Track the representative");
 
         // Track the representative
-        closeRepresentatives[workStateRep] = si_->cloneState(workState);
+        closeRepresentatives[sampledStateRep] = si_->cloneState(sampledState);
       }
       else
       {
@@ -1503,30 +1579,30 @@ void SparseDB::findCloseRepresentatives(base::State *workState, const base::Stat
     }
     else
     {
-      BOLT_DEBUG(indent + 4, "candidateRep == workStateRep, do not keep this sample ");
+      BOLT_DEBUG(indent + 4, "candidateRep == sampledStateRep, do not keep this sample ");
     }
   }  // for each supporting representative
 }
 
 void SparseDB::updatePairPoints(SparseVertex candidateRep, const base::State *candidateState,
-                                SparseVertex closestNeighbor, const base::State *sampledNeighbor, std::size_t indent)
+                                SparseVertex nearSampledRep, const base::State *nearSampledState, std::size_t indent)
 {
-  BOLT_GREEN_DEBUG(indent, "updatePairPoints()");
+  BOLT_BLUE_DEBUG(indent, "updatePairPoints()");
 
   // First of all, we need to compute all candidate r'
   std::vector<SparseVertex> adjVerticesUnconnected;
-  getAdjVerticesOfV1UnconnectedToV2(candidateRep, closestNeighbor, adjVerticesUnconnected, indent + 2);
+  getAdjVerticesOfV1UnconnectedToV2(candidateRep, nearSampledRep, adjVerticesUnconnected, indent + 2);
 
   // for each pair Pv(r,r')
-  foreach (SparseVertex rp, adjVerticesUnconnected)
+  foreach (SparseVertex adjVertexUnconnected, adjVerticesUnconnected)
     // Try updating the pair info
-    distanceCheck(candidateRep, candidateState, closestNeighbor, sampledNeighbor, rp, indent + 2);
+    distanceCheck(candidateRep, candidateState, nearSampledRep, nearSampledState, adjVertexUnconnected, indent + 2);
 }
 
 void SparseDB::getAdjVerticesOfV1UnconnectedToV2(SparseVertex v1, SparseVertex v2,
                                                  std::vector<SparseVertex> &adjVerticesUnconnected, std::size_t indent)
 {
-  BOLT_GREEN_DEBUG(indent, "getAdjVerticesOfV1UnconnectedToV2()");
+  BOLT_BLUE_DEBUG(indent, "getAdjVerticesOfV1UnconnectedToV2()");
 
   adjVerticesUnconnected.clear();
   foreach (SparseVertex adjVertex, boost::adjacent_vertices(v1, g_))
@@ -1537,23 +1613,33 @@ void SparseDB::getAdjVerticesOfV1UnconnectedToV2(SparseVertex v1, SparseVertex v
   BOLT_DEBUG(indent + 2, "adjVerticesUnconnected size: " << adjVerticesUnconnected.size());
 }
 
-void SparseDB::getMaxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::vector<SparseVertex> &path,
+void SparseDB::getMaxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::vector<SparseVertex> &qualifiedVertices,
                                  std::size_t indent)
 {
-  BOLT_GREEN_DEBUG(indent, "getMaxSpannerPath()");
+  BOLT_BLUE_DEBUG(indent, "getMaxSpannerPath()");
 
-  path.clear();
+  qualifiedVertices.clear();
 
   foreach (SparseVertex adjVertex, boost::adjacent_vertices(vpp, g_))
   {
     if (hasEdge(adjVertex, v) && !hasEdge(adjVertex, vp))
     {
-      InterfaceData &iData = getData(v, vpp, adjVertex);
-      if ((vpp < adjVertex && iData.pointA_) || (adjVertex < vpp && iData.pointB_))
-        path.push_back(adjVertex);
+      InterfaceData &iData = getData(v, vpp, adjVertex, indent + 4);
+
+      // DTC: Check if we previously had found a pair of points that support this interface
+      if ((vpp < adjVertex && iData.interface1Inside_) || (adjVertex < vpp && iData.interface2Inside_))
+      {
+        BOLT_GREEN_DEBUG(indent + 2, "Found an additional qualified vertex!");
+        // We have, so we need to check if we've found a better pair of points
+        qualifiedVertices.push_back(adjVertex);
+      }
     }
   }
-  path.push_back(vpp);
+
+  // vpp is always qualified because of its previous checks
+  qualifiedVertices.push_back(vpp);
+
+  BOLT_DEBUG(indent + 2, "Total qualified vertices found: " << qualifiedVertices.size());
 }
 
 VertexPair SparseDB::index(SparseVertex vp, SparseVertex vpp)
@@ -1567,56 +1653,72 @@ VertexPair SparseDB::index(SparseVertex vp, SparseVertex vpp)
   return VertexPair(0, 0);  // prevent compiler warnings
 }
 
-InterfaceData &SparseDB::getData(SparseVertex v, SparseVertex vp, SparseVertex vpp)
+InterfaceData &SparseDB::getData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent)
 {
+  BOLT_BLUE_DEBUG(indent, "getData() " << v << ", " << vp << ", " << vpp);
   return interfaceDataProperty_[v].interfaceHash[index(vp, vpp)];
 }
 
-void SparseDB::distanceCheck(SparseVertex candidateRep, const base::State *candidateState, SparseVertex r,
-                             const base::State *s, SparseVertex rp, std::size_t indent)
+void SparseDB::distanceCheck(SparseVertex v, const base::State *q, SparseVertex vp,
+                             const base::State *qp, SparseVertex vpp, std::size_t indent)
 {
-  BOLT_GREEN_DEBUG(indent, "distanceCheck()");
+  BOLT_BLUE_DEBUG(indent, "distanceCheck()");
 
   // Get the info for the current representative-neighbors pair
-  InterfaceData &iData = getData(candidateRep, r, rp);
+  InterfaceData &iData = getData(v, vp, vpp, indent + 4);
 
-  if (r < rp)  // FIRST points represent r (the guy discovered through sampling)
+  if (vp < vpp)  // FIRST points represent r (the guy discovered through sampling)
   {
-    if (iData.pointA_ == nullptr)  // If the point we're considering replacing (P_v(r,.)) isn't there
-      // we know we're doing better, so add it
-      iData.setFirst(candidateState, s, si_);
+    if (iData.interface1Inside_ == nullptr)  // If the point we're considering replacing (P_v(r,.)) isn't there
+    { // we know we're doing better, so add it
+      BOLT_DEBUG(indent + 2, "setFirst");
+      iData.setFirst(q, qp, si_);
+    }
     else  // Otherwise, it is there,
     {
-      if (iData.pointB_ == nullptr)  // But if the other guy doesn't exist, we can't compare.
+      if (iData.interface2Inside_ == nullptr)  // But if the other guy doesn't exist, we can't compare.
       {
         // Should probably keep the one that is further away from rep?  Not known what to do in this case.
         // TODO: is this not part of the algorithm?
+        BOLT_RED_DEBUG(indent + 2, "TODO no pointB");
       }
       // We know both of these points exist, so we can check some distances
-      else if (si_->distance(candidateState, iData.pointB_) < si_->distance(iData.pointA_, iData.pointB_))
-        // Distance with the new point is good, so set it.
-        iData.setFirst(candidateState, s, si_);
+      // TODO(davetcoleman): why does it not use lastDistance_ here???
+      else if (si_->distance(q, iData.interface2Inside_) < si_->distance(iData.interface1Inside_, iData.interface2Inside_))
+      { // Distance with the new point is good, so set it.
+        BOLT_GREEN_DEBUG(indent + 2, "setFirst UPDATED");
+        iData.setFirst(q, qp, si_);
+      }
+      else
+        BOLT_DEBUG(indent + 2, "Distance was not better, not updating bookkeeping");
     }
   }
   else  // SECOND points represent r (the guy discovered through sampling)
   {
-    if (iData.pointB_ == nullptr)  // If the point we're considering replacing (P_V(.,r)) isn't there...
+    if (iData.interface2Inside_ == nullptr)  // If the point we're considering replacing (P_V(.,r)) isn't there...
+    {
+      BOLT_DEBUG(indent + 2, "setSecond");
       // we must be doing better, so add it
-      iData.setSecond(candidateState, s, si_);
+      iData.setSecond(q, qp, si_);
+    }
     else  // Otherwise, it is there
     {
-      if (iData.pointA_ == nullptr)  // But if the other guy doesn't exist, we can't compare.
+      if (iData.interface1Inside_ == nullptr)  // But if the other guy doesn't exist, we can't compare.
       {
         // Should we be doing something cool here?
+        BOLT_RED_DEBUG(indent + 2, "TODO");
       }
-      else if (si_->distance(candidateState, iData.pointA_) < si_->distance(iData.pointB_, iData.pointA_))
-        // Distance with the new point is good, so set it
-        iData.setSecond(candidateState, s, si_);
+      else if (si_->distance(q, iData.interface1Inside_) < si_->distance(iData.interface2Inside_, iData.interface1Inside_))
+      { // Distance with the new point is good, so set it
+        BOLT_GREEN_DEBUG(indent + 2, "setSecond UPDATED");
+        iData.setSecond(q, qp, si_);
+      }
     }
   }
 
   // Lastly, save what we have discovered
-  interfaceDataProperty_[candidateRep].interfaceHash[index(r, rp)] = iData;
+  // TODO(davetcoleman): do we really need to copy this back in or is it already passed by reference?
+  interfaceDataProperty_[v].interfaceHash[index(vp, vpp)] = iData;
 }
 
 void SparseDB::abandonLists(base::State *state)
@@ -1641,7 +1743,7 @@ void SparseDB::findGraphNeighbors(DenseVertex v1, std::vector<SparseVertex> &gra
                                   std::vector<SparseVertex> &visibleNeighborhood, std::size_t threadID,
                                   std::size_t indent)
 {
-  BOLT_GREEN_DEBUG(indent, "findGraphNeighbors()");
+  BOLT_BLUE_DEBUG(indent, "findGraphNeighbors()");
   const bool verbose = false;
 
   base::State *state = getDenseState(v1);

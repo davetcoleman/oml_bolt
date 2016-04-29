@@ -100,23 +100,24 @@ typedef std::pair<VertexIndexType, VertexIndexType> VertexPair;
 /** \brief Interface information storage class, which does bookkeeping for criterion four. */
 struct InterfaceData
 {
-  /** \brief States which lie inside the visibility region of a vertex and support an interface. */
-  base::State* pointA_;
-  base::State* pointB_;
+  // Note: interface1 is between this vertex v and the vertex with the lower index v'
+  // Note: interface2 is between this vertex v and the vertex with the higher index v''
 
-  /** \brief States which lie just outside the visibility region of a vertex and support an interface. */
-  base::State* sigmaA_;
-  base::State* sigmaB_;
+  base::State* interface1Inside_; // Lies inside the visibility region of the vertex and supports its interface
+  base::State* interface1Outside_; // Lies outside the visibility region of the vertex and supports its interface (sigma)
+
+  base::State* interface2Inside_; // Lies inside the visibility region of the vertex and supports its interface.
+  base::State* interface2Outside_; // Lies outside the visibility region of the vertex and supports its interface (sigma)
 
   /** \brief Last known distance between the two interfaces supported by points_ and sigmas. */
   double lastDistance_;
 
   /** \brief Constructor */
   InterfaceData()
-    : pointA_(nullptr)
-    , pointB_(nullptr)
-    , sigmaA_(nullptr)
-    , sigmaB_(nullptr)
+    : interface1Inside_(nullptr)
+    , interface1Outside_(nullptr)
+    , interface2Inside_(nullptr)
+    , interface2Outside_(nullptr)
     , lastDistance_(std::numeric_limits<double>::infinity())
   {
   }
@@ -124,57 +125,67 @@ struct InterfaceData
   /** \brief Clears the given interface data. */
   void clear(const base::SpaceInformationPtr& si)
   {
-    if (pointA_)
+    if (interface1Inside_)
     {
-      si->freeState(pointA_);
-      pointA_ = nullptr;
+      si->freeState(interface1Inside_);
+      interface1Inside_ = nullptr;
     }
-    if (pointB_)
+    if (interface2Inside_)
     {
-      si->freeState(pointB_);
-      pointB_ = nullptr;
+      si->freeState(interface2Inside_);
+      interface2Inside_ = nullptr;
     }
-    if (sigmaA_)
+    if (interface1Outside_)
     {
-      si->freeState(sigmaA_);
-      sigmaA_ = nullptr;
+      si->freeState(interface1Outside_);
+      interface1Outside_ = nullptr;
     }
-    if (sigmaB_)
+    if (interface2Outside_)
     {
-      si->freeState(sigmaB_);
-      sigmaB_ = nullptr;
+      si->freeState(interface2Outside_);
+      interface2Outside_ = nullptr;
     }
     lastDistance_ = std::numeric_limits<double>::infinity();
   }
 
   /** \brief Sets information for the first interface (i.e. interface with smaller index vertex). */
-  void setFirst(const base::State* p, const base::State* s, const base::SpaceInformationPtr& si)
+  void setFirst(const base::State* q, const base::State* qp, const base::SpaceInformationPtr& si)
   {
-    if (pointA_)
-      si->copyState(pointA_, p);
+    // Set point A
+    if (interface1Inside_)
+      si->copyState(interface1Inside_, q);
     else
-      pointA_ = si->cloneState(p);
-    if (sigmaA_)
-      si->copyState(sigmaA_, s);
+      interface1Inside_ = si->cloneState(q);
+
+    // Set sigma A
+    if (interface1Outside_)
+      si->copyState(interface1Outside_, qp);
     else
-      sigmaA_ = si->cloneState(s);
-    if (pointB_)
-      lastDistance_ = si->distance(pointA_, pointB_);
+      interface1Outside_ = si->cloneState(qp);
+
+    // Calc distance if we have found both representatives for this vertex pair
+    if (interface2Inside_)
+      lastDistance_ = si->distance(interface1Inside_, interface2Inside_);
   }
 
   /** \brief Sets information for the second interface (i.e. interface with larger index vertex). */
   void setSecond(const base::State* p, const base::State* s, const base::SpaceInformationPtr& si)
   {
-    if (pointB_)
-      si->copyState(pointB_, p);
+    // Set point B
+    if (interface2Inside_)
+      si->copyState(interface2Inside_, p);
     else
-      pointB_ = si->cloneState(p);
-    if (sigmaB_)
-      si->copyState(sigmaB_, s);
+      interface2Inside_ = si->cloneState(p);
+
+    // Set sigma B
+    if (interface2Outside_)
+      si->copyState(interface2Outside_, s);
     else
-      sigmaB_ = si->cloneState(s);
-    if (pointA_)
-      lastDistance_ = si->distance(pointA_, pointB_);
+      interface2Outside_ = si->cloneState(s);
+
+    // Calc distance
+    if (interface1Inside_)
+      lastDistance_ = si->distance(interface1Inside_, interface2Inside_);
   }
 };
 

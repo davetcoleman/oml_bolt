@@ -75,11 +75,12 @@ OMPL_CLASS_FORWARD(SparseDB);
 OMPL_CLASS_FORWARD(DenseDB);
 /// @endcond
 
+// clang-format off
 #define BOLT_DEBUG(indent, token) { std::stringstream o; o << token; \
-    { if (checksVerbose_)                                             \
+    { if (checksVerbose_)                                               \
         std::cout << std::string(indent, ' ') << o.str() << std::endl; } }
 #define BOLT_COLOR_DEBUG(indent, token, color) { std::stringstream o; o << token; \
-    { if (checksVerbose_) {                                              \
+    { if (checksVerbose_) {                                             \
         std::cout << color << std::string(indent, ' ') << o.str() << ANSI_COLOR_RESET << std::endl; } } }
 #define BOLT_RED_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_RED); }
 #define BOLT_GREEN_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_GREEN); }
@@ -87,6 +88,7 @@ OMPL_CLASS_FORWARD(DenseDB);
 #define BOLT_BLUE_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_BLUE); }
 #define BOLT_MAGENTA_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_MAGENTA); }
 #define BOLT_CYAN_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_CYAN); }
+// clang-format on
 
 /** \class ompl::tools::bolt::::SparseDBPtr
     \brief A boost shared pointer wrapper for ompl::tools::SparseDB */
@@ -207,11 +209,10 @@ public:
   bool checkAddConnectivity(DenseVertex denseV, std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
                             std::size_t indent);
   bool checkAddInterface(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
-                         std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
-                         std::size_t indent);
+                         std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex, std::size_t indent);
   bool checkAddQuality(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
-                       std::vector<SparseVertex>& visibleNeighborhood, base::State* workState,
-                       SparseVertex& newVertex, std::size_t indent);
+                       std::vector<SparseVertex>& visibleNeighborhood, base::State* workState, SparseVertex& newVertex,
+                       std::size_t indent);
 
   /* ----------------------------------------------------------------------------------------*/
   // 4th Criteria
@@ -225,32 +226,35 @@ public:
   /** \brief Finds the representative of the input state, st  */
   SparseVertex findGraphRepresentative(base::State* st, std::size_t indent);
 
-  /** \brief Finds representatives of samples near candidateState_ which are not his representative */
+  /** \brief Finds representatives of samples near candidateState_ which are not his representative
+             Referred to as 'Get_Close_Reps' in paper
+   */
   void findCloseRepresentatives(base::State* workState, const base::State* candidateState, SparseVertex candidateRep,
                                 std::map<SparseVertex, base::State*>& closeRepresentatives, std::size_t indent);
 
   /** \brief Updates pair point information for a representative with neighbor r
              Referred to as 'Update_Points' in paper
    */
-  void updatePairPoints(SparseVertex candidateRep, const base::State* candidateState, SparseVertex closestNeighbor,
-                        const base::State* sampledNeighbor, std::size_t indent);
+  void updatePairPoints(SparseVertex candidateRep, const base::State* candidateState, SparseVertex nearSampledRep,
+                        const base::State* nearSampledState, std::size_t indent);
 
   /** \brief Computes all nodes which qualify as a candidate v" for v and vp */
-  void getAdjVerticesOfV1UnconnectedToV2(SparseVertex v1, SparseVertex v2, std::vector<SparseVertex>& adjVerticesUnconnected,
-                                     std::size_t indent);
+  void getAdjVerticesOfV1UnconnectedToV2(SparseVertex v1, SparseVertex v2,
+                                         std::vector<SparseVertex>& adjVerticesUnconnected, std::size_t indent);
 
   /** \brief Computes all nodes which qualify as a candidate x for v, v', and v" */
-  void getMaxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::vector<SparseVertex>& path,
-                         std::size_t indent);
+  void getMaxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
+                         std::vector<SparseVertex>& qualifiedVertices, std::size_t indent);
 
   /** \brief Rectifies indexing order for accessing the vertex data */
   VertexPair index(SparseVertex vp, SparseVertex vpp);
 
   /** \brief Retrieves the Vertex data associated with v,vp,vpp */
-  InterfaceData& getData(SparseVertex v, SparseVertex vp, SparseVertex vpp);
+  InterfaceData& getData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent);
 
   /** \brief Performs distance checking for the candidate new state, q against the current information */
-  void distanceCheck(SparseVertex candidateRep, const base::State* candidateState, SparseVertex r, const base::State* s, SparseVertex rp, std::size_t indent);
+  void distanceCheck(SparseVertex v, const base::State* q, SparseVertex vp,
+                     const base::State* qp, SparseVertex vpp, std::size_t indent);
 
   /** \brief When a new guard is added at state st, finds all guards who must abandon their interface information and
    * deletes that information */
@@ -273,7 +277,7 @@ public:
   bool sameComponent(SparseVertex v1, SparseVertex v2);
 
   /** \brief Add vertices to graph */
-  SparseVertex addVertex(base::State* state, const GuardType &type);
+  SparseVertex addVertex(base::State* state, const GuardType& type);
   SparseVertex addVertex(DenseVertex denseV, const GuardType& type);
 
   /** \brief Add edge to graph */
@@ -302,7 +306,6 @@ public:
   bool hasEdge(SparseVertex v1, SparseVertex v2);
 
 protected:
-
   /** \brief Short name of this class */
   const std::string name_ = "SparseDB";
 
@@ -402,7 +405,7 @@ public:
   double visualizeSparsGraphSpeed_ = 0.0;
   bool visualizeDatabaseVertices_ = true;
   bool visualizeDatabaseEdges_ = true;
-  bool visualizeDenseRepresentatives_ = false; // TODO use this
+  bool visualizeDenseRepresentatives_ = false;  // TODO use this
   bool visualizeNodePopularity_ = false;
 
   /** \brief Method for ordering of vertex insertion */
