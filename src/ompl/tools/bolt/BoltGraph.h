@@ -214,15 +214,15 @@ typedef std::unordered_map<VertexPair, InterfaceData> InterfaceHash;
 // components, so an explicit overload is given here.
 // Remove this struct when the minimum Boost requirement is > v1.48.
 // TODO remove this
-struct InterfaceHashStruct
-{
-  InterfaceHashStruct& operator=(const InterfaceHashStruct& rhs)
-  {
-    interfaceHash = rhs.interfaceHash;
-    return *this;
-  }
-  InterfaceHash interfaceHash;
-};
+// struct InterfaceHashStruct
+// {
+//   InterfaceHashStruct& operator=(const InterfaceHashStruct& rhs)
+//   {
+//     interfaceHash = rhs.interfaceHash;
+//     return *this;
+//   }
+//   InterfaceHash interfaceHash;
+// };
 
 ////////////////////////////////////////////////////////////////////////////////////////
 
@@ -312,7 +312,7 @@ typedef boost::property<vertex_dense_pointer_t, VertexIndexType,
         boost::property<boost::vertex_rank_t, VertexIndexType,
         boost::property<vertex_type_t, GuardType,
         boost::property<vertex_popularity_t, double,
-        boost::property<vertex_interface_data_t, InterfaceHashStruct
+        boost::property<vertex_interface_data_t, InterfaceHash
         > > > > > > SparseVertexProperties;
 // clang-format on
 

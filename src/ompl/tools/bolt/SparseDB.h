@@ -177,13 +177,7 @@ public:
   /** \brief Helper function for choosing the correct method for vertex insertion ordering */
   void getVertexInsertionOrdering(std::list<WeightedVertex>& vertexInsertionOrder);
 
-  /** \brief Add random samples until graph is fully connected */
-  void eliminateDisjointSets();
-
   void addRandomSamples();
-
-  /** \brief Attempt to re-add neighbors from dense graph that have not been added yet */
-  bool reinsertNeighborsIntoSpars(SparseVertex newVertex);
 
   /** \brief Helper for counting the number of disjoint sets in the sparse graph */
   std::size_t getDisjointSetsCount(bool verbose = false);
@@ -310,6 +304,8 @@ public:
 
   bool hasEdge(SparseVertex v1, SparseVertex v2);
 
+  void visualizeInterfaces(SparseVertex v);
+
 protected:
   /** \brief Short name of this class */
   const std::string name_ = "SparseDB";
@@ -422,7 +418,7 @@ public:
   /** \brief For statistics */
   int numGraphGenerations_ = 0;
   int numSamplesAddedForDisjointSets_ = 0;
-
+  int numSamplesAddedForFourthCriteria_ = 0;
   /** \brief Same discretization used in Discretizer */
   double discretization_;
 

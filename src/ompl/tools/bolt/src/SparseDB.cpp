@@ -377,13 +377,14 @@ void SparseDB::createSPARS()
   // Benchmark runtime
   time::point startTime = time::now();
 
+  numSamplesAddedForFourthCriteria_ = 0;
+
   // Create SPARS
   CALLGRIND_TOGGLE_COLLECT;
   createSPARSOuterLoop();
   std::cout << "-------------------------------------------------------" << std::endl;
   std::cout << "-------------------------------------------------------" << std::endl;
   std::cout << "Starting to add random samples" << std::endl;
-  usleep(5*1000000);
 
   addRandomSamples();
   CALLGRIND_TOGGLE_COLLECT;
@@ -402,6 +403,7 @@ void SparseDB::createSPARS()
   OMPL_INFORM("Created SPARS graph                      ");
   OMPL_INFORM("  Vertices:                  %u", getNumVertices());
   OMPL_INFORM("  Edges:                     %u", getNumEdges());
+  OMPL_INFORM("  4th criteria additions:    %u", numSamplesAddedForFourthCriteria_);
   OMPL_INFORM("  Generation time:           %f", duration);
   OMPL_INFORM("  Total generations:         %u", numGraphGenerations_);
   OMPL_INFORM("  Disjoint sets:             %u", numSets);
@@ -415,7 +417,6 @@ void SparseDB::createSPARS()
   {
     OMPL_INFORM("Disjoint sets: %u, attempting to random sample until fully connected", numSets);
 
-    eliminateDisjointSets();
     denseDB_->displayDatabase();
   }
   // else
@@ -610,96 +611,6 @@ void SparseDB::getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInser
   }
 }
 
-void SparseDB::eliminateDisjointSets()
-{
-  std::size_t indent = 2;
-  if (disjointVerbose_)
-    std::cout << std::string(indent, ' ') << "eliminateDisjointSets()" << std::endl;
-
-  visualizeOverlayNodes_ = true;  // visualize all added nodes in a separate window, also
-  bool verbose = false;
-
-  base::ValidStateSamplerPtr validSampler = si_->allocValidStateSampler();
-
-  // For each dense vertex we add
-  std::size_t numSets = 2;           // dummy value that will be updated at first loop
-  //std::size_t addedStatesCount = 0;  // count how many states we add
-  while (numSets > 1)
-  {
-    // Add dense vertex
-    base::State *state = si_->allocState();
-    DenseVertex denseV = denseDB_->addVertex(state, COVERAGE);  // TODO(davetcoleman): COVERAGE means nothing
-
-    // For each random sample
-    while (true)
-    {
-      // Sample randomly
-      if (!validSampler->sample(state))  // TODO(davetcoleman): is it ok with the nn_ to change the state after
-      // having added it to the nearest neighbor??
-      {
-        OMPL_ERROR("Unable to find valid sample");
-        exit(-1);  // this should never happen
-      }
-
-      OMPL_WARN("Not setup for RobotModelStateSpace!!");
-      ob::RealVectorStateSpace::StateType *real_state = static_cast<ob::RealVectorStateSpace::StateType *>(state);
-      real_state->values[2] = 0;  // ensure task level is 0, TODO
-
-      // Debug
-      if (verbose && false)
-      {
-        visual_->viz4State(state, tools::SMALL, tools::RED, 0);
-        visual_->viz4Trigger();
-        usleep(0.001 * 1000000);
-      }
-
-      // Run SPARS checks
-      GuardType addReason;     // returns why the state was added
-      SparseVertex newVertex;  // the newly generated sparse vertex
-      const std::size_t threadID = 0;
-      if (addStateToRoadmap(denseV, newVertex, addReason, threadID))
-      {
-        // Visualize
-        if (visualizeSparsGraph_)
-        {
-          visual_->viz2Trigger();  // show the new sparse graph addition
-        }
-
-        // Attempt to re-add neighbors from dense graph into sparse graph that have not been added yet
-        // so that the new vertex has good edges
-        if (addReason == COVERAGE)
-        {
-          if (reinsertNeighborsIntoSpars(newVertex))
-          {
-            std::cout << "success in reinserting COVERAGE node neighbors " << std::endl;
-          }
-          else
-            std::cout << "no success in reinserting COVERAGE node neighbors " << std::endl;
-        }
-
-        // Attempt to connect new DENSE vertex into dense graph by connecting neighbors
-        denseDB_->connectNewVertex(denseV);
-
-        // Statistics
-        numSamplesAddedForDisjointSets_++;
-
-        break;  // must break so that a new state can be allocated
-      }
-    }
-
-    // Update number of sets
-    numSets = getDisjointSetsCount();
-
-    // Debug
-    if (disjointVerbose_)
-      std::cout << std::string(indent + 4, ' ') << "Remaining disjoint sets: " << numSets << std::endl;
-  }  // end while
-
-  // getDisjointSetsCount(true);  // show in verbose mode
-  // OMPL_ERROR("  Shutting down because there should only be one disjoint set");
-  // exit(-1);
-}
-
 void SparseDB::addRandomSamples()
 {
   std::size_t indent = 2;
@@ -711,8 +622,9 @@ void SparseDB::addRandomSamples()
   base::ValidStateSamplerPtr validSampler = si_->allocValidStateSampler();
 
   // For each dense vertex we add
+  numSamplesAddedForDisjointSets_ = 0;
   std::size_t addedStatesCount = 0;  // count how many states we add
-  while (numSamplesAddedForDisjointSets_ < 1000)
+  while (numSamplesAddedForDisjointSets_ < 200)
   {
     // Add dense vertex
     base::State *state = si_->allocState();
@@ -752,38 +664,6 @@ void SparseDB::addRandomSamples()
     }
 
   }  // end while
-}
-
-bool SparseDB::reinsertNeighborsIntoSpars(SparseVertex newVertex)
-{
-  // Nodes near our input state
-  std::vector<DenseVertex> graphNeighborhood;
-  // Visible nodes near our input state
-  std::vector<DenseVertex> visibleNeighborhood;
-
-  // Convert sparse to dense vertex
-  DenseVertex denseV = denseVertexProperty_[newVertex];
-
-  // Find nearby nodes
-  denseDB_->findGraphNeighbors(denseV, graphNeighborhood, visibleNeighborhood, sparseDelta_, 4);
-
-  bool result = false;
-
-  // Attempt to re-add visible neighbors
-  for (std::size_t i = 0; i < visibleNeighborhood.size(); ++i)
-  {
-    std::cout << "attempting to reinsert " << i << " - " << visibleNeighborhood[i] << std::endl;
-    SparseVertex newVertex;
-    GuardType addReason;
-    const std::size_t threadID = 0;
-    if (addStateToRoadmap(visibleNeighborhood[i], newVertex, addReason, threadID))
-    {
-      std::cout << "    addition worked!! " << std::endl;
-      result = true;
-    }
-  }
-
-  return result;
 }
 
 std::size_t SparseDB::getDisjointSetsCount(bool verbose)
@@ -1016,7 +896,7 @@ bool SparseDB::addStateToRoadmap(DenseVertex denseV, SparseVertex &newVertex, Gu
       std::cout << "State added for: 4th CRITERIA " << std::endl;
     addReason = QUALITY;
     stateAdded = true;
-
+    numSamplesAddedForFourthCriteria_++;
     // usleep(5 * 1000000);
   }
   else
@@ -1316,7 +1196,13 @@ bool SparseDB::checkAddQuality(DenseVertex denseV, std::vector<SparseVertex> &gr
     //std::cout << "temp sleep cause state was added for 4th criteria " << std::endl;
     //usleep(5*1000000);
     //exit(0);
+
+    // Visualize the interfaces around the candidate rep
+    if (numSamplesAddedForDisjointSets_ > 100)
+      visualizeInterfaces(candidateRep);
+
   }
+
 
   return added;
 }
@@ -1423,7 +1309,8 @@ bool SparseDB::checkAddPath(SparseVertex v, std::size_t indent)
 
         // TEMP:
         visual_->viz5Trigger();
-        usleep(0.1 * 1000000);
+        usleep(0.001 * 1000000);
+        visual_->waitForUserFeedback();
         //std::cout << "shutting down for viz of checkAddPath " << std::endl;
         //exit(0);
       }
@@ -1765,7 +1652,7 @@ VertexPair SparseDB::index(SparseVertex vp, SparseVertex vpp)
 InterfaceData &SparseDB::getData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, "getData() " << v << ", " << vp << ", " << vpp);
-  return interfaceDataProperty_[v].interfaceHash[index(vp, vpp)];
+  return interfaceDataProperty_[v][index(vp, vpp)];
 }
 
 void SparseDB::distanceCheck(SparseVertex v, const base::State *q, SparseVertex vp,
@@ -1828,7 +1715,7 @@ void SparseDB::distanceCheck(SparseVertex v, const base::State *q, SparseVertex 
 
   // Lastly, save what we have discovered
   // TODO(davetcoleman): do we really need to copy this back in or is it already passed by reference?
-  interfaceDataProperty_[v].interfaceHash[index(vp, vpp)] = iData;
+  interfaceDataProperty_[v][index(vp, vpp)] = iData;
 }
 
 void SparseDB::abandonLists(base::State *state)
@@ -1844,8 +1731,8 @@ void SparseDB::abandonLists(base::State *state)
   // For each of the vertices
   foreach (SparseVertex v, graphNeighbors)
   {
-    foreach (VertexPair r, interfaceDataProperty_[v].interfaceHash | boost::adaptors::map_keys)
-      interfaceDataProperty_[v].interfaceHash[r].clear(si_);
+    foreach (VertexPair r, interfaceDataProperty_[v] | boost::adaptors::map_keys)
+      interfaceDataProperty_[v][r].clear(si_);
   }
 }
 
@@ -2154,6 +2041,56 @@ double SparseDB::getSecondarySparseDelta()
 bool SparseDB::hasEdge(SparseVertex v1, SparseVertex v2)
 {
   return boost::edge(v1, v2, g_).second;
+}
+
+void SparseDB::visualizeInterfaces(SparseVertex v)
+{
+  OMPL_INFORM("visualizeInterfaces()");
+
+  // typedef std::unordered_map<VertexPair, InterfaceData> InterfaceHash;
+  InterfaceHash &interfaceHash = interfaceDataProperty_[v];
+
+  visual_->viz6DeleteAllMarkers();
+  visual_->viz6State(getSparseState(v), tools::LARGE, tools::RED, 0);
+
+
+  for ( auto it = interfaceHash.begin(); it != interfaceHash.end(); ++it )
+  {
+    const VertexPair &pair = it->first;
+    InterfaceData &iData = it->second;
+
+    SparseVertex v1 = pair.first;
+    SparseVertex v2 = pair.second;
+
+    visual_->viz6State(getSparseState(v1), tools::LARGE, tools::PURPLE, 0);
+    visual_->viz6State(getSparseState(v2), tools::LARGE, tools::PURPLE, 0);
+    //visual_->viz6Edge(getSparseState(v1), getSparseState(v2), tools::eGREEN);
+
+    if (iData.hasInterface1())
+    {
+      visual_->viz6State(iData.interface1Inside_, tools::MEDIUM, tools::ORANGE, 0);
+      visual_->viz6State(iData.interface1Outside_, tools::MEDIUM, tools::GREEN, 0);
+      visual_->viz6Edge(iData.interface1Inside_, iData.interface1Outside_, tools::eYELLOW);
+    }
+    else
+    {
+      visual_->viz6Edge(getSparseState(v1), getSparseState(v2), tools::eRED);
+    }
+
+    if (iData.hasInterface2())
+    {
+      visual_->viz6State(iData.interface2Inside_, tools::MEDIUM, tools::ORANGE, 0);
+      visual_->viz6State(iData.interface2Outside_, tools::MEDIUM, tools::GREEN, 0);
+      visual_->viz6Edge(iData.interface2Inside_, iData.interface2Outside_, tools::eYELLOW);
+    }
+    else
+    {
+      visual_->viz6Edge(getSparseState(v1), getSparseState(v2), tools::eRED);
+    }
+  }
+
+  visual_->viz6Trigger();
+  usleep(0.1 * 1000000);
 }
 
 }  // namespace bolt
