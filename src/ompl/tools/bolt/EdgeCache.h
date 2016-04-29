@@ -126,6 +126,9 @@ private:
 
   std::vector<CachedEdge> keys_;
 
+  /** \brief Force all collision checks to be performed from scratch */
+  bool disableCache_ = true;
+
 };  // end of class EdgeCache
 
 }  // namespace bolt

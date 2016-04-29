@@ -64,6 +64,9 @@ EdgeCache::EdgeCache(base::SpaceInformationPtr si, DenseDB *denseDB, VisualizerP
   keys_.resize(numThreads);
   totalCollisionChecks_.resize(numThreads, 0);
   totalCollisionChecksFromCache_.resize(numThreads, 0);
+
+  if (disableCache_)
+    OMPL_WARN("Edge cache disabled");
 }
 
 bool EdgeCache::save()
@@ -172,6 +175,9 @@ void EdgeCache::resetCounters()
 
 bool EdgeCache::checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v2, const std::size_t &threadID)
 {
+  if (disableCache_)
+    return si_->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]);
+
   CachedEdge &edge = keys_[threadID];
 
   // Error check

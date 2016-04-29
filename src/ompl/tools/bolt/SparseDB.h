@@ -180,6 +180,8 @@ public:
   /** \brief Add random samples until graph is fully connected */
   void eliminateDisjointSets();
 
+  void addRandomSamples();
+
   /** \brief Attempt to re-add neighbors from dense graph that have not been added yet */
   bool reinsertNeighborsIntoSpars(SparseVertex newVertex);
 
@@ -221,7 +223,9 @@ public:
   /** \brief Checks vertex v for short paths through its region and adds when appropriate.
    *         Referred to as 'Test_Add_paths' in paper
    */
-  bool checkAddPath(SparseVertex candidateRep, std::size_t indent);
+  bool checkAddPath(SparseVertex v, std::size_t indent);
+
+  bool checkAddPathHelper(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
 
   /** \brief Finds the representative of the input state, st  */
   SparseVertex findGraphRepresentative(base::State* st, std::size_t indent);
@@ -242,9 +246,10 @@ public:
   void getAdjVerticesOfV1UnconnectedToV2(SparseVertex v1, SparseVertex v2,
                                          std::vector<SparseVertex>& adjVerticesUnconnected, std::size_t indent);
 
-  /** \brief Computes all nodes which qualify as a candidate x for v, v', and v" */
-  void getMaxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
-                         std::vector<SparseVertex>& qualifiedVertices, std::size_t indent);
+  /** \brief Computes all nodes which qualify as a candidate x for v, v', and v"
+   *  \return length of maximum path
+   */
+  double maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent);
 
   /** \brief Rectifies indexing order for accessing the vertex data */
   VertexPair index(SparseVertex vp, SparseVertex vpp);
@@ -367,6 +372,9 @@ protected:
   /** \brief Amount of sub-optimality allowed */
   double sparseDelta_ = 2.0;
 
+  /** \brief SPARS parameter for dense graph connection distance */
+  double denseDelta_;
+
   /** \brief Number of sample points to use when trying to detect interfaces. */
   std::size_t nearSamplePoints_;
 
@@ -385,11 +393,11 @@ public:
   /** \brief Maximum visibility range for nodes in the graph as a fraction of maximum extent. */
   double sparseDeltaFraction_ = 0.25;
 
+  /** \brief Multiply this number by the dimension of the state space to choose how much sampling to perform */
+  std::size_t nearSamplePointsMultiple_ = 2;
+
   /** \brief The stretch factor in terms of graph spanners for SPARS to check against */
   double stretchFactor_ = 3.0;
-
-  /** \brief SPARS parameter for dense graph connection distance */
-  double denseDelta_;
 
   /** \brief How much the popularity of a node can cause its cost-to-go heuristic to be underestimated */
   double percentMaxExtentUnderestimate_ = 0.01;

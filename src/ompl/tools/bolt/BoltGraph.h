@@ -149,7 +149,7 @@ struct InterfaceData
   }
 
   /** \brief Sets information for the first interface (i.e. interface with smaller index vertex). */
-  void setFirst(const base::State* q, const base::State* qp, const base::SpaceInformationPtr& si)
+  void setInterface1(const base::State* q, const base::State* qp, const base::SpaceInformationPtr& si)
   {
     // Set point A
     if (interface1Inside_)
@@ -164,28 +164,44 @@ struct InterfaceData
       interface1Outside_ = si->cloneState(qp);
 
     // Calc distance if we have found both representatives for this vertex pair
-    if (interface2Inside_)
+    if (hasInterface2())
+    {
       lastDistance_ = si->distance(interface1Inside_, interface2Inside_);
+    }
   }
 
   /** \brief Sets information for the second interface (i.e. interface with larger index vertex). */
-  void setSecond(const base::State* p, const base::State* s, const base::SpaceInformationPtr& si)
+  void setInterface2(const base::State* q, const base::State* qp, const base::SpaceInformationPtr& si)
   {
     // Set point B
     if (interface2Inside_)
-      si->copyState(interface2Inside_, p);
+      si->copyState(interface2Inside_, q);
     else
-      interface2Inside_ = si->cloneState(p);
+      interface2Inside_ = si->cloneState(q);
 
     // Set sigma B
     if (interface2Outside_)
-      si->copyState(interface2Outside_, s);
+      si->copyState(interface2Outside_, qp);
     else
-      interface2Outside_ = si->cloneState(s);
+      interface2Outside_ = si->cloneState(qp);
 
     // Calc distance
-    if (interface1Inside_)
+    if (hasInterface1())
+    {
       lastDistance_ = si->distance(interface1Inside_, interface2Inside_);
+    }
+  }
+
+  /** \brief Helper to determine wether interface 1 has been found */
+  bool hasInterface1()
+  {
+    return interface1Inside_ != nullptr;
+  }
+
+  /** \brief Helper to determine wether interface 2 has been found */
+  bool hasInterface2()
+  {
+    return interface2Inside_ != nullptr;
   }
 };
 
