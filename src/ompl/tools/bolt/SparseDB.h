@@ -306,6 +306,8 @@ public:
 
   void visualizeInterfaces(SparseVertex v);
 
+  SparseVertex getSparseRepresentative(base::State* state);
+
 protected:
   /** \brief Short name of this class */
   const std::string name_ = "SparseDB";
@@ -417,7 +419,7 @@ public:
 
   /** \brief For statistics */
   int numGraphGenerations_ = 0;
-  int numSamplesAddedForDisjointSets_ = 0;
+  int numRandSamplesAdded_ = 0;
   int numSamplesAddedForFourthCriteria_ = 0;
   /** \brief Same discretization used in Discretizer */
   double discretization_;

@@ -366,7 +366,7 @@ void Bolt::printLogs(std::ostream &out) const
   out << "    Vertices:                    " << sparseDB->getNumVertices() << " (" << vertPercent << "%)" << std::endl;
   out << "    Edges:                       " << sparseDB->getNumEdges() << " (" << edgePercent << "%)" << std::endl;
   out << "    Regenerations:               " << sparseDB->numGraphGenerations_ << std::endl;
-  out << "    Disjoint Samples Added:      " << sparseDB->numSamplesAddedForDisjointSets_ << std::endl;
+  out << "    Disjoint Samples Added:      " << sparseDB->numRandSamplesAdded_ << std::endl;
   out << "    Sparse Delta Fraction:       " << sparseDB->sparseDeltaFraction_ << std::endl;
   out << "  Average planning time:         " << std::setprecision(4) << stats_.getAveragePlanningTime() << " seconds" << std::endl;
   out << "  Average insertion time:        " << stats_.getAverageInsertionTime() << " seconds" << std::endl;
