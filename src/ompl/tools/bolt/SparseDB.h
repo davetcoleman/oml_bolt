@@ -51,6 +51,7 @@
 #include <ompl/tools/bolt/DenseDB.h>
 #include <ompl/tools/bolt/BoltGraph.h>
 #include <ompl/tools/bolt/EdgeCache.h>
+#include <ompl/tools/bolt/Debug.h>
 
 // Boost
 #include <boost/function.hpp>
@@ -74,21 +75,6 @@ namespace bolt
 OMPL_CLASS_FORWARD(SparseDB);
 OMPL_CLASS_FORWARD(DenseDB);
 /// @endcond
-
-// clang-format off
-#define BOLT_DEBUG(indent, token) { std::stringstream o; o << token; \
-    { if (checksVerbose_)                                               \
-        std::cout << std::string(indent, ' ') << o.str() << std::endl; } }
-#define BOLT_COLOR_DEBUG(indent, token, color) { std::stringstream o; o << token; \
-    { if (checksVerbose_) {                                             \
-        std::cout << color << std::string(indent, ' ') << o.str() << ANSI_COLOR_RESET << std::endl; } } }
-#define BOLT_RED_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_RED); }
-#define BOLT_GREEN_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_GREEN); }
-#define BOLT_YELLOW_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_YELLOW); }
-#define BOLT_BLUE_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_BLUE); }
-#define BOLT_MAGENTA_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_MAGENTA); }
-#define BOLT_CYAN_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_CYAN); }
-// clang-format on
 
 ////////////////////////////////////////////////////////////////////////////////////////
 /**
@@ -348,7 +334,7 @@ public:
 
   bool hasEdge(SparseVertex v1, SparseVertex v2);
 
-  void visualizeInterfaces(SparseVertex v);
+  void visualizeInterfaces(SparseVertex v, std::size_t indent);
 
   SparseVertex getSparseRepresentative(base::State* state);
 
@@ -448,6 +434,8 @@ protected:
   std::size_t numNodesOpened_ = 0;
   std::size_t numNodesClosed_ = 0;
 
+  std::size_t numConsecutiveFailures_;
+
 public:
 
   /** \brief Various options for visualizing the algorithmns performance */
@@ -468,11 +456,17 @@ public:
   /** \brief The stretch factor in terms of graph spanners for SPARS to check against */
   double stretchFactor_ = 3.0;
 
+  /** \brief Number of failed state insertion attempts before stopping the algorithm */
+  std::size_t terminateAfterFailures_ = 1000;
+
+  /** \brief Number of failed state insertion attempts before starting to apply the fourth quality criteria from SPARS */
+  std::size_t fourthCriteriaAfterFailures_ = 500;
+
   /** \brief How much the popularity of a node can cause its cost-to-go heuristic to be underestimated */
   double percentMaxExtentUnderestimate_ = 0.01;
 
   /** \brief Change verbosity levels */
-  bool checksVerbose_ = false;
+  bool vCriteria_ = false;
   bool disjointVerbose_ = true;
   bool fourthCheckVerbose_ = true;
 
@@ -482,6 +476,9 @@ public:
   double visualizeSparsGraphSpeed_ = 0.0;
   bool visualizeDatabaseVertices_ = true;
   bool visualizeDatabaseEdges_ = true;
+  bool visualizeDatabaseCoverage_ = true;
+  bool visualizeVoronoiDiagram_ = true;
+  bool visualizeVoronoiDiagramAnimated_ = true;
   bool visualizeDenseRepresentatives_ = false;  // TODO use this
   bool visualizeNodePopularity_ = false;
 
