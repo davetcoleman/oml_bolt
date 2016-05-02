@@ -90,6 +90,44 @@ OMPL_CLASS_FORWARD(DenseDB);
 #define BOLT_CYAN_DEBUG(indent, token) { BOLT_COLOR_DEBUG(indent, token, ANSI_COLOR_CYAN); }
 // clang-format on
 
+////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * Vertex visitor to check if A* search is finished.
+ * \implements AStarVisitorConcept
+ * See http://www.boost.org/doc/libs/1_58_0/libs/graph/doc/AStarVisitor.html
+ */
+class CustomAstarVisitor : public boost::default_astar_visitor
+{
+private:
+  SparseVertex goal_;  // Goal Vertex of the search
+  SparseDB* parent_;
+
+public:
+  /**
+   * Construct a visitor for a given search.
+   * \param goal  goal vertex of the search
+   */
+  CustomAstarVisitor(SparseVertex goal, SparseDB* parent);
+
+  /**
+   * \brief Invoked when a vertex is first discovered and is added to the OPEN list.
+   * \param v current Vertex
+   * \param g graph we are searching on
+   */
+  void discover_vertex(SparseVertex v, const SparseGraph& g) const;
+
+  /**
+   * \brief Check if we have arrived at the goal.
+   * This is invoked on a vertex as it is popped from the queue (i.e., it has the lowest
+   * cost on the OPEN list). This happens immediately before examine_edge() is invoked on
+   * each of the out-edges of vertex u.
+   * \param v current vertex
+   * \param g graph we are searching on
+   * \throw FoundGoalException if \a u is the goal
+   */
+  void examine_vertex(SparseVertex v, const SparseGraph& g) const;
+};
+
 /** \class ompl::tools::bolt::::SparseDBPtr
     \brief A boost shared pointer wrapper for ompl::tools::SparseDB */
 
@@ -123,7 +161,10 @@ public:
    *  \param vertexPath
    *  \return true if candidate solution found
    */
-  // bool astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex>& vertexPath);
+  bool astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex>& vertexPath, double &distance, std::size_t indent);
+
+  /** \brief Distance between two states with special bias using popularity */
+  double astarHeuristic(const SparseVertex a, const SparseVertex b) const;
 
   /** \brief Print info to screen */
   void debugVertex(const ompl::base::PlannerDataVertex& vertex);
@@ -232,8 +273,9 @@ public:
 
   /** \brief Updates pair point information for a representative with neighbor r
              Referred to as 'Update_Points' in paper
+      \return true if an update actually happend wihtin the representatives, false if no change
    */
-  void updatePairPoints(SparseVertex candidateRep, const base::State* candidateState, SparseVertex nearSampledRep,
+  bool updatePairPoints(SparseVertex candidateRep, const base::State* candidateState, SparseVertex nearSampledRep,
                         const base::State* nearSampledState, std::size_t indent);
 
   /** \brief Computes all nodes which qualify as a candidate v" for v and vp */
@@ -251,8 +293,10 @@ public:
   /** \brief Retrieves the Vertex data associated with v,vp,vpp */
   InterfaceData& getData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent);
 
-  /** \brief Performs distance checking for the candidate new state, q against the current information */
-  void distanceCheck(SparseVertex v, const base::State* q, SparseVertex vp,
+  /** \brief Performs distance checking for the candidate new state, q against the current information
+      \return true if an update actually happend wihtin the representatives, false if no change
+  */
+  bool distanceCheck(SparseVertex v, const base::State* q, SparseVertex vp,
                      const base::State* qp, SparseVertex vpp, std::size_t indent);
 
   /** \brief When a new guard is added at state st, finds all guards who must abandon their interface information and
@@ -293,8 +337,8 @@ public:
   }
 
   /** \brief Shortcut function for getting the state of a vertex */
-  base::State*& getSparseState(SparseVertex v);
-  const base::State* getSparseStateConst(SparseVertex v) const;
+  base::State*& getSparseStateNonConst(SparseVertex v);
+  const base::State* getSparseState(SparseVertex v) const;
   base::State*& getDenseState(DenseVertex denseV);
 
   /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
@@ -307,6 +351,22 @@ public:
   void visualizeInterfaces(SparseVertex v);
 
   SparseVertex getSparseRepresentative(base::State* state);
+
+  /** \brief Custom A* visitor statistics */
+  void recordNodeOpened()  // discovered
+  {
+    numNodesOpened_++;
+  }
+  void recordNodeClosed()  // examined
+  {
+    numNodesClosed_++;
+  }
+
+  /** \brief Get class for managing various visualization features */
+  VisualizerPtr getVisual()
+  {
+    return visual_;
+  }
 
 protected:
   /** \brief Short name of this class */
@@ -384,7 +444,18 @@ protected:
 
   bool useFourthCriteria_;
 
+  /** \brief Astar statistics */
+  std::size_t numNodesOpened_ = 0;
+  std::size_t numNodesClosed_ = 0;
+
 public:
+
+  /** \brief Various options for visualizing the algorithmns performance */
+  bool visualizeAstar_ = false;
+
+  /** \brief Visualization speed of astar search, num of seconds to show each vertex */
+  double visualizeAstarSpeed_ = 0.1;
+
   /** \brief SPARS parameter for dense graph connection distance as a fraction of max. extent */
   double denseDeltaFraction_ = 0.05;
 

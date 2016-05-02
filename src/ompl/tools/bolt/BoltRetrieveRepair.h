@@ -41,7 +41,7 @@
 #include <ompl/geometric/PathGeometric.h>
 #include <ompl/geometric/PathSimplifier.h>
 #include <ompl/tools/bolt/DenseDB.h>
-#include <ompl/tools/debug/Visualizer.h> 
+#include <ompl/tools/debug/Visualizer.h>
 
 // Boost
 #include <boost/lambda/bind.hpp>
@@ -65,44 +65,6 @@ namespace bolt
 OMPL_CLASS_FORWARD(BoltRetrieveRepair);
 OMPL_CLASS_FORWARD(DenseDB);
 /// @endcond
-
-  ////////////////////////////////////////////////////////////////////////////////////////
-  /**
-   * Vertex visitor to check if A* search is finished.
-   * \implements AStarVisitorConcept
-   * See http://www.boost.org/doc/libs/1_58_0/libs/graph/doc/AStarVisitor.html
-   */
-  class CustomAstarVisitor : public boost::default_astar_visitor
-  {
-  private:
-    SparseVertex goal_;  // Goal Vertex of the search
-    BoltRetrieveRepair* parent_;
-
-  public:
-    /**
-     * Construct a visitor for a given search.
-     * \param goal  goal vertex of the search
-     */
-    CustomAstarVisitor(SparseVertex goal, BoltRetrieveRepair* parent);
-
-    /**
-     * \brief Invoked when a vertex is first discovered and is added to the OPEN list.
-     * \param v current Vertex
-     * \param g graph we are searching on
-     */
-    void discover_vertex(SparseVertex v, const SparseGraph& g) const;
-
-    /**
-     * \brief Check if we have arrived at the goal.
-     * This is invoked on a vertex as it is popped from the queue (i.e., it has the lowest
-     * cost on the OPEN list). This happens immediately before examine_edge() is invoked on
-     * each of the out-edges of vertex u.
-     * \param v current vertex
-     * \param g graph we are searching on
-     * \throw FoundGoalException if \a u is the goal
-     */
-    void examine_vertex(SparseVertex v, const SparseGraph& g) const;
-  };
 
 /** \class ompl::base::BoltRetrieveRepairPtr
     \brief A boost shared pointer wrapper for ompl::base::BoltRetrieveRepair */
@@ -233,30 +195,11 @@ public:
   /** \brief Test if the passed in random state can connect to a nearby vertex in the graph */
   bool canConnect(const base::State *randomState, const base::PlannerTerminationCondition &ptc);
 
-  bool astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath);
-
-  /** \brief Distance between two states with special bias using popularity */
-  double astarHeuristic(const SparseVertex a, const SparseVertex b) const;
-
-  /** \brief Get class for managing various visualization features */
-  VisualizerPtr getVisual()
-  {
-    return visual_;
-  }
+  //bool astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath);
 
   SparseDBPtr getSparseDB()
   {
     return sparseDB_;
-  }
-
-  /** \brief Custom A* visitor statistics */
-  void recordNodeOpened()  // discovered
-  {
-    numNodesOpened_++;
-  }
-  void recordNodeClosed()  // examined
-  {
-    numNodesClosed_++;
   }
 
   std::shared_ptr<geometric::PathGeometric> getOriginalSolutionPath()
@@ -296,17 +239,7 @@ protected:
   std::vector<bolt::DenseVertex> startVertexCandidateNeighbors_;
   std::vector<bolt::DenseVertex> goalVertexCandidateNeighbors_;
 
-  /** \brief Astar statistics */
-  std::size_t numNodesOpened_ = 0;
-  std::size_t numNodesClosed_ = 0;
-
 public:
-
-  /** \brief Various options for visualizing the algorithmns performance */
-  bool visualizeAstar_ = false;
-
-  /** \brief Visualization speed of astar search, num of seconds to show each vertex */
-  double visualizeAstarSpeed_ = 0.1;
 
   /** \brief Output user feedback to console */
   bool verbose_;

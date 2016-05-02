@@ -203,6 +203,50 @@ struct InterfaceData
   {
     return interface2Inside_ != nullptr;
   }
+
+  base::State* getInsideInterfaceOfV1(std::size_t v1, std::size_t v2)
+  {
+    if (v1 < v2)
+      return interface1Inside_;
+    else if (v1 > v2)
+      return interface2Inside_;
+
+    throw Exception("InterfaceHash", "Vertices are the same index");
+    return NULL;
+  }
+
+  base::State* getInsideInterfaceOfV2(std::size_t v1, std::size_t v2)
+  {
+    if (v1 < v2)
+      return interface2Inside_;
+    else if (v1 > v2)
+      return interface1Inside_;
+
+    throw Exception("InterfaceHash", "Vertices are the same index");
+    return NULL;
+  }
+
+  base::State* getOutsideInterfaceOfV1(std::size_t v1, std::size_t v2)
+  {
+    if (v1 < v2)
+      return interface1Outside_;
+    else if (v1 > v2)
+      return interface2Outside_;
+
+    throw Exception("InterfaceHash", "Vertices are the same index");
+    return NULL;
+  }
+
+  base::State* getOutsideInterfaceOfV2(std::size_t v1, std::size_t v2)
+  {
+    if (v1 < v2)
+      return interface2Outside_;
+    else if (v1 > v2)
+      return interface1Outside_;
+
+    throw Exception("InterfaceHash", "Vertices are the same index");
+    return NULL;
+  }
 };
 
 /** \brief the hash which maps pairs of neighbor points to pairs of states */

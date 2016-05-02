@@ -71,6 +71,51 @@ namespace ob = ompl::base;
 
 // Actual class ////////////////////////////////////////////////////////////////////////////
 
+// SparseEdgeWeightMap methods ////////////////////////////////////////////////////////////////////////////
+
+BOOST_CONCEPT_ASSERT((boost::ReadablePropertyMapConcept<otb::SparseEdgeWeightMap, otb::SparseEdge>));
+
+namespace boost
+{
+double get(const otb::SparseEdgeWeightMap &m, const otb::SparseEdge &e)
+{
+  return m.get(e);
+}
+}
+
+// CustomAstarVisitor methods ////////////////////////////////////////////////////////////////////////////
+
+BOOST_CONCEPT_ASSERT((boost::AStarVisitorConcept<otb::CustomAstarVisitor, otb::SparseGraph>));
+
+otb::CustomAstarVisitor::CustomAstarVisitor(SparseVertex goal, SparseDB *parent) : goal_(goal), parent_(parent)
+{
+}
+
+void otb::CustomAstarVisitor::discover_vertex(SparseVertex v, const SparseGraph &) const
+{
+  // Statistics
+  parent_->recordNodeOpened();
+
+  if (parent_->visualizeAstar_)
+    parent_->getVisual()->viz4State(parent_->getSparseState(v), tools::SMALL, tools::GREEN, 1);
+}
+
+void otb::CustomAstarVisitor::examine_vertex(SparseVertex v, const SparseGraph &) const
+{
+  // Statistics
+  parent_->recordNodeClosed();
+
+  if (parent_->visualizeAstar_)
+  {
+    parent_->getVisual()->viz4State(parent_->getSparseState(v), tools::LARGE, tools::BLACK, 1);
+    parent_->getVisual()->viz4Trigger();
+    usleep(parent_->visualizeAstarSpeed_ * 1000000);
+  }
+
+  if (v == goal_)
+    throw FoundGoalException();
+}
+
 namespace ompl
 {
 namespace tools
@@ -144,9 +189,12 @@ bool SparseDB::setup()
   return true;
 }
 
-/*
-  bool SparseDB::astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath)
-  {
+bool SparseDB::astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath,
+                           double &distance, std::size_t indent)
+{
+  BOLT_BLUE_DEBUG(indent, "astarSearch()");
+  indent += 2;
+
   // Hold a list of the shortest path parent to each vertex
   SparseVertex *vertexPredecessors = new SparseVertex[getNumVertices()];
   // boost::vector_property_map<SparseVertex> vertexPredecessors(getNumVertices());
@@ -158,78 +206,86 @@ bool SparseDB::setup()
   numNodesOpened_ = 0;
   numNodesClosed_ = 0;
 
-  OMPL_INFORM("Beginning AStar Search");
+  if (visualizeAstar_)
+  {
+    visual_->viz4DeleteAllMarkers();
+  }
+
   try
   {
-  double popularityBias = 0;
-  bool popularityBiasEnabled = false;
-  // Note: could not get astar_search to compile within BoltRetrieveRepair.cpp class because of
-  // namespacing issues
-  boost::astar_search(g_,                                                           // graph
-  start,                                                        // start state
-  boost::bind(&otb::SparseDB::astarHeuristic, this, _1, goal),  // the heuristic
-  // ability to disable edges (set cost to inifinity):
-  boost::weight_map(SparseEdgeWeightMap(g_, edgeCollisionStatePropertySparse_, popularityBias,
-  popularityBiasEnabled))
-  .predecessor_map(vertexPredecessors)
-  .distance_map(&vertexDistances[0])
-  .visitor(CustomAstarVisitor(goal, sparseDB_)));
+    double popularityBias = 0;
+    bool popularityBiasEnabled = false;
+    boost::astar_search(g_,                                                           // graph
+                        start,                                                        // start state
+                        boost::bind(&otb::SparseDB::astarHeuristic, this, _1, goal),  // the heuristic
+                        // ability to disable edges (set cost to inifinity):
+                        boost::weight_map(SparseEdgeWeightMap(g_, edgeCollisionStatePropertySparse_, popularityBias,
+                                                              popularityBiasEnabled))
+                            .predecessor_map(vertexPredecessors)
+                            .distance_map(&vertexDistances[0])
+                            .visitor(CustomAstarVisitor(goal, this)));
   }
   catch (FoundGoalException &)
   {
-  // the custom exception from CustomAstarVisitor
-  OMPL_INFORM("AStar found goal vertex. distance to goal: %f", vertexDistances[goal]);
-  OMPL_INFORM("Number nodes opened: %u, Number nodes closed: %u", numNodesOpened_, numNodesClosed_);
+    distance = vertexDistances[goal];
 
-  if (vertexDistances[goal] > 1.7e+308)  // TODO(davetcoleman): fix terrible hack for detecting infinity
-  // double diff = d[goal] - std::numeric_limits<double>::infinity();
-  // if ((diff < std::numeric_limits<double>::epsilon()) && (-diff <
-  // std::numeric_limits<double>::epsilon()))
-  // check if the distance to goal is inifinity. if so, it is unreachable
-  // if (d[goal] >= std::numeric_limits<double>::infinity())
-  {
-  OMPL_INFORM("Distance to goal is infinity");
-  foundGoal = false;
-  }
-  else
-  {
-  // Only clear the vertexPath after we know we have a new solution, otherwise it might have a good
-  // previous one
-  vertexPath.clear();  // remove any old solutions
+    // the custom exception from CustomAstarVisitor
+    BOLT_DEBUG(indent, "AStar found solution. Distance to goal: " << vertexDistances[goal]);
+    BOLT_DEBUG(indent, "Number nodes opened: " << numNodesOpened_ << ", Number nodes closed: " << numNodesClosed_);
 
-  // Trace back the shortest path in reverse and only save the states
-  SparseVertex v;
-  for (v = goal; v != vertexPredecessors[v]; v = vertexPredecessors[v])
-  {
-  vertexPath.push_back(v);
-  }
-  if (v != goal)  // TODO explain this because i don't understand
-  {
-  vertexPath.push_back(v);
-  }
+    if (isinf(vertexDistances[goal])) // TODO(davetcoleman): test that this works
+    {
+      BOLT_RED_DEBUG(indent, "Distance to goal is infinity");
+      visual_->waitForUserFeedback(); // TODO(davetcoleman): remove
+      foundGoal = false;
+    }
+    else
+    {
+      // Only clear the vertexPath after we know we have a new solution, otherwise it might have a good
+      // previous one
+      vertexPath.clear();  // remove any old solutions
 
-  foundGoal = true;
-  }
+      // Trace back the shortest path in reverse and only save the states
+      SparseVertex v;
+      for (v = goal; v != vertexPredecessors[v]; v = vertexPredecessors[v])
+      {
+        vertexPath.push_back(v);
+      }
+
+      // Add the start state to the path, unless this path is just one vertex long and the start==goal
+      if (v != goal)  // TODO explain this because i don't understand
+      {
+        vertexPath.push_back(v);
+      }
+      else // TODO remove this
+      {
+        std::cout << "vertex path is one vertex long? " << std::endl;
+        std::cout << "this should be deleted " << std::endl;
+        visual_->waitForUserFeedback();
+      }
+
+      foundGoal = true;
+    }
   }
 
   if (!foundGoal)
-  OMPL_WARN("        Did not find goal");
+    BOLT_YELLOW_DEBUG(indent, "Did not find goal");
 
   // Show all predecessors
   if (visualizeAstar_)
   {
-  OMPL_INFORM("        Show all predecessors");
-  for (std::size_t i = 1; i < getNumVertices(); ++i)  // skip vertex 0 b/c that is the search vertex
-  {
-  const SparseVertex v1 = i;
-  const SparseVertex v2 = vertexPredecessors[v1];
-  if (v1 != v2)
-  {
-  // std::cout << "Edge " << v1 << " to " << v2 << std::endl;
-  visual_->viz4Edge(getSparseStateConst(v1), getSparseStateConst(v2), 10);
-  }
-  }
-  visual_->viz4Trigger();
+    BOLT_DEBUG(indent + 2, "Show all predecessors");
+    for (std::size_t i = 1; i < getNumVertices(); ++i)  // skip vertex 0 b/c that is the search vertex
+    {
+      const SparseVertex v1 = i;
+      const SparseVertex v2 = vertexPredecessors[v1];
+      if (v1 != v2)
+      {
+        // std::cout << "Edge " << v1 << " to " << v2 << std::endl;
+        visual_->viz4Edge(getSparseState(v1), getSparseState(v2), 10);
+      }
+    }
+    visual_->viz4Trigger();
   }
 
   // Unload
@@ -238,8 +294,57 @@ bool SparseDB::setup()
 
   // No solution found from start to goal
   return foundGoal;
+}
+
+double SparseDB::astarHeuristic(const SparseVertex a, const SparseVertex b) const
+{
+  // Assume vertex 'a' is the one we care about its populariy
+
+  // Get the classic distance
+  double dist = si_->distance(getSparseState(a), getSparseState(b));
+
+  if (false)  // method 1
+  {
+    const double percentMaxExtent = (maxExtent_ * percentMaxExtentUnderestimate_);  // TODO(davetcoleman): cache
+    double popularityComponent = percentMaxExtent * (vertexPopularity_[a] / 100.0);
+
+    std::cout << "astarHeuristic - dist: " << std::setprecision(4) << dist << ", popularity: " << vertexPopularity_[a]
+              << ", max extent: " << maxExtent_ << ", percentMaxExtent: " << percentMaxExtent
+              << ", popularityComponent: " << popularityComponent;
+    dist = std::max(0.0, dist - popularityComponent);
   }
-*/
+  else if (false)  // method 2
+  {
+    const double percentDist = (dist * percentMaxExtentUnderestimate_);  // TODO(davetcoleman): cache
+    double popularityComponent = percentDist * (vertexPopularity_[a] / 100.0);
+
+    std::cout << "astarHeuristic - dist: " << std::setprecision(4) << dist << ", popularity: " << vertexPopularity_[a]
+              << ", percentDist: " << percentDist << ", popularityComponent: " << popularityComponent;
+    dist = std::max(0.0, dist - popularityComponent);
+  }
+  else if (false)  // method 3
+  {
+    std::cout << "astarHeuristic - dist: " << std::setprecision(4) << dist << ", popularity: " << vertexPopularity_[a]
+              << ", vertexPopularity_[a] / 100.0: " << vertexPopularity_[a] / 100.0
+              << ", percentMaxExtentUnderestimate_: " << percentMaxExtentUnderestimate_;
+    // if ((vertexPopularity_[a] / 100.0) < (1 - percentMaxExtentUnderestimate_))
+    if (vertexPopularity_[a] > (100 - percentMaxExtentUnderestimate_ * 100.0))
+    {
+      dist = 0;
+    }
+
+    // dist = std::max(0.0, dist - popularityComponent);
+  }
+  else if (false)  // method 4
+  {
+    dist *= (1 + percentMaxExtentUnderestimate_);
+  }
+  // method 5: increasing the sparseDelta fraction
+
+  // std::cout << ", new distance: " << dist << std::endl;
+
+  return dist;
+}
 
 void SparseDB::debugVertex(const ompl::base::PlannerDataVertex &vertex)
 {
@@ -499,7 +604,7 @@ void SparseDB::createSPARSOuterLoop()
       // std::cout << "temp shutdown before second loop " << std::endl;
       // exit(-1);
       // usleep(2*1000000);
-      //useFourthCriteria_ = true;
+      // useFourthCriteria_ = true;
 
       // Save collision cache, just in case there is a bug
       edgeCache_->save();
@@ -619,6 +724,7 @@ void SparseDB::addRandomSamples()
     std::cout << std::string(indent, ' ') << "addRandomSamples()" << std::endl;
 
   visualizeOverlayNodes_ = true;  // visualize all added nodes in a separate window, also
+  checksVerbose_ = false;
 
   base::ValidStateSamplerPtr validSampler = si_->allocValidStateSampler();
 
@@ -630,6 +736,7 @@ void SparseDB::addRandomSamples()
   {
     // Add dense vertex
     base::State *state = si_->allocState();
+    // TODO(davetcoleman): remove dependence on denseDB vertices
     DenseVertex denseV = denseDB_->addVertex(state, COVERAGE);  // TODO(davetcoleman): COVERAGE means nothing
 
     failedAttempts = 0;
@@ -638,14 +745,14 @@ void SparseDB::addRandomSamples()
     while (true)
     {
       // Sample randomly
-      if (!validSampler->sample(state))  // TODO(davetcoleman): is it ok with the nn_ to change the state after
-      // having added it to the nearest neighbor??
+      if (!validSampler->sample(state))  // TODO(davetcoleman): is it ok with the DenseDB.nn_ to change the state after
+        // having added it to the nearest neighbor?? No, I don't think it is.
       {
         OMPL_ERROR("Unable to find valid sample");
         exit(-1);  // this should never happen
       }
 
-      //OMPL_WARN("Not setup for RobotModelStateSpace!!");
+      // OMPL_WARN("Not setup for RobotModelStateSpace!!");
       ob::RealVectorStateSpace::StateType *real_state = static_cast<ob::RealVectorStateSpace::StateType *>(state);
       real_state->values[2] = 0;  // ensure task level is 0, TODO
 
@@ -667,16 +774,15 @@ void SparseDB::addRandomSamples()
       }
       failedAttempts++;
 
-      if (failedAttempts > 100 && !useFourthCriteria_)
+      if (failedAttempts > 1000 && !useFourthCriteria_)
       {
         std::cout << "-------------------------------------------------------" << std::endl;
         std::cout << "TOO MANY FAILED ATTEMPTS, USING 4th CRITERIA " << std::endl;
         useFourthCriteria_ = true;
+        visual_->vizVoronoiDiagram();
+        checksVerbose_ = true;
       }
-    } // end while
-
-    // TODO(davetcoleman): freeState? depends on how we exit the while(true) loop
-
+    }  // end while
   }  // end while
 }
 
@@ -995,7 +1101,7 @@ bool SparseDB::checkAddConnectivity(DenseVertex denseV, std::vector<SparseVertex
        vertexIt != statesInDiffConnectedComponents.end(); ++vertexIt)
   {
     // Do not add edge from self to self
-    if (si_->getStateSpace()->equalStates(getSparseStateConst(*vertexIt), getSparseStateConst(newVertex)))
+    if (si_->getStateSpace()->equalStates(getSparseState(*vertexIt), getSparseState(newVertex)))
     {
       std::cout << "Prevented same vertex from being added twice " << std::endl;
       continue;  // skip this pairing
@@ -1037,8 +1143,8 @@ bool SparseDB::checkAddInterface(DenseVertex denseV, std::vector<SparseVertex> &
 {
   BOLT_BLUE_DEBUG(indent, "checkAddInterface() Does this node's neighbor's need it to better connect them?");
 
-  // If we have at least 2 neighbors
-  // TODO(davetcoleman): why only the first two nodes??
+  // If there are less than two neighbors the interface property is not applicable, because requires
+  // two closest visible neighbots
   if (visibleNeighborhood.size() < 2)
   {
     BOLT_DEBUG(indent + 2, "NOT adding node for interface (less than 2 visible neighbors)");
@@ -1093,15 +1199,16 @@ bool SparseDB::checkAddQuality(DenseVertex denseV, std::vector<SparseVertex> &gr
                                SparseVertex &newVertex, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, "checkAddQuality() Ensure SPARS asymptotic optimality");
+  indent += 2;
 
   if (visibleNeighborhood.empty())
   {
-    BOLT_DEBUG(indent + 2, "no visible neighbors, not adding 4th criteria ");
+    BOLT_DEBUG(indent, "no visible neighbors, not adding 4th criteria ");
     return false;
   }
 
-  base::State *candidateState = getDenseState(denseV); // paper's name: q
-  SparseVertex candidateRep = visibleNeighborhood[0];  // paper's name: v
+  base::State *candidateState = getDenseState(denseV);  // paper's name: q
+  SparseVertex candidateRep = visibleNeighborhood[0];   // paper's name: v
 
   if (visualizeQualityCriteria_)
   {
@@ -1128,27 +1235,31 @@ bool SparseDB::checkAddQuality(DenseVertex denseV, std::vector<SparseVertex> &gr
   }
 
   bool added = false;
-  std::map<SparseVertex, base::State *> closeRepresentatives; // [nearSampledRep, nearSampledState]
-  findCloseRepresentatives(workState, candidateState, candidateRep, closeRepresentatives, indent + 4);
+  std::map<SparseVertex, base::State *> closeRepresentatives;  // [nearSampledRep, nearSampledState]
+  findCloseRepresentatives(workState, candidateState, candidateRep, closeRepresentatives, indent + 2);
 
   if (closeRepresentatives.size())
   {
-    BOLT_GREEN_DEBUG(indent + 2, "back in checkAddQuality(): Found " << closeRepresentatives.size() << " close representatives ---------------------------");
+    BOLT_GREEN_DEBUG(indent, "back in checkAddQuality(): Found " << closeRepresentatives.size()
+                                                                     << " close representatives");
   }
   else
   {
-    BOLT_RED_DEBUG(indent + 2, "back in checkAddQuality(): Found " << closeRepresentatives.size() << " close representatives ---------------------------");
+    BOLT_RED_DEBUG(indent, "back in checkAddQuality(): Found " << closeRepresentatives.size() << " close "
+                                                                                                     "representatives");
   }
+
+  bool updated = false; // track whether a change was made to any vertices' representatives
 
   // For each pair of close representatives
   for (std::map<SparseVertex, base::State *>::iterator it = closeRepresentatives.begin();
        it != closeRepresentatives.end(); ++it)
   {
-    BOLT_DEBUG(indent + 4, " Looping through close representatives");
-    base::State *nearSampledState = it->second; // paper: q'
-    SparseVertex nearSampledRep = it->first; // paper: v'
+    BOLT_DEBUG(indent + 2, "Looping through close representatives");
+    base::State *nearSampledState = it->second;  // paper: q'
+    SparseVertex nearSampledRep = it->first;     // paper: v'
 
-    if (visualizeQualityCriteria_) // Visualization
+    if (visualizeQualityCriteria_)  // Visualization
     {
       visual_->viz3Edge(getSparseState(nearSampledRep), nearSampledState, tools::eRED);
 
@@ -1173,20 +1284,27 @@ bool SparseDB::checkAddQuality(DenseVertex denseV, std::vector<SparseVertex> &gr
     //    3.2. Add the candidateState (q) and nearSampledState (q') as 'first'
 
     // Attempt to update bookkeeping for candidateRep (v)
-    updatePairPoints(candidateRep, candidateState, nearSampledRep, nearSampledState, indent + 4);
+    if (updatePairPoints(candidateRep, candidateState, nearSampledRep, nearSampledState, indent + 2))
+      updated = true;
 
     // ALSO attempt to update bookkeeping for neighboring node nearSampleRep (v')
-    updatePairPoints(nearSampledRep, nearSampledState, candidateRep, candidateState, indent + 4);
-
-    // TODO: track if updatePairPoints() made any changes, and skip checkAddPath if it didn't
+    if (updatePairPoints(nearSampledRep, nearSampledState, candidateRep, candidateState, indent + 2))
+      updated = true;
   }
 
-  BOLT_DEBUG(indent + 2, "Done updating pair points");
+  BOLT_DEBUG(indent, "Done updating pair points");
+
+  if (!updated)
+  {
+    BOLT_DEBUG(indent, "No representatives were updated, so not calling checkAddPath()");
+    added = false;
+    return added;
+  }
 
   // Attempt to find shortest path through closest neighbour
-  if (checkAddPath(candidateRep, indent + 4))
+  if (checkAddPath(candidateRep, indent + 2))
   {
-    BOLT_DEBUG(indent + 2, "nearest visible neighbor added for path ");
+    BOLT_DEBUG(indent, "nearest visible neighbor added for path ");
     added = true;
   }
 
@@ -1194,11 +1312,11 @@ bool SparseDB::checkAddQuality(DenseVertex denseV, std::vector<SparseVertex> &gr
   for (std::map<SparseVertex, base::State *>::iterator it = closeRepresentatives.begin();
        it != closeRepresentatives.end(); ++it)
   {
-    BOLT_YELLOW_DEBUG(indent + 2, "Looping through close representatives to add path ===============");
+    BOLT_YELLOW_DEBUG(indent, "Looping through close representatives to add path ===============");
 
-    base::State *nearSampledState = it->second; // paper: q'
-    SparseVertex nearSampledRep = it->first; // paper: v'
-    checkAddPath(nearSampledRep, indent + 4);
+    base::State *nearSampledState = it->second;  // paper: q'
+    SparseVertex nearSampledRep = it->first;     // paper: v'
+    checkAddPath(nearSampledRep, indent + 2);
 
     // Delete state that was allocated and sampled within this function
     si_->freeState(nearSampledState);
@@ -1206,16 +1324,14 @@ bool SparseDB::checkAddQuality(DenseVertex denseV, std::vector<SparseVertex> &gr
 
   if (added)
   {
-    //std::cout << "temp sleep cause state was added for 4th criteria " << std::endl;
-    //usleep(5*1000000);
-    //exit(0);
+    // std::cout << "temp sleep cause state was added for 4th criteria " << std::endl;
+    // usleep(5*1000000);
+    // exit(0);
 
     // Visualize the interfaces around the candidate rep
     if (numRandSamplesAdded_ > 100)
       visualizeInterfaces(candidateRep);
-
   }
-
 
   return added;
 }
@@ -1239,7 +1355,6 @@ bool SparseDB::checkAddPath(SparseVertex v, std::size_t indent)
   // Loop through adjacent vertices
   for (std::size_t i = 0; i < adjVertices.size() && !spannerPropertyWasViolated; ++i)
   {
-
     SparseVertex vp = adjVertices[i];  // vp = v' from paper
 
     BOLT_DEBUG(indent + 2, "Checking v' = " << vp << " ----------------------------");
@@ -1251,9 +1366,6 @@ bool SparseDB::checkAddPath(SparseVertex v, std::size_t indent)
     foreach (SparseVertex vpp, adjVerticesUnconnected)  // vpp = v'' from paper
     {
       BOLT_DEBUG(indent + 4, "Checking v'' = " << vpp);
-
-      // Computes all nodes which qualify as a candidate x for v, v', and v"
-      double midpointPathLength = maxSpannerPath(v, vp, vpp, indent + 6);
 
       InterfaceData &iData = getData(v, vp, vpp, indent + 6);
 
@@ -1303,27 +1415,100 @@ bool SparseDB::checkAddPath(SparseVertex v, std::size_t indent)
         }
       }
 
+      // Computes all nodes which qualify as a candidate x for v, v', and v"
+      // double midpointPathLength = maxSpannerPath(v, vp, vpp, indent + 6);
+
       // TEMP
       if (iData.hasInterface1() && iData.hasInterface2())
-          BOLT_DEBUG(indent + 6, "Temp recalculated distance: " << si_->distance(iData.interface1Inside_, iData.interface2Inside_));
+      {
+        BOLT_DEBUG(indent + 6,
+                   "Temp recalculated distance: " << si_->distance(iData.interface1Inside_, iData.interface2Inside_));
 
+        // Experimental calculations TEMP
+        double pathLength = 0;
+        std::vector<SparseVertex> vertexPath;
+        if (!astarSearch(vp, vpp, vertexPath, pathLength, indent + 6))
+        {
+          BOLT_RED_DEBUG(indent + 6, "No path found");
+          usleep(4 * 1000000);
+        }
+        else
+        {
+          if (visualizeQualityCriteria_)
+          {
+            visual_->viz6DeleteAllMarkers();
+            assert(vertexPath.size() > 1);
+            for (std::size_t i = 1; i < vertexPath.size(); ++i)
+            {
+              visual_->viz6Edge(getSparseState(vertexPath[i - 1]), getSparseState(vertexPath[i]), tools::eGREEN);
+            }
+          }
+
+          // Add connecting segments:
+          double connector1 = si_->distance(getSparseState(vp), iData.getOutsideInterfaceOfV1(vp, vpp));
+          // TODO(davetcoleman): may want to include the dist from inside to outside of interface
+          BOLT_DEBUG(indent + 6, "connector1 " << connector1);
+          if (visualizeQualityCriteria_)
+          {
+            visual_->viz6Edge(getSparseState(vp), iData.getOutsideInterfaceOfV1(vp, vpp), tools::eORANGE);
+          }
+
+          double connector2 = si_->distance(getSparseState(vpp), iData.getOutsideInterfaceOfV2(vp, vpp));
+          // TODO(davetcoleman): may want to include the dist from inside to outside of interface
+          BOLT_DEBUG(indent + 6, "connector2 " << connector2);
+          if (visualizeQualityCriteria_)
+          {
+            visual_->viz6Edge(getSparseState(vpp), iData.getOutsideInterfaceOfV2(vp, vpp), tools::eYELLOW);
+          }
+
+          pathLength += connector1 + connector2;
+          BOLT_DEBUG(indent + 6, "Full Path Length: " << pathLength);
+
+          visual_->viz6Trigger();
+        }
+
+        if (iData.lastDistance_ == 0)
+        {
+          BOLT_YELLOW_DEBUG(indent + 6, "Last distance is 0");
+        }
+
+        // Theoretical max
+        double theoreticalMaxLength = iData.lastDistance_ + 2 * sparseDelta_;
+        BOLT_DEBUG(indent + 6, "Max allowable length: " << theoreticalMaxLength);
+        theoreticalMaxLength *= stretchFactor_;
+        BOLT_DEBUG(indent + 6, "Max allowable length with stretch: " << theoreticalMaxLength);
+
+        if (pathLength < theoreticalMaxLength)
+        {
+          BOLT_DEBUG(indent + 6, "Astar says we do not need to add an edge");
+        }
+        else
+        {
+          BOLT_RED_DEBUG(indent + 6, "Astar says we need to add an edge");
+
+          // Actually add the vertices and possibly edges
+          checkAddPathHelper(v, vp, vpp, iData, indent + 6);
+
+          // TEMP:
+          visual_->viz5Trigger();
+          usleep(0.001 * 1000000);
+          visual_->waitForUserFeedback();
+        }
+      }
+
+      /*
       // Check if spanner property violated
       // DTC added zero check
       if (iData.lastDistance_ == 0)
       {
         BOLT_RED_DEBUG(indent + 6, "last distance is 0");
-
-        // TEMP
-        // visual_->viz5Trigger();
-        // usleep(0.001 * 1000000);
-        // exit(0);
       }
       else if (stretchFactor_ * iData.lastDistance_ < midpointPathLength)
       {
-        BOLT_YELLOW_DEBUG(indent + 6, "Spanner property violated - the max dist was " << midpointPathLength);
+        BOLT_YELLOW_DEBUG(indent + 6, "Spanner property violated, midpointPathLength = " << midpointPathLength);
         BOLT_DEBUG(indent + 8, "stretch factor dist = " << (stretchFactor_ * iData.lastDistance_));
-        BOLT_DEBUG(indent + 8, "last distance = " << iData.lastDistance_);
-        BOLT_DEBUG(indent + 8, "stretch factor = " << stretchFactor_);
+        BOLT_DEBUG(indent + 10, "last distance = " << iData.lastDistance_);
+        BOLT_DEBUG(indent + 10, "stretch factor = " << stretchFactor_);
 
         spannerPropertyWasViolated = true;
 
@@ -1334,11 +1519,12 @@ bool SparseDB::checkAddPath(SparseVertex v, std::size_t indent)
         visual_->viz5Trigger();
         usleep(0.001 * 1000000);
         visual_->waitForUserFeedback();
-        //std::cout << "shutting down for viz of checkAddPath " << std::endl;
-        //exit(0);
+        // std::cout << "shutting down for viz of checkAddPath " << std::endl;
+        // exit(0);
       }
       else
         BOLT_DEBUG(indent + 6, "Spanner property not violated");
+      */
 
       if (visualizeQualityCriteria_)
       {
@@ -1346,8 +1532,8 @@ bool SparseDB::checkAddPath(SparseVertex v, std::size_t indent)
         usleep(0.001 * 1000000);
       }
 
-    } // foreach vpp
-  } // foreach vp
+    }  // foreach vpp
+  }    // foreach vp
 
   if (!spannerPropertyWasViolated)
   {
@@ -1357,7 +1543,8 @@ bool SparseDB::checkAddPath(SparseVertex v, std::size_t indent)
   return spannerPropertyWasViolated;
 }
 
-bool SparseDB::checkAddPathHelper(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent)
+bool SparseDB::checkAddPathHelper(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
+                                  std::size_t indent)
 {
   BOLT_CYAN_DEBUG(indent, "checkAddPathHelper()");
   indent += 2;
@@ -1372,8 +1559,8 @@ bool SparseDB::checkAddPathHelper(SparseVertex v, SparseVertex vp, SparseVertex 
   else
   {
     BOLT_RED_DEBUG(indent, "PATH GEOMETRIC skipping");
-    return true; // TODO(davetcoleman):
-    //exit(0);
+    return true;  // TODO(davetcoleman):
+    // exit(0);
 
     geometric::PathGeometric *path = new geometric::PathGeometric(si_);
     if (vp < vpp)
@@ -1439,9 +1626,9 @@ SparseVertex SparseDB::findGraphRepresentative(base::State *state, std::size_t i
   const std::size_t threadID = 0;
 
   // Search
-  getSparseState(queryVertices_[threadID]) = state;
+  getSparseStateNonConst(queryVertices_[threadID]) = state;
   nn_->nearestR(queryVertices_[threadID], sparseDelta_, graphNeighbors);
-  getSparseState(queryVertices_[threadID]) = nullptr;
+  getSparseStateNonConst(queryVertices_[threadID]) = nullptr;
 
   BOLT_DEBUG(indent + 2, "Found " << graphNeighbors.size() << " nearest neighbors (graph rep) within SparseDelta "
                                   << sparseDelta_);
@@ -1470,7 +1657,7 @@ void SparseDB::findCloseRepresentatives(base::State *workState, const base::Stat
   BOLT_BLUE_DEBUG(indent, "findCloseRepresentatives()");
   BOLT_DEBUG(indent + 2, "nearSamplePoints: " << nearSamplePoints_ << " denseDelta: " << denseDelta_);
   const bool visualizeSampler = false;
-  base::State *sampledState = workState; // rename variable just to clarify what it represents temporarily
+  base::State *sampledState = workState;  // rename variable just to clarify what it represents temporarily
 
   assert(closeRepresentatives.empty());
 
@@ -1486,7 +1673,7 @@ void SparseDB::findCloseRepresentatives(base::State *workState, const base::Stat
       BOLT_DEBUG(indent + 4, "Sample attempt " << attempt);
 
       sampler_->sampleNear(sampledState, candidateState, denseDelta_);
-      si_->getStateSpace()->setLevel(sampledState, 0); // TODO no hardcode
+      si_->getStateSpace()->setLevel(sampledState, 0);  // TODO no hardcode
 
       if (!si_->isValid(sampledState))
       {
@@ -1581,10 +1768,11 @@ void SparseDB::findCloseRepresentatives(base::State *workState, const base::Stat
   }  // for each supporting representative
 }
 
-void SparseDB::updatePairPoints(SparseVertex candidateRep, const base::State *candidateState,
+bool SparseDB::updatePairPoints(SparseVertex candidateRep, const base::State *candidateState,
                                 SparseVertex nearSampledRep, const base::State *nearSampledState, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, "updatePairPoints()");
+  bool updated = false; // track whether a change was made to any vertices' representatives
 
   // First of all, we need to compute all candidate r'
   std::vector<SparseVertex> adjVerticesUnconnected;
@@ -1592,8 +1780,13 @@ void SparseDB::updatePairPoints(SparseVertex candidateRep, const base::State *ca
 
   // for each pair Pv(r,r')
   foreach (SparseVertex adjVertexUnconnected, adjVerticesUnconnected)
+  {
     // Try updating the pair info
-    distanceCheck(candidateRep, candidateState, nearSampledRep, nearSampledState, adjVertexUnconnected, indent + 2);
+    if (distanceCheck(candidateRep, candidateState, nearSampledRep, nearSampledState, adjVertexUnconnected, indent + 2))
+      updated = true;
+  }
+
+  return updated;
 }
 
 void SparseDB::getAdjVerticesOfV1UnconnectedToV2(SparseVertex v1, SparseVertex v2,
@@ -1615,21 +1808,27 @@ double SparseDB::maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vp
   BOLT_BLUE_DEBUG(indent, "maxSpannerPath()");
   indent += 2;
 
-  // Candidate x vertices as described in the method, filled by function maxSpannerPath().
+  // Candidate x vertices as described in paper in Max_Spanner_Path
   std::vector<SparseVertex> qualifiedVertices;
 
-  foreach (SparseVertex adjVertex, boost::adjacent_vertices(vpp, g_))
+  // Get nearby vertices 'x' that could also be used to find the path to v''
+  foreach (SparseVertex x, boost::adjacent_vertices(vpp, g_))
   {
-    if (hasEdge(adjVertex, v) && !hasEdge(adjVertex, vp))
+    if (hasEdge(x, v) && !hasEdge(x, vp))
     {
-      InterfaceData &iData = getData(v, vpp, adjVertex, indent + 4);
+      InterfaceData &iData = getData(v, vpp, x, indent + 4);
 
-      // DTC: Check if we previously had found a pair of points that support this interface
-      if ((vpp < adjVertex && iData.interface1Inside_) || (adjVertex < vpp && iData.interface2Inside_))
+      // Check if we previously had found a pair of points that support this interface
+      if ((vpp < x && iData.interface1Inside_) || (x < vpp && iData.interface2Inside_))
       {
-        BOLT_GREEN_DEBUG(indent, "Found an additional qualified vertex!");
-        // We have, so we need to check if we've found a better pair of points
-        qualifiedVertices.push_back(adjVertex);
+        BOLT_RED_DEBUG(indent, "Found an additional qualified vertex!");
+        // This is a possible alternative path to v''
+        qualifiedVertices.push_back(x);
+
+        if (visualizeQualityCriteria_)
+        {
+          visual_->viz5State(getSparseState(x), tools::LARGE, tools::BLACK, 0);
+        }
       }
     }
   }
@@ -1648,7 +1847,8 @@ double SparseDB::maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vp
       visual_->viz5State(getSparseState(qualifiedVertex), tools::SMALL, tools::PINK, 0);
 
     double tempDist = (si_->distance(getSparseState(vp), getSparseState(v)) +
-                       si_->distance(getSparseState(v), getSparseState(qualifiedVertex))) / 2.0;
+                       si_->distance(getSparseState(v), getSparseState(qualifiedVertex))) /
+                      2.0;
     // do we divide by 2 because of the midpoint path?? TODO(davetcoleman): figure out this proof
     if (tempDist > maxDist)
     {
@@ -1678,67 +1878,133 @@ InterfaceData &SparseDB::getData(SparseVertex v, SparseVertex vp, SparseVertex v
   return interfaceDataProperty_[v][index(vp, vpp)];
 }
 
-void SparseDB::distanceCheck(SparseVertex v, const base::State *q, SparseVertex vp,
-                             const base::State *qp, SparseVertex vpp, std::size_t indent)
+bool SparseDB::distanceCheck(SparseVertex v, const base::State *q, SparseVertex vp, const base::State *qp,
+                             SparseVertex vpp, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, "distanceCheck()");
   indent += 2;
+
+  bool updated = false; // track whether a change was made to any vertices' representatives
 
   // Get the info for the current representative-neighbors pair
   InterfaceData &iData = getData(v, vp, vpp, indent + 4);
 
   if (vp < vpp)  // FIRST points represent r (the interface discovered through sampling)
   {
-    if (!iData.hasInterface1())  // If the point we're considering replacing (P_v(r,.)) isn't there
-    { // we know we're doing better, so add it
+    if (!iData.hasInterface1())  // No previous interface has been found here, just save it
+    {
       BOLT_DEBUG(indent, "setInterface1");
       iData.setInterface1(q, qp, si_);
-    }
-    else  // Otherwise there is already an interface 1
-    {
-      if (!iData.hasInterface2())  // But if the other interface doesn't exist, we can't compare.
+      updated = true;
+
+      if (iData.lastDistance_ == 0 && false)
       {
-        // Should probably keep the one that is further away from rep?  Not known what to do in this case.
-        // TODO: is this not part of the algorithm?
-        BOLT_RED_DEBUG(indent, "TODO no pointB");
+          BOLT_YELLOW_DEBUG(indent, "Last distance is 0");
+          si_->getStateSpace()->printState(iData.interface1Inside_, std::cout);
+          si_->getStateSpace()->printState(iData.interface2Inside_, std::cout);
+
+          visual_->viz2State(iData.interface1Inside_, tools::LARGE, tools::RED, 0);
+          visual_->viz2Trigger();
+
+          visual_->waitForUserFeedback();
       }
-      // We know both of these points exist, so we can check some distances
-      // TODO(davetcoleman): why does it not use lastDistance_ here???
-      else if (si_->distance(q, iData.interface2Inside_) < si_->distance(iData.interface1Inside_, iData.interface2Inside_))
-      { // Distance with the new point is good, so set it.
+    }
+    else if (!iData.hasInterface2())  // The other interface doesn't exist, so we can't compare.
+    {
+      // Should probably keep the one that is further away from rep?  Not known what to do in this case.
+      // TODO: is this not part of the algorithm?
+      BOLT_YELLOW_DEBUG(indent, "TODO no interface 2");
+    }
+    else  // We know both of these points exist, so we can check some distances
+    {
+      assert(iData.lastDistance_ < std::numeric_limits<double>::infinity());
+      if (si_->distance(q, iData.interface2Inside_) < iData.lastDistance_)
+      // si_->distance(iData.interface1Inside_, iData.interface2Inside_))
+      {  // Distance with the new point is good, so set it.
         BOLT_GREEN_DEBUG(indent, "setInterface1 UPDATED");
         iData.setInterface1(q, qp, si_);
+        updated = true;
+
+        if (iData.lastDistance_ == 0 && false)
+        {
+          BOLT_YELLOW_DEBUG(indent, "Last distance is 0");
+          si_->getStateSpace()->printState(iData.interface1Inside_, std::cout);
+          si_->getStateSpace()->printState(iData.interface2Inside_, std::cout);
+
+          visual_->viz2State(iData.interface1Inside_, tools::LARGE, tools::RED, 0);
+          visual_->viz2Trigger();
+
+          visual_->waitForUserFeedback();
+        }
       }
       else
+      {
         BOLT_DEBUG(indent, "Distance was not better, not updating bookkeeping");
+      }
     }
   }
   else  // SECOND points represent r (the interfaec discovered through sampling)
   {
-    if (!iData.hasInterface2())  // If the point we're considering replacing (P_V(.,r)) isn't there...
+    if (!iData.hasInterface2())  // No previous interface has been found here, just save it
     {
       BOLT_DEBUG(indent, "setInterface2");
-      // we must be doing better, so add it
       iData.setInterface2(q, qp, si_);
-    }
-    else   // Otherwise there is already an interface 2
-    {
-      if (!iData.hasInterface1())  // But if the other interface doesn't exist, we can't compare.
+      updated = true;
+
+      if (iData.lastDistance_ == 0 && false)
       {
-        // Should we be doing something cool here?
-        BOLT_RED_DEBUG(indent, "TODO");
+          BOLT_YELLOW_DEBUG(indent, "Last distance is 0");
+          si_->getStateSpace()->printState(iData.interface1Inside_, std::cout);
+          si_->getStateSpace()->printState(iData.interface2Inside_, std::cout);
+
+          visual_->viz2State(iData.interface1Inside_, tools::LARGE, tools::RED, 0);
+          visual_->viz2Trigger();
+
+          visual_->waitForUserFeedback();
       }
-      else if (si_->distance(q, iData.interface1Inside_) < si_->distance(iData.interface2Inside_, iData.interface1Inside_))
-      { // Distance with the new point is good, so set it
+    }
+    else if (!iData.hasInterface1())  // The other interface doesn't exist, so we can't compare.
+    {
+      // Should we be doing something cool here?
+      BOLT_YELLOW_DEBUG(indent, "TODO no interface 1");
+    }
+    else  // We know both of these points exist, so we can check some distances
+    {
+      assert(iData.lastDistance_ < std::numeric_limits<double>::infinity());
+      if (si_->distance(q, iData.interface1Inside_) < iData.lastDistance_)
+      // si_->distance(iData.interface2Inside_, iData.interface1Inside_))
+      {  // Distance with the new point is good, so set it
         BOLT_GREEN_DEBUG(indent, "setInterface2 UPDATED");
         iData.setInterface2(q, qp, si_);
+        updated = true;
+
+        if (iData.lastDistance_ == 0 && false)
+        {
+          BOLT_YELLOW_DEBUG(indent, "Last distance is 0");
+          si_->getStateSpace()->printState(iData.interface1Inside_, std::cout);
+          si_->getStateSpace()->printState(iData.interface2Inside_, std::cout);
+
+          visual_->viz2State(iData.interface1Inside_, tools::LARGE, tools::RED, 0);
+          visual_->viz2Trigger();
+
+          visual_->waitForUserFeedback();
+        }
+      }
+      else
+      {
+        BOLT_DEBUG(indent, "Distance was not better, not updating bookkeeping");
       }
     }
   }
 
   // Lastly, save what we have discovered
-  // TODO(davetcoleman): do we really need to copy this back in or is it already passed by reference?
-  interfaceDataProperty_[v][index(vp, vpp)] = iData;
+  if (updated)
+  {
+    // TODO(davetcoleman): do we really need to copy this back in or is it already passed by reference?
+    interfaceDataProperty_[v][index(vp, vpp)] = iData;
+  }
+
+  return updated;
 }
 
 void SparseDB::abandonLists(base::State *state)
@@ -1747,9 +2013,9 @@ void SparseDB::abandonLists(base::State *state)
   const std::size_t threadID = 0;
 
   // Search
-  getSparseState(queryVertices_[threadID]) = state;
+  getSparseStateNonConst(queryVertices_[threadID]) = state;
   nn_->nearestR(queryVertices_[threadID], sparseDelta_, graphNeighbors);
-  getSparseState(queryVertices_[threadID]) = nullptr;
+  getSparseStateNonConst(queryVertices_[threadID]) = nullptr;
 
   // For each of the vertices
   foreach (SparseVertex v, graphNeighbors)
@@ -1769,9 +2035,9 @@ void SparseDB::findGraphNeighbors(DenseVertex v1, std::vector<SparseVertex> &gra
   base::State *state = getDenseState(v1);
 
   // Search
-  getSparseState(queryVertices_[threadID]) = state;
+  getSparseStateNonConst(queryVertices_[threadID]) = state;
   nn_->nearestR(queryVertices_[threadID], sparseDelta_, graphNeighborhood);
-  getSparseState(queryVertices_[threadID]) = nullptr;
+  getSparseStateNonConst(queryVertices_[threadID]) = nullptr;
 
   // Now that we got the neighbors from the NN, we must remove any we can't see
   for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
@@ -1860,8 +2126,8 @@ SparseVertex SparseDB::addVertex(DenseVertex denseV, const GuardType &type)
     else
       OMPL_ERROR("Unknown mode");
 
-    if (type == COVERAGE)
-      visual_->viz2State(getSparseState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
+    // if (type == COVERAGE)
+    // visual_->viz2State(getSparseState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
 
     if (type == QUALITY)
       visual_->viz2State(getSparseState(v), tools::LARGE, color, 0);
@@ -1876,6 +2142,9 @@ SparseVertex SparseDB::addVertex(DenseVertex denseV, const GuardType &type)
 
     if (visualizeOverlayNodes_)  // after initial spars graph is created, show additions not from grid
     {
+      if (useFourthCriteria_)
+        visual_->vizVoronoiDiagram();
+
       visual_->viz4State(getSparseState(v), tools::MEDIUM, color, sparseDelta_);
       visual_->viz4Trigger();
       usleep(0.001 * 1000000);
@@ -1944,7 +2213,7 @@ void SparseDB::addEdge(SparseVertex v1, SparseVertex v2, std::size_t visualColor
       usleep(visualizeSparsGraphSpeed_ * 1000000);
     }
 
-    //if (visualizeOverlayNodes_)  // after initial spars graph is created, show additions not from grid
+    // if (visualizeOverlayNodes_)  // after initial spars graph is created, show additions not from grid
     if (visualColor == tools::eRED)
     {
       visual_->viz4Edge(getSparseState(v1), getSparseState(v2), visualColor);
@@ -1954,12 +2223,12 @@ void SparseDB::addEdge(SparseVertex v1, SparseVertex v2, std::size_t visualColor
   }
 }
 
-base::State *&SparseDB::getSparseState(SparseVertex v)
+base::State *&SparseDB::getSparseStateNonConst(SparseVertex v)
 {
   return denseDB_->stateProperty_[denseVertexProperty_[v]];
 }
 
-const base::State *SparseDB::getSparseStateConst(SparseVertex v) const
+const base::State *SparseDB::getSparseState(SparseVertex v) const
 {
   return denseDB_->stateProperty_[denseVertexProperty_[v]];
 }
@@ -1998,8 +2267,7 @@ void SparseDB::displaySparseDatabase(bool showVertices)
       // TODO(davetcoleman): currently the weight property is not normalized for 0-100 scale so not using for
       // visualization
       // Visualize
-      visual_->viz2Edge(getSparseStateConst(v1), getSparseStateConst(v2),
-                        tools::eRED);  // edgeWeightPropertySparse_[e]);
+      visual_->viz2Edge(getSparseState(v1), getSparseState(v2), tools::eRED);  // edgeWeightPropertySparse_[e]);
 
       // Prevent cache from getting too big
       if (count % debugFrequency == 0)
@@ -2023,10 +2291,10 @@ void SparseDB::displaySparseDatabase(bool showVertices)
     foreach (SparseVertex v, boost::vertices(g_))
     {
       // Check for null states
-      if (getSparseStateConst(v))
+      if (getSparseState(v))
       {
-        visual_->viz2State(getSparseStateConst(v), tools::SMALL, tools::BLUE, 1);
-        // visual_->viz2State(getSparseStateConst(v), /*popularity0-100*/ 7, vertexPopularity_[v]);
+        visual_->viz2State(getSparseState(v), tools::SMALL, tools::BLUE, 1);
+        // visual_->viz2State(getSparseState(v), /*popularity0-100*/ 7, vertexPopularity_[v]);
       }
       else if (v > queryVertices_.back())  // query vertex should always be null, actually
         OMPL_WARN("Null sparse state found on vertex %u", v);
@@ -2053,7 +2321,7 @@ double SparseDB::distanceFunction(const SparseVertex a, const SparseVertex b) co
   // const double dist = si_->distance(getSparseState(a), getSparseState(b));
   // std::cout << "getting distance from " << a << " to " << b << " of value " << dist << std::endl;
   // return dist;
-  return si_->distance(getSparseStateConst(a), getSparseStateConst(b));
+  return si_->distance(getSparseState(a), getSparseState(b));
 }
 
 double SparseDB::getSecondarySparseDelta()
@@ -2076,8 +2344,7 @@ void SparseDB::visualizeInterfaces(SparseVertex v)
   visual_->viz6DeleteAllMarkers();
   visual_->viz6State(getSparseState(v), tools::LARGE, tools::RED, 0);
 
-
-  for ( auto it = interfaceHash.begin(); it != interfaceHash.end(); ++it )
+  for (auto it = interfaceHash.begin(); it != interfaceHash.end(); ++it)
   {
     const VertexPair &pair = it->first;
     InterfaceData &iData = it->second;
@@ -2087,7 +2354,7 @@ void SparseDB::visualizeInterfaces(SparseVertex v)
 
     visual_->viz6State(getSparseState(v1), tools::LARGE, tools::PURPLE, 0);
     visual_->viz6State(getSparseState(v2), tools::LARGE, tools::PURPLE, 0);
-    //visual_->viz6Edge(getSparseState(v1), getSparseState(v2), tools::eGREEN);
+    // visual_->viz6Edge(getSparseState(v1), getSparseState(v2), tools::eGREEN);
 
     if (iData.hasInterface1())
     {
@@ -2116,16 +2383,16 @@ void SparseDB::visualizeInterfaces(SparseVertex v)
   usleep(0.1 * 1000000);
 }
 
-SparseVertex SparseDB::getSparseRepresentative(base::State* state)
+SparseVertex SparseDB::getSparseRepresentative(base::State *state)
 {
   std::vector<SparseVertex> graphNeighbors;
   const std::size_t threadID = 0;
   const std::size_t numNeighbors = 1;
 
   // Search
-  getSparseState(queryVertices_[threadID]) = state;
+  getSparseStateNonConst(queryVertices_[threadID]) = state;
   nn_->nearestK(queryVertices_[threadID], numNeighbors, graphNeighbors);
-  getSparseState(queryVertices_[threadID]) = nullptr;
+  getSparseStateNonConst(queryVertices_[threadID]) = nullptr;
 
   if (graphNeighbors.empty())
   {
