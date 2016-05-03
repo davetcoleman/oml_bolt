@@ -87,7 +87,7 @@ class BoltRetrieveRepair : public base::Planner
 {
 public:
   /** \brief Constructor */
-  BoltRetrieveRepair(const base::SpaceInformationPtr &si, const DenseDBPtr &denseDB);
+  BoltRetrieveRepair(const base::SpaceInformationPtr &si, const DenseDBPtr &denseDB, VisualizerPtr visual);
 
   virtual ~BoltRetrieveRepair(void);
 
@@ -233,7 +233,7 @@ protected:
   geometric::PathSimplifierPtr path_simplifier_;
 
   /** \brief Optionally smooth retrieved and repaired paths from database */
-  bool smoothingEnabled_;
+  bool smoothingEnabled_ = true;
 
   /** \brief Used by getPathOffGraph */
   std::vector<bolt::DenseVertex> startVertexCandidateNeighbors_;
@@ -242,9 +242,9 @@ protected:
 public:
 
   /** \brief Output user feedback to console */
-  bool verbose_;
+  bool verbose_ = true;
 
-  int numStartGoalStatesAddedToDense_;
+  int numStartGoalStatesAddedToDense_ = 0;
 };
 }  // namespace bolt
 }  // namespace tools

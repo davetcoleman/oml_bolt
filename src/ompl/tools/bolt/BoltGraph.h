@@ -461,16 +461,16 @@ struct WeightedVertex
   {
   }
 
-  bool operator==(const WeightedVertex& wv) const
-  {
-    return wv.v_ == v_;
-  }
+  // bool operator==(const WeightedVertex& wv) const
+  // {
+  //   return wv.v_ == v_;
+  // }
 
-  template <typename Archive>
-  void serialize(Archive& ar, const unsigned int /*version*/)
-  {
-    ar& v_;
-  }
+  // template <typename Archive>
+  // void serialize(Archive& ar, const unsigned int /*version*/)
+  // {
+  //   ar& v_;
+  // }
 
   DenseVertex v_;
   double weight_;

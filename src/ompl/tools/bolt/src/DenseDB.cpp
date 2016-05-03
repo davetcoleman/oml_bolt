@@ -292,6 +292,7 @@ bool DenseDB::save()
 
 bool DenseDB::generateGrid()
 {
+  std::cout << "generateGrid called ------------- " << std::endl;
   return discretizer_->generateGrid();
 }
 
@@ -862,7 +863,7 @@ void DenseDB::displayDatabase()
     // Error check
     if (getNumVertices() == 0)
     {
-      OMPL_WARN("Unable to show database because no vertices available");
+      OMPL_WARN("Unable to show complete database because no vertices available");
     }
 
     // Loop through each vertex
@@ -894,7 +895,7 @@ void DenseDB::displayDatabase()
     // Error check
     if (getNumEdges() == 0)
     {
-      OMPL_WARN("Unable to show database because no edges available");
+      OMPL_WARN("Unable to show complete database because no edges available");
     }
     // Loop through each edge
     std::size_t count = 0;

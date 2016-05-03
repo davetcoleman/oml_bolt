@@ -74,7 +74,7 @@ void Bolt::initialize()
   denseDB_.reset(new DenseDB(si_, visual_));
 
   // Load the Retrieve repair database. We do it here so that setRepairPlanner() works
-  boltPlanner_ = BoltRetrieveRepairPtr(new BoltRetrieveRepair(si_, denseDB_));  // TODO(davetcoleman): pass in visual_
+  boltPlanner_ = BoltRetrieveRepairPtr(new BoltRetrieveRepair(si_, denseDB_, visual_));
 
   std::size_t numThreads = boost::thread::hardware_concurrency();
   OMPL_INFORM("Bolt Framework initialized using %u threads", numThreads);

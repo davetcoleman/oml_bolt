@@ -395,11 +395,11 @@ void Discretizer::recursiveDiscretization(std::size_t threadID, std::vector<doub
 
         // Visualize
         // Candidate node has already (just) been added
-        if (threadID < 6)
-        {
-          visual_->vizState(threadID + 1, candidateState, tools::SMALL, tools::GREEN, 1);
-          visual_->vizTrigger(threadID + 1);
-        }
+        // if (threadID < 6)
+        // {
+        //   visual_->vizState(threadID + 1, candidateState, tools::SMALL, tools::GREEN, 1);
+        //   visual_->vizTrigger(threadID + 1);
+        // }
       }
     }
   }

@@ -43,15 +43,17 @@
 #include <ompl/geometric/PathGeometric.h>
 #include <ompl/geometric/PathSimplifier.h>
 #include <ompl/base/Planner.h>
-//#include <ompl/base/State.h>
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/datastructures/NearestNeighbors.h>
 #include <ompl/base/PlannerTerminationCondition.h>
+
+// Bolt
 #include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/DenseDB.h>
 #include <ompl/tools/bolt/BoltGraph.h>
 #include <ompl/tools/bolt/EdgeCache.h>
 #include <ompl/tools/bolt/Debug.h>
+#include <ompl/tools/bolt/VertexDiscretizer.h>
 
 // Boost
 #include <boost/function.hpp>
@@ -201,10 +203,12 @@ public:
   void createSPARSOuterLoop();
   bool createSPARSInnerLoop(std::list<WeightedVertex>& vertexInsertionOrder, std::size_t& sucessfulInsertions);
 
+  void addDiscretizedStates(std::size_t indent);
+
   /** \brief Helper function for choosing the correct method for vertex insertion ordering */
   void getVertexInsertionOrdering(std::list<WeightedVertex>& vertexInsertionOrder);
 
-  void addRandomSamples();
+  void addRandomSamples(std::size_t indent);
 
   /** \brief Helper for counting the number of disjoint sets in the sparse graph */
   std::size_t getDisjointSetsCount(bool verbose = false);
@@ -436,6 +440,8 @@ protected:
 
   std::size_t numConsecutiveFailures_;
 
+  VertexDiscretizerPtr vertexDiscretizer_;
+
 public:
 
   /** \brief Various options for visualizing the algorithmns performance */
@@ -465,6 +471,9 @@ public:
   /** \brief How much the popularity of a node can cause its cost-to-go heuristic to be underestimated */
   double percentMaxExtentUnderestimate_ = 0.01;
 
+  /** \brief See the Sparse graph with discretized samples */
+  bool useDiscretizedSamples_;
+
   /** \brief Change verbosity levels */
   bool vCriteria_ = false;
   bool disjointVerbose_ = true;
@@ -479,7 +488,6 @@ public:
   bool visualizeDatabaseCoverage_ = true;
   bool visualizeVoronoiDiagram_ = true;
   bool visualizeVoronoiDiagramAnimated_ = true;
-  bool visualizeDenseRepresentatives_ = false;  // TODO use this
   bool visualizeNodePopularity_ = false;
 
   /** \brief Method for ordering of vertex insertion */
@@ -488,7 +496,10 @@ public:
   /** \brief For statistics */
   int numGraphGenerations_ = 0;
   int numRandSamplesAdded_ = 0;
-  int numSamplesAddedForFourthCriteria_ = 0;
+  int numSamplesAddedForCoverage_ = 0;
+  int numSamplesAddedForConnectivity_ = 0;
+  int numSamplesAddedForInterface_ = 0;
+  int numSamplesAddedForQuality_ = 0;
   /** \brief Same discretization used in Discretizer */
   double discretization_;
 

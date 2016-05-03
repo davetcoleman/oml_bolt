@@ -60,19 +60,17 @@ namespace tools
 {
 namespace bolt
 {
-BoltRetrieveRepair::BoltRetrieveRepair(const base::SpaceInformationPtr &si, const DenseDBPtr &denseDB)
+BoltRetrieveRepair::BoltRetrieveRepair(const base::SpaceInformationPtr &si, const DenseDBPtr &denseDB,
+                                       VisualizerPtr visual)
   : base::Planner(si, "Bolt_Retrieve_Repair")
   , denseDB_(denseDB)
-  , smoothingEnabled_(true)
-  , verbose_(true)
-  , numStartGoalStatesAddedToDense_(0)
+  , visual_(visual)
 {
   // Copy in needed objects
   sparseDB_ = denseDB_->getSparseDB();
-  visual_ = denseDB_->visual_;
 
-  specs_.approximateSolutions = true;
-  specs_.directed = true;
+  specs_.approximateSolutions = false;
+  specs_.directed = false;
 
   path_simplifier_.reset(new geometric::PathSimplifier(si_));
 }
@@ -407,8 +405,7 @@ bool BoltRetrieveRepair::getPathOnGraph(const std::vector<SparseVertex> &candida
       }
 
       if (verbose_)
-        OMPL_INFORM("    foreach_goal: Checking motion from  %d to %d", actualGoal,
-                    sparseDB_->getSparseState(goal));
+        OMPL_INFORM("    foreach_goal: Checking motion from  %d to %d", actualGoal, sparseDB_->getSparseState(goal));
 
       // Check if our planner is out of time
       if (ptc == true)
@@ -433,7 +430,7 @@ bool BoltRetrieveRepair::getPathOnGraph(const std::vector<SparseVertex> &candida
           usleep(0.1 * 1000000);
         }
 
-        continue; // this is actually not visible
+        continue;  // this is actually not visible
       }
       foundValidGoal = true;
 
@@ -483,7 +480,7 @@ bool BoltRetrieveRepair::lazyCollisionSearch(const SparseVertex &start, const Sp
 {
   // Vector to store candidate paths in before they are converted to PathPtrs
   std::vector<SparseVertex> vertexPath;
-  double distance; // resulting path distance
+  double distance;  // resulting path distance
   const std::size_t indent = 0;
 
   // Make sure that the start and goal aren't so close together that they find the same vertex
@@ -880,7 +877,8 @@ bool BoltRetrieveRepair::canConnect(const base::State *randomState, const base::
   return false;
 }
 
-/*bool BoltRetrieveRepair::astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath)
+/*bool BoltRetrieveRepair::astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex>
+&vertexPath)
 {
   // Hold a list of the shortest path parent to each vertex
   SparseVertex *vertexPredecessors = new SparseVertex[sparseDB_->getNumVertices()];
@@ -905,7 +903,8 @@ bool BoltRetrieveRepair::canConnect(const base::State *randomState, const base::
                         boost::bind(&otb::BoltRetrieveRepair::astarHeuristic, this, _1, goal),  // the heuristic
                         // ability to disable edges (set cost to inifinity):
                         boost::weight_map(SparseEdgeWeightMap(sparseDB_->g_,
-                                                              sparseDB_->edgeCollisionStatePropertySparse_, popularityBias,
+                                                              sparseDB_->edgeCollisionStatePropertySparse_,
+popularityBias,
                                                               popularityBiasEnabled))
                             .predecessor_map(vertexPredecessors)
                             .distance_map(&vertexDistances[0])

@@ -149,6 +149,9 @@ SparseDB::SparseDB(base::SpaceInformationPtr si, DenseDB *denseDB, VisualizerPtr
   // Initialize path simplifier
   pathSimplifier_.reset(new geometric::PathSimplifier(si_));
   pathSimplifier_->freeStates(false);
+
+  // Initialize discretizer
+  vertexDiscretizer_.reset(new VertexDiscretizer(si_, visual_));
 }
 
 SparseDB::~SparseDB(void)
@@ -236,7 +239,7 @@ bool SparseDB::astarSearch(const SparseVertex start, const SparseVertex goal, st
 
     if (isinf(vertexDistances[goal]))  // TODO(davetcoleman): test that this works
     {
-      BOLT_RED_DEBUG(indent, vCriteria_, "Distance to goal is infinity");
+      BOLT_RED_DEBUG(indent, true, "Distance to goal is infinity");
       visual_->waitForUserFeedback();  // TODO(davetcoleman): remove
       foundGoal = false;
     }
@@ -480,22 +483,31 @@ void SparseDB::preprocessSPARSThread(std::size_t threadID, std::size_t numThread
 
 void SparseDB::createSPARS()
 {
+  std::size_t indent = 2;
+
   // Benchmark runtime
   time::point startTime = time::now();
 
-  numSamplesAddedForFourthCriteria_ = 0;
+  numSamplesAddedForQuality_ = 0;
+  numSamplesAddedForConnectivity_ = 0;
+  numSamplesAddedForInterface_ = 0;
+  numSamplesAddedForQuality_ = 0;
+
   numConsecutiveFailures_ = 0;
   useFourthCriteria_ = false; // initially we do not do this step
 
   // Create SPARS
   CALLGRIND_TOGGLE_COLLECT;
 
-  createSPARSOuterLoop();
-  std::cout << "-------------------------------------------------------" << std::endl;
-  std::cout << "-------------------------------------------------------" << std::endl;
-  std::cout << "Starting to add random samples" << std::endl;
+  // Start the graph off with discretized states
+  if (useDiscretizedSamples_)
+  {
+    addDiscretizedStates(indent);
+  }
 
-  addRandomSamples();
+  // Finish the graph with random samples
+  addRandomSamples(indent);
+
   CALLGRIND_TOGGLE_COLLECT;
   CALLGRIND_DUMP_STATS;
 
@@ -512,14 +524,20 @@ void SparseDB::createSPARS()
   OMPL_INFORM("Created SPARS graph                      ");
   OMPL_INFORM("  Vertices:                  %u", getNumVertices());
   OMPL_INFORM("  Edges:                     %u", getNumEdges());
-  OMPL_INFORM("  4th criteria additions:    %u", numSamplesAddedForFourthCriteria_);
   OMPL_INFORM("  Generation time:           %f", duration);
   OMPL_INFORM("  Total generations:         %u", numGraphGenerations_);
   OMPL_INFORM("  Disjoint sets:             %u", numSets);
-  OMPL_INFORM("  Edge collision cache:      %u", edgeCache_->getCacheSize());
-  OMPL_INFORM("  Total collision checks:    %u", edgeCache_->getTotalCollisionChecks());
-  OMPL_INFORM("  Cached collision checks:   %u (%f %)", edgeCache_->getTotalCollisionChecksFromCache(),
+  OMPL_INFORM("  Edge collision cache         ");
+  OMPL_INFORM("    Size:                    %u", edgeCache_->getCacheSize());
+  OMPL_INFORM("    Total checks:            %u", edgeCache_->getTotalCollisionChecks());
+  OMPL_INFORM("    Cached checks:           %u (%f %)", edgeCache_->getTotalCollisionChecksFromCache(),
               edgeCache_->getPercentCachedCollisionChecks());
+  OMPL_INFORM("  Criteria additions:          ");
+  OMPL_INFORM("    Coverage:                %u", numSamplesAddedForCoverage_);
+  OMPL_INFORM("    Connectivity:            %u", numSamplesAddedForConnectivity_);
+  OMPL_INFORM("    Interface:               %u", numSamplesAddedForInterface_);
+  OMPL_INFORM("    Quality:                 %u", numSamplesAddedForQuality_);
+  OMPL_INFORM("  Num random samples added:  %u", numRandSamplesAdded_);
   OMPL_INFORM("-----------------------------------------");
 
   displaySparseDatabase();
@@ -530,10 +548,53 @@ void SparseDB::createSPARS()
   OMPL_INFORM("Finished creating sparse database");
 }
 
+void SparseDB::addDiscretizedStates(std::size_t indent)
+{
+  BOLT_BLUE_DEBUG(indent, true, "addDiscretizedStates()");
+
+  double overlapPercent = 0.75; // 10 % overlap
+  double sparseMultiple = 2 - overlapPercent;
+  double startOffset = sparseDelta_ * 0.5;
+
+  vertexDiscretizer_->setDiscretization(sparseDelta_ * sparseMultiple);
+
+  // Create two levels of grids
+  for (std::size_t i = 0; i < 2; ++i)
+  {
+    OMPL_INFORM("Generating grid iteration %u", i);
+
+    // Set starting value offset
+    if (i == 0)
+      vertexDiscretizer_->setStartingValueOffset(startOffset);
+    else
+      vertexDiscretizer_->setStartingValueOffset(startOffset + vertexDiscretizer_->getDiscretization() / 2.0);
+
+    // Generate verticies
+    vertexDiscretizer_->generate();
+    vertexDiscretizer_->displayVertices();
+
+    // Convert to proper format TODO(davetcoleman): remove the need for this format?
+    std::vector<base::State*> &candidateVertices = vertexDiscretizer_->getCandidateVertices();
+
+    std::list<WeightedVertex> vertexInsertionOrder;
+    for (base::State* state : candidateVertices)
+    {
+      // DenseDB now 'owns' the memory of candidateVertices and will unload it later
+      DenseVertex v = denseDB_->addVertex(state, COVERAGE);
+      vertexInsertionOrder.push_back(WeightedVertex(v, 0));
+    }
+    candidateVertices.clear(); // clear the vector because we've moved all its memory pointers to DenseDB
+    std::size_t sucessfulInsertions;
+    createSPARSInnerLoop(vertexInsertionOrder, sucessfulInsertions);
+    std::cout << "sucessfulInsertions: " << sucessfulInsertions << std::endl;
+  }
+}
+
 void SparseDB::createSPARSOuterLoop()
 {
   std::size_t indent = 2;
 
+  /*
   // Clear the old spars graph
   if (getNumVertices() > queryVertices_.size())
   {
@@ -544,6 +605,7 @@ void SparseDB::createSPARSOuterLoop()
     if (visualizeSparsGraph_)  // Clear visuals
       visual_->viz2DeleteAllMarkers();
   }
+  */
 
   // Reset parameters
   setup();
@@ -708,9 +770,8 @@ void SparseDB::getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInser
   }
 }
 
-void SparseDB::addRandomSamples()
+void SparseDB::addRandomSamples(std::size_t indent)
 {
-  std::size_t indent = 2;
   BOLT_BLUE_DEBUG(indent, true, "addRandomSamples()");
   indent += 2;
 
@@ -1009,7 +1070,6 @@ bool SparseDB::addStateToRoadmap(DenseVertex denseV, SparseVertex &newVertex, Gu
 
     addReason = QUALITY;
     stateAdded = true;
-    numSamplesAddedForFourthCriteria_++;
   }
   else
   {
@@ -1558,7 +1618,6 @@ bool SparseDB::checkAddPathHelper(SparseVertex v, SparseVertex vp, SparseVertex 
   else
   {
     BOLT_RED_DEBUG(indent, true, "PATH GEOMETRIC");
-    visual_->waitForUserFeedback();
 
     geometric::PathGeometric *path = new geometric::PathGeometric(si_);
     if (vp < vpp)
@@ -1611,8 +1670,10 @@ bool SparseDB::checkAddPathHelper(SparseVertex v, SparseVertex vp, SparseVertex 
     }
 
     delete path;
+
+    //std::cout << "after adding path " << std::endl;
+    //visual_->waitForUserFeedback();
   }
-  visual_->waitForUserFeedback();
 
   return true;
 }
@@ -2072,6 +2133,25 @@ SparseVertex SparseDB::addVertex(DenseVertex denseV, const GuardType &type)
   // Add vertex to nearest neighbor structure
   nn_->add(v);
 
+  // Book keeping for what was added
+  switch(type)
+  {
+    case COVERAGE:
+      numSamplesAddedForCoverage_++;
+      break;
+    case CONNECTIVITY:
+      numSamplesAddedForConnectivity_++;
+      break;
+    case INTERFACE:
+      numSamplesAddedForInterface_++;
+      break;
+    case QUALITY:
+      numSamplesAddedForQuality_++;
+      break;
+    default:
+      OMPL_ERROR("Unknown type");
+  }
+
   // Visualize
   if (visualizeSparsGraph_)
   {
@@ -2085,7 +2165,7 @@ SparseVertex SparseDB::addVertex(DenseVertex denseV, const GuardType &type)
     else if (type == QUALITY)
       color = tools::BLUE;
     else
-      OMPL_ERROR("Unknown mode");
+      OMPL_ERROR("Unknown type");
 
     // if (type == COVERAGE)
     if (visualizeDatabaseCoverage_)

@@ -34,29 +34,19 @@ include_directories(
   ${OMPL_INCLUDE_DIRS}
 )
 
-# Secondary Library
-add_library(${PROJECT_NAME}_aux
-  src/ompl/tools/bolt/src/BoltStorage.cpp
-  src/ompl/tools/bolt/src/EdgeCache.cpp
-  src/ompl/tools/bolt/src/Discretizer.cpp
-)
-# Specify libraries to link a library or executable target against
-target_link_libraries(${PROJECT_NAME}_aux
-  ${catkin_LIBRARIES}
-  ${OMPL_LIBRARIES}
-  ${Boost_LIBRARIES}
-)
-
 # Library
 add_library(${PROJECT_NAME}
   src/ompl/tools/bolt/src/Bolt.cpp
   src/ompl/tools/bolt/src/BoltRetrieveRepair.cpp
   src/ompl/tools/bolt/src/DenseDB.cpp
   src/ompl/tools/bolt/src/SparseDB.cpp
+  src/ompl/tools/bolt/src/BoltStorage.cpp
+  src/ompl/tools/bolt/src/EdgeCache.cpp
+  src/ompl/tools/bolt/src/Discretizer.cpp
+  src/ompl/tools/bolt/src/VertexDiscretizer.cpp
 )
 # Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}
-  ${PROJECT_NAME}_aux
   ${catkin_LIBRARIES}
   ${OMPL_LIBRARIES}
   ${Boost_LIBRARIES}
