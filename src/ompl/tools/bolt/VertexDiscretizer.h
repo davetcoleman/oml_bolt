@@ -103,15 +103,26 @@ public:
 
   void displayVertices();
 
-private:
+  /** \brief Set the minimum required distance of sample from nearest obstacle to be considered valid */
+  void setMinimumObstacleClearance(double clearance)
+  {
+    clearance_ = clearance;
+  }
 
+  /** \brief Get the minimum required distance of sample from nearest obstacle to be considered valid */
+  unsigned int getMinimumObstacleClearance() const
+  {
+    return clearance_;
+  }
+
+private:
   /**
    * \brief Generate a grid of vertices across the configuration space
    */
   void generateVertices();
 
   void generateVerticesThread(std::size_t threadID, double startJointValue, double endJointValue,
-                          base::SpaceInformationPtr si);
+                              base::SpaceInformationPtr si);
 
   void recursiveDiscretization(std::size_t threadID, std::vector<double>& values, std::size_t jointID,
                                base::SpaceInformationPtr si, base::State* candidateState,
@@ -136,6 +147,9 @@ private:
 
   /** \brief Where to begin each dimension */
   double startingValueOffset_ = 0;
+
+  /** \brief Minimum required distance of state from nearest obstacle to be considered valid */
+  double clearance_;
 
 public:
   /** \brief Various options for visualizing the algorithmns performance */

@@ -46,6 +46,7 @@
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/datastructures/NearestNeighbors.h>
 #include <ompl/base/PlannerTerminationCondition.h>
+#include <ompl/base/samplers/MinimumClearanceValidStateSampler.h>
 
 // Bolt
 #include <ompl/tools/debug/Visualizer.h>
@@ -249,8 +250,16 @@ public:
    *         Referred to as 'Test_Add_paths' in paper
    */
   bool checkAddPath(SparseVertex v, std::size_t indent);
+  bool addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
 
-  bool checkAddPathHelper(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
+  /** \brief As described in paper */
+  bool spannerTestOriginal(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
+
+  /** \brief Slight modification */
+  bool spannerTestOuter(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
+
+  /** \brief Using Astar to find shortest path */
+  bool spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
 
   /** \brief Finds the representative of the input state, st  */
   SparseVertex findGraphRepresentative(base::State* st, std::size_t indent);
@@ -314,7 +323,7 @@ public:
   SparseVertex addVertex(DenseVertex denseV, const GuardType& type);
 
   /** \brief Add edge to graph */
-  void addEdge(SparseVertex v1, SparseVertex v2, std::size_t visualColor, std::size_t indent);
+  SparseEdge addEdge(SparseVertex v1, SparseVertex v2, std::size_t visualColor, std::size_t indent);
 
   std::size_t getVizVertexType(const GuardType& type);
 
@@ -339,6 +348,7 @@ public:
   bool hasEdge(SparseVertex v1, SparseVertex v2);
 
   void visualizeInterfaces(SparseVertex v, std::size_t indent);
+  void visualizeAllInterfaces(std::size_t indent);
 
   SparseVertex getSparseRepresentative(base::State* state);
 
@@ -383,9 +393,6 @@ protected:
   /** \brief Vertices for performing nearest neighbor queries on multiple threads */
   std::vector<SparseVertex> queryVertices_;
 
-  /** \brief Geometric Path variable used for smoothing out paths. */
-  geometric::PathGeometric smoothingGeomPath_;
-
   /** \brief Access to the weights of each Edge */
   boost::property_map<SparseGraph, boost::edge_weight_t>::type edgeWeightPropertySparse_;
 
@@ -412,7 +419,8 @@ protected:
   geometric::PathSimplifierPtr pathSimplifier_;
 
   /** \brief Sampler user for generating valid samples in the state space */
-  base::ValidStateSamplerPtr sampler_;
+  //base::ValidStateSamplerPtr sampler_
+  base::MinimumClearanceValidStateSamplerPtr sampler_;
 
   /** \brief Special flag for tracking mode when inserting into sparse graph */
   bool secondSparseInsertionAttempt_ = false;
@@ -431,6 +439,9 @@ protected:
 
   /** \brief Cache the maximum extent for later re-use */
   double maxExtent_;
+
+  /** \brief Distance between nodes for 1st pass, the offset and reused again for 2nd pass */
+  double discretization_;
 
   bool useFourthCriteria_;
 
@@ -457,7 +468,7 @@ public:
   double sparseDeltaFraction_ = 0.25;
 
   /** \brief Multiply this number by the dimension of the state space to choose how much sampling to perform */
-  std::size_t nearSamplePointsMultiple_ = 2;
+  double nearSamplePointsMultiple_ = 2.0;
 
   /** \brief The stretch factor in terms of graph spanners for SPARS to check against */
   double stretchFactor_ = 3.0;
@@ -471,11 +482,16 @@ public:
   /** \brief How much the popularity of a node can cause its cost-to-go heuristic to be underestimated */
   double percentMaxExtentUnderestimate_ = 0.01;
 
-  /** \brief See the Sparse graph with discretized samples */
+  /** \brief Generate the Sparse graph with discretized and/or random samples */
   bool useDiscretizedSamples_;
+  bool useRandomSamples_;
+
+  /** \brief Clearance of obstacles in order to be considered "cl-robust" as described in paper */
+  double obstacleClearance_ = 1;
 
   /** \brief Change verbosity levels */
   bool vCriteria_ = false;
+  bool vQuality_ = false;
   bool disjointVerbose_ = true;
   bool fourthCheckVerbose_ = true;
 
@@ -500,8 +516,6 @@ public:
   int numSamplesAddedForConnectivity_ = 0;
   int numSamplesAddedForInterface_ = 0;
   int numSamplesAddedForQuality_ = 0;
-  /** \brief Same discretization used in Discretizer */
-  double discretization_;
 
   bool testingBool_;
 };  // end of class SparseDB

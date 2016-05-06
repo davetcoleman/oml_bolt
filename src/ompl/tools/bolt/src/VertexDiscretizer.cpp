@@ -67,7 +67,7 @@ VertexDiscretizer::VertexDiscretizer(base::SpaceInformationPtr si, VisualizerPtr
   numThreads_ = boost::thread::hardware_concurrency();
 
   // Debugging
-  if (false)
+  if (true)
   {
     OMPL_WARN("Overriding number of threads for testing to 1");
     numThreads_ = 1;
@@ -225,7 +225,10 @@ void VertexDiscretizer::generateVerticesThread(std::size_t threadID, double star
   const std::size_t dim = si->getStateSpace()->getDimension();
   if (dim == 3)
   {
-    maxDiscretizationLevel = 1;  // because the third level (numbered '2') is for task space
+    // maxDiscretizationLevel = 1;  // because the third level (numbered '2') is for task space
+    // values[2] = 0.0;             // task space
+
+    maxDiscretizationLevel = 2;  // because the third level (numbered '2') is for task space
     values[2] = 0.0;             // task space
   }
   else if (dim == 6 && false)
@@ -321,17 +324,29 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
       si->getStateSpace()->populateState(candidateState, values);
 
       // Collision check
-      if (!si->isValid(candidateState))
+      double dist;
+      if (!si->getStateValidityChecker()->isValid(candidateState, dist))
       {
-        // OMPL_ERROR("Found a state that is not valid! ");
-
         // Visualize
-        // if (visualizeGridGeneration_)
-        // {
-        //   // Candidate node has already (just) been added
-        //   visual_->vizState(threadID+1, candidateState, /*red arm*/ 3, 1);
-        //   visual_->vizTrigger(threadID+1);
-        // }
+        if (visualizeGridGeneration_)
+        {
+          // Candidate node rejected
+          visual_->viz1State(candidateState, tools::SMALL, tools::RED, 0);
+          visual_->vizTrigger(threadID+1);
+        }
+
+        continue;
+      }
+
+      if (dist < clearance_)
+      {
+        // Visualize
+        if (visualizeGridGeneration_ || true)
+        {
+          // Candidate node rejected
+          visual_->viz1State(candidateState, tools::SMALL, tools::RED, 0);
+          visual_->vizTrigger(threadID+1);
+        }
 
         continue;
       }
@@ -374,7 +389,7 @@ void VertexDiscretizer::displayVertices()
   OMPL_INFORM("Displaing vertex discretizer vertices");
   for (std::size_t i = 0; i < candidateVertices_.size(); ++i)
   {
-    visual_->viz1State(candidateVertices_[i], tools::SMALL, tools::BLACK, 0);
+    visual_->viz1State(candidateVertices_[i], tools::LARGE, tools::BLACK, 0);
   }
   visual_->viz1Trigger();
 }
