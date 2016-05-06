@@ -134,9 +134,6 @@ private:
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;
 
-  /** \brief Show more debug info */
-  bool verbose_ = false;
-
   /** \brief Prevent two vertices from being added to graph at same time */
   boost::mutex vertexMutex_;
 
@@ -155,6 +152,9 @@ private:
   double clearance_;
 
 public:
+  /** \brief Show more debug info */
+  bool verbose_ = false;
+
   /** \brief Various options for visualizing the algorithmns performance */
   bool visualizeGridGeneration_ = true;
 

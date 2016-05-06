@@ -241,6 +241,7 @@ public:
   bool checkAddQuality(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
                        std::vector<SparseVertex>& visibleNeighborhood, base::State* workState, SparseVertex& newVertex,
                        std::size_t indent);
+  void visualizeCheckAddQuality(base::State *candidateState, SparseVertex candidateRep);
 
   /* ----------------------------------------------------------------------------------------*/
   // 4th Criteria
@@ -250,6 +251,8 @@ public:
    *         Referred to as 'Test_Add_paths' in paper
    */
   bool checkAddPath(SparseVertex v, std::size_t indent);
+  void visualizeCheckAddPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData);
+
   bool addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
 
   /** \brief As described in paper */
@@ -350,6 +353,12 @@ public:
   void visualizeInterfaces(SparseVertex v, std::size_t indent);
   void visualizeAllInterfaces(std::size_t indent);
 
+  /** \brief Count total number of states that are used for defining boundary regions of visibility interfaces
+   *  \return first  - total num states
+   *          second - num missing interfaces
+   */
+  std::pair<std::size_t, std::size_t> getInterfaceStateStorageSize();
+
   SparseVertex getSparseRepresentative(base::State* state);
 
   /** \brief Custom A* visitor statistics */
@@ -366,6 +375,12 @@ public:
   VisualizerPtr getVisual()
   {
     return visual_;
+  }
+
+  /** \brief Getter for vertexDiscretizer */
+  VertexDiscretizerPtr& getVertexDiscretizer()
+  {
+    return vertexDiscretizer_;
   }
 
 protected:
@@ -458,6 +473,8 @@ protected:
   std::size_t numConsecutiveFailures_;
 
   VertexDiscretizerPtr vertexDiscretizer_;
+
+  double ignoreEdgesSmallerThan_ = 32.502; //27.7171;
 
 public:
 
