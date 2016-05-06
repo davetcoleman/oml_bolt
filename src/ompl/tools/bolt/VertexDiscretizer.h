@@ -134,6 +134,9 @@ private:
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;
 
+  /** \brief Show more debug info */
+  bool verbose_ = false;
+
   /** \brief Prevent two vertices from being added to graph at same time */
   boost::mutex vertexMutex_;
 
@@ -153,7 +156,7 @@ private:
 
 public:
   /** \brief Various options for visualizing the algorithmns performance */
-  bool visualizeGridGeneration_ = false;
+  bool visualizeGridGeneration_ = true;
 
 };  // end of class VertexDiscretizer
 

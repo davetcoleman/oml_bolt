@@ -169,40 +169,62 @@ void SparseDB::freeMemory()
 
 bool SparseDB::setup()
 {
-  const std::size_t indent = 2;
+  const std::size_t indent = 0;
 
-  // Calculate variables for the graph
+  // Dimensions / joints
+  std::size_t dim = si_->getStateDimension();
+
+  // Max distance across configuration space
   maxExtent_ = si_->getMaximumExtent();
 
-  // sparseDelta_ = sparseDeltaFraction_ * discretization_;  // sparseDelta should be a multiple of discretization
+  // Vertex visibility region size
   sparseDelta_ = sparseDeltaFraction_ * maxExtent_;
+
+  // Sampling for interfaces visibility size
   denseDelta_ = denseDeltaFraction_ * maxExtent_;
+
+  // Number of points to test for interfaces around a sample for the quality criterion
   nearSamplePoints_ = nearSamplePointsMultiple_ * si_->getStateDimension();
 
-  BOLT_DEBUG(indent, 1, "Max Extent         = " << maxExtent_);
-  BOLT_DEBUG(indent, 1, "Sparse Delta       = " << sparseDelta_);
-  BOLT_DEBUG(indent, 1, "Dense Delta        = " << denseDelta_);
-  BOLT_DEBUG(indent, 1, "State Dimension    = " << si_->getStateDimension());
-  BOLT_DEBUG(indent, 1, "Near Sample Points = " << nearSamplePoints_);
+  // Discretization for initial input into sparse graph
+  //double sparseMultiple = si_->getStateDimension() * magicMultiple_;
+  double sparseMultiple = 1.25;
+
+  if (false) // Method 1
+  {
+    discretization_ = sparseDelta_ * sparseMultiple;
+  }
+  else // Method 2
+  {
+    penetrationDistance_ = magicMultiple_; //0.01; // TODO(davetcoleman): how to choose this
+    const double discFactor = sparseDelta_ - penetrationDistance_;
+    discretization_ = 2 * sqrt( std::pow(discFactor, 2) / dim);
+  }
+
+  // Calculate optimum stretch factor
+  //stretchFactor_ = discretization_ / (0.5 * discretization_ * sqrt(2) - 2.0 * denseDelta_);
+  nearestDVertex_ = sqrt(dim * std::pow(0.5 * discretization_, 2));
+  stretchFactor_ = discretization_ / ( nearestDVertex_ - 2.0 * denseDelta_);
+  stretchFactor_ = 1.8;
+
+  BOLT_DEBUG(indent, 1, "--------------------------------------------------");
+  BOLT_DEBUG(indent, 1, "Sparse DB Setup:");
+  BOLT_DEBUG(indent + 2, 1, "Max Extent              = " << maxExtent_);
+  BOLT_DEBUG(indent + 2, 1, "Sparse Delta            = " << sparseDelta_);
+  BOLT_DEBUG(indent + 2, 1, "Dense Delta             = " << denseDelta_);
+  BOLT_DEBUG(indent + 2, 1, "State Dimension         = " << dim);
+  BOLT_DEBUG(indent + 2, 1, "Near Sample Points      = " << nearSamplePoints_);
+  BOLT_DEBUG(indent + 2, 1, "Sparse Multiple         = " << sparseMultiple);
+  BOLT_DEBUG(indent + 2, 1, "Discretization          = " << discretization_);
+  BOLT_DEBUG(indent + 2, 1, "Nearest Discretized V   = " << nearestDVertex_);
+  BOLT_DEBUG(indent + 2, 1, "Stretch Factor          = " << stretchFactor_);
+  BOLT_DEBUG(indent, 1, "--------------------------------------------------");
 
   assert(maxExtent_ > 0);
   assert(denseDelta_ > 0);
   assert(nearSamplePoints_ > 0);
   assert(sparseDelta_ > 0);
   assert(sparseDelta_ > 0.000000001);  // Sanity check
-
-  // Calculate discretization
-  double percentVisibilityRegionOverlap = 0.75;  // % overlap out of 1
-  double sparseMultiple = 2 - percentVisibilityRegionOverlap; // sparse is a radius, this gives us a diameter
-  discretization_ = sparseDelta_ * sparseMultiple;
-
-  // Calculate optimum stretch factor
-  stretchFactor_ = discretization_ / (0.5 * discretization_ * sqrt(2) - 2.0 * denseDelta_);
-  OMPL_INFORM("stretchFactor_ = %f", stretchFactor_);
-
-  if (si_->getStateValidityChecker()->getClearanceSearchDistance() < obstacleClearance_)
-    OMPL_WARN("State validity checker clearance search distance %f is less than the required obstacle clearance %f for our "
-              "state sampler, incompatible settings!", si_->getStateValidityChecker()->getClearanceSearchDistance(), obstacleClearance_);
 
   // Load state sampler
   if (!sampler_)
@@ -211,6 +233,10 @@ bool SparseDB::setup()
     sampler_->setMinimumObstacleClearance(obstacleClearance_);
     si_->getStateValidityChecker()->setClearanceSearchDistance(obstacleClearance_);
   }
+
+  if (si_->getStateValidityChecker()->getClearanceSearchDistance() < obstacleClearance_)
+    OMPL_WARN("State validity checker clearance search distance %f is less than the required obstacle clearance %f for our "
+              "state sampler, incompatible settings!", si_->getStateValidityChecker()->getClearanceSearchDistance(), obstacleClearance_);
 
   // Initialize path simplifier
   if (!pathSimplifier_)
@@ -278,7 +304,7 @@ bool SparseDB::astarSearch(const SparseVertex start, const SparseVertex goal, st
     if (isinf(vertexDistances[goal]))  // TODO(davetcoleman): test that this works
     {
       BOLT_RED_DEBUG(indent, true, "Distance to goal is infinity");
-      visual_->waitForUserFeedback();  // TODO(davetcoleman): remove
+      exit(-1);
       foundGoal = false;
     }
     else
@@ -303,7 +329,7 @@ bool SparseDB::astarSearch(const SparseVertex start, const SparseVertex goal, st
       {
         std::cout << "vertex path is one vertex long? " << std::endl;
         std::cout << "this should be deleted " << std::endl;
-        visual_->waitForUserFeedback();
+        exit(-1);
       }
 
       foundGoal = true;
@@ -833,7 +859,7 @@ void SparseDB::addRandomSamples(std::size_t indent)
         OMPL_ERROR("Unable to find valid sample");
         exit(-1);  // this should never happen
       }
-      si_->getStateSpace()->setLevel(state, 0);  // TODO no hardcode
+      //si_->getStateSpace()->setLevel(state, 0);  // TODO no hardcode
 
       // Run SPARS checks
       GuardType addReason;     // returns why the state was added
@@ -1401,11 +1427,11 @@ bool SparseDB::checkAddQuality(DenseVertex denseV, std::vector<SparseVertex> &gr
   if (visualizeQualityCriteria_)
   {
     //visualizeInterfaces(candidateRep, indent + 2);
-  }
 
-  static std::size_t updateCount = 0;
-  if (updateCount++ % 50 == 0)
-    visualizeAllInterfaces(indent + 2);
+    static std::size_t updateCount = 0;
+    if (updateCount++ % 50 == 0)
+      visualizeAllInterfaces(indent + 2);
+  }
 
   // Attempt to find shortest path through closest neighbour
   if (checkAddPath(candidateRep, indent + 2))
@@ -1554,16 +1580,17 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
   {
     BOLT_DEBUG(indent, vQuality_, "Adding edge between vp and vpp");
 
-    SparseEdge e = addEdge(vp, vpp, eRED, indent + 2);
+    //SparseEdge e =
+    addEdge(vp, vpp, eRED, indent + 2);
 
-    if (edgeWeightPropertySparse_[e] > 8.70001)  // 8.7 is length of basic grid
-    {
-      // TEMP:
-      BOLT_DEBUG(indent, true, "spanner property violated, path added");
-      visual_->viz5Trigger();
-      usleep(0.001 * 1000000);
-      visual_->waitForUserFeedback();
-    }
+    // if (edgeWeightPropertySparse_[e] > 8.70001)  // 8.7 is length of basic grid
+    // {
+    //   // TEMP:
+    //   BOLT_DEBUG(indent, true, "spanner property violated, path added");
+    //   visual_->viz5Trigger();
+    //   usleep(0.001 * 1000000);
+    //   visual_->waitForUserFeedback();
+    // }
   }
   else
   {
@@ -1668,13 +1695,11 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
 
     delete path;
 
-    // TEMP:
-    BOLT_DEBUG(indent, true, "spanner property violated, path added");
-    visual_->viz5Trigger();
-    usleep(0.001 * 1000000);
-    visual_->waitForUserFeedback();
-
-
+    // // TEMP:
+    // BOLT_DEBUG(indent, true, "spanner property violated, path added");
+    // visual_->viz5Trigger();
+    // usleep(0.001 * 1000000);
+    // visual_->waitForUserFeedback();
   }
 
   return true;
@@ -1871,7 +1896,7 @@ void SparseDB::findCloseRepresentatives(base::State *workState, const base::Stat
       BOLT_DEBUG(indent + 4, vQuality_, "Sample attempt " << attempt);
 
       sampler_->sampleNear(sampledState, candidateState, denseDelta_);
-      si_->getStateSpace()->setLevel(sampledState, 0);  // TODO no hardcode
+      //si_->getStateSpace()->setLevel(sampledState, 0);  // TODO no hardcode
 
       if (!si_->isValid(sampledState))
       {
@@ -2381,6 +2406,26 @@ SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, std::size_t visua
        75  - ORANGE - interface second round
        100 - RED    - interface special
     */
+
+    double small = penetrationDistance_ + std::numeric_limits<double>::epsilon();
+    if (true) // Use alterative color scheme
+    {
+      //std::cout << "edgeWeightPropertySparse_[e]: " << edgeWeightPropertySparse_[e] << std::endl;
+      if (edgeWeightPropertySparse_[e] < nearestDVertex_ + small)
+      {
+        visualColor = eYELLOW;
+      }
+      else if (edgeWeightPropertySparse_[e] < discretization_ + small)
+      {
+        visualColor = eGREEN;
+      }
+      else
+      {
+        visualColor = eRED;
+      }
+    }
+
+
     visual_->viz2Edge(getSparseState(v1), getSparseState(v2), visualColor);
     if (visualizeSparsGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
@@ -2390,9 +2435,9 @@ SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, std::size_t visua
 
     if (visualColor == tools::eRED)
     {
-      if (edgeWeightPropertySparse_[e] > 8.70001)  // 8.7 is length of basic grid
+      if (edgeWeightPropertySparse_[e] > discretization_ + small)
       {
-        std::cout << "Edge distance: " << edgeWeightPropertySparse_[e] << std::endl;
+        //std::cout << "Edge distance: " << edgeWeightPropertySparse_[e] << std::endl;
         visual_->viz4Edge(getSparseState(v1), getSparseState(v2), visualColor);
         visual_->viz4Trigger();
         usleep(0.001 * 1000000);

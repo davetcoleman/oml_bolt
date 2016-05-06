@@ -67,7 +67,7 @@ VertexDiscretizer::VertexDiscretizer(base::SpaceInformationPtr si, VisualizerPtr
   numThreads_ = boost::thread::hardware_concurrency();
 
   // Debugging
-  if (true)
+  if (false)
   {
     OMPL_WARN("Overriding number of threads for testing to 1");
     numThreads_ = 1;
@@ -124,17 +124,28 @@ bool VertexDiscretizer::generate()
 
 void VertexDiscretizer::generateVertices()
 {
-  const bool verbose = false;
+  std::size_t dim = si_->getStateSpace()->getDimension();
 
   // Setup bounds for joint 0
   ob::RealVectorBounds bounds = si_->getStateSpace()->getBounds();
   assert(bounds.high.size() == bounds.low.size());
-  assert(bounds.high.size() == si_->getStateSpace()->getDimension());
+  assert(bounds.high.size() == dim);
 
   // Divide joint 0 between threads
   const std::size_t jointID = 0;
   const double range = bounds.high[jointID] - bounds.low[jointID] - startingValueOffset_;
-  const std::size_t jointIncrements = range / discretization_;
+  const std::size_t jointIncrements = ceil(range / discretization_);
+
+  std::cout << "-------------------------------------------------------" << std::endl;
+  std::cout << std::fixed << std::setprecision(4);
+  std::cout << "Discretization Setup: " << std::endl;
+  std::cout << "  Dimensions:             " << dim << std::endl;
+  std::cout << "  Discretization:         " << discretization_ << std::endl;
+  std::cout << "  J0 Low:                 " << bounds.low[jointID] << std::endl;
+  std::cout << "  J0 High:                " << bounds.high[jointID] << std::endl;
+  std::cout << "  J0 Range:               " << range << std::endl;
+  std::cout << "  J0 Increments:          " << jointIncrements << std::endl;
+  assert(jointIncrements >= 1);
 
   // Check that we have enough jointIncrements for all the threads
   if (jointIncrements < numThreads_)
@@ -145,34 +156,15 @@ void VertexDiscretizer::generateVertices()
     OMPL_INFORM("Optimal discretization: %f", range / double(numThreads_));
     numThreads_ = jointIncrements;
   }
+  std::size_t jointIncrementsPerThread = jointIncrements / numThreads_;
 
-  // Warn
-  // if (numThreads_ > 1 && visualizeGridGeneration_)
-  // OMPL_WARN("Multiple threads are trying to visualize, could cause race conditions");
+  std::cout << "  J0 IncrementsPerThread: " << jointIncrementsPerThread << std::endl;
+  std::cout << "  Total states:           " << pow(jointIncrements, dim) << std::endl;
+  std::cout << "  Num Threads:            " << numThreads_ << std::endl;
+  std::cout << "-------------------------------------------------------" << std::endl;
 
   // Setup threading
   std::vector<boost::thread *> threads(numThreads_);
-  OMPL_INFORM("Generating vertices using %u threads", numThreads_);
-
-  std::size_t jointIncrementsPerThread = jointIncrements / numThreads_;
-
-  if (true)
-  {
-    std::cout << "-------------------------------------------------------" << std::endl;
-    std::cout << std::fixed << std::setprecision(4);
-    std::cout << "Discretization Setup: " << std::endl;
-    std::cout << "  Dimensions:             " << si_->getStateSpace()->getDimension() << std::endl;
-    std::cout << "  Discretization:         " << discretization_ << std::endl;
-    std::cout << "  J0 Low:                 " << bounds.low[jointID] << std::endl;
-    std::cout << "  J0 High:                " << bounds.high[jointID] << std::endl;
-    std::cout << "  J0 range is:            " << range << std::endl;
-    std::cout << "  J0 Increments:          " << jointIncrements << std::endl;
-    std::cout << "  J0 IncrementsPerThread: " << jointIncrementsPerThread << std::endl;
-    std::cout << "  Total states:           " << pow(jointIncrements, si_->getStateSpace()->getDimension())
-              << std::endl;
-    std::cout << "  NumThreads: " << numThreads_ << std::endl;
-    std::cout << "-------------------------------------------------------" << std::endl;
-  }
 
   double startJointValue = bounds.low[jointID] + startingValueOffset_;
   double endJointValue;
@@ -189,7 +181,7 @@ void VertexDiscretizer::generateVertices()
       endJointValue = bounds.high[jointID];
     }
 
-    if (verbose)
+    if (verbose_)
       std::cout << "Thread " << i << " has values from " << startJointValue << " to " << endJointValue << std::endl;
 
     base::SpaceInformationPtr si(new base::SpaceInformation(si_->getStateSpace()));
@@ -221,17 +213,15 @@ void VertexDiscretizer::generateVerticesThread(std::size_t threadID, double star
   std::vector<double> values(si->getStateSpace()->getDimension(), 0);
 
   // Customize for different state spaces TODO more generic
-  std::size_t maxDiscretizationLevel;
   const std::size_t dim = si->getStateSpace()->getDimension();
-  if (dim == 3)
-  {
-    // maxDiscretizationLevel = 1;  // because the third level (numbered '2') is for task space
-    // values[2] = 0.0;             // task space
+  std::size_t maxDiscretizationLevel = dim - 1;
 
-    maxDiscretizationLevel = 2;  // because the third level (numbered '2') is for task space
-    values[2] = 0.0;             // task space
-  }
-  else if (dim == 6 && false)
+  // if (dim == 3)
+  // {
+  // maxDiscretizationLevel = 1;  // because the third level (numbered '2') is for task space
+  // values[2] = 0.0;             // task space
+  // }
+  if (dim == 6 && false)
   {
     maxDiscretizationLevel = dim - 2;  // don't discretize the wrist rotation
     values[5] = 0.0;                   // middle rotation of wrist
@@ -242,10 +232,6 @@ void VertexDiscretizer::generateVerticesThread(std::size_t threadID, double star
     values[5] = 0.0;                   // middle rotation of wrist
     values[11] = 0.0;                  // middle rotation of wrist
   }
-  else
-  {
-    maxDiscretizationLevel = dim - 1;
-  }
 
   // Loop through current joint
   for (double value = startJointValue; value < endJointValue; value += discretization_)
@@ -255,7 +241,7 @@ void VertexDiscretizer::generateVerticesThread(std::size_t threadID, double star
     {
       const double percent = (value - startJointValue) / (endJointValue - startJointValue) * 100.0;
       std::cout << "Vertex generation progress: " << std::setprecision(1) << percent
-                << " % Total vertices: " << candidateVertices_.size() - 1 /*ignore query vertex*/ << std::endl;
+                << " % Total vertices: " << (candidateVertices_.size() > 0 ? candidateVertices_.size() - 1 : 0) << std::endl;
     }
 
     // Set first joint value
@@ -273,12 +259,14 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
                                           base::SpaceInformationPtr si, base::State *candidateState,
                                           std::size_t maxDiscretizationLevel)
 {
-  const bool verbose = false;
-
   ob::RealVectorBounds bounds = si->getStateSpace()->getBounds();
 
+  if (verbose_)
+    std::cout << "jointID " << jointID << " high " << bounds.high[jointID] << " low " << bounds.low[jointID] << " disc " << discretization_ << " values.size() " << values.size() << std::endl;
+
   // Error check
-  assert(jointID < values.size());
+  BOOST_ASSERT_MSG(jointID < values.size(), "Joint ID too high");
+  BOOST_ASSERT_MSG(bounds.high[jointID] - bounds.low[jointID] > discretization_, "Bounds too small");
 
   // Loop through current joint
   for (double value = bounds.low[jointID] + startingValueOffset_; value <= bounds.high[jointID]; value += discretization_)
@@ -295,7 +283,7 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
     values[jointID] = value;
 
     // Check if we are at the end of the recursion
-    if (verbose)
+    if (verbose_)
     {
       std::cout << "threadID " << threadID << " jointID " << jointID << " of " << maxDiscretizationLevel << " --- ";
       std::copy(values.begin(), values.end(), std::ostream_iterator<double>(std::cout, ", "));
@@ -327,6 +315,8 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
       double dist;
       if (!si->getStateValidityChecker()->isValid(candidateState, dist))
       {
+        std::cout << "not valid " << std::endl;
+
         // Visualize
         if (visualizeGridGeneration_)
         {
@@ -340,8 +330,9 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
 
       if (dist < clearance_)
       {
+        std::cout << "no clearance " << std::endl;
         // Visualize
-        if (visualizeGridGeneration_ || true)
+        if (visualizeGridGeneration_)
         {
           // Candidate node rejected
           visual_->viz1State(candidateState, tools::SMALL, tools::RED, 0);

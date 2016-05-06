@@ -443,6 +443,12 @@ protected:
   /** \brief Distance between nodes for 1st pass, the offset and reused again for 2nd pass */
   double discretization_;
 
+  /** \brief How overlapping two visibility regions should be to each other, where 0 is just barely touching */
+  double penetrationDistance_;
+
+  /** \brief Distance to the nearest possible vertex in the grid, referred to as z */
+  double nearestDVertex_;
+
   bool useFourthCriteria_;
 
   /** \brief Astar statistics */
@@ -478,6 +484,9 @@ public:
 
   /** \brief Number of failed state insertion attempts before starting to apply the fourth quality criteria from SPARS */
   std::size_t fourthCriteriaAfterFailures_ = 500;
+
+  /** \brief Testing parameter */
+  double magicMultiple_ = 0;
 
   /** \brief How much the popularity of a node can cause its cost-to-go heuristic to be underestimated */
   double percentMaxExtentUnderestimate_ = 0.01;
