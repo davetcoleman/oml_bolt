@@ -307,6 +307,9 @@ public:
 
   /* ----------------------------------------------------------------------------------------*/
 
+  /** \brief When a quality path is added with new vertices, remove all edges near the new vertex */
+  void clearEdgesNearVertex(SparseVertex vertex);
+
   /**
    * \brief Get neighbors within sparseDelta radius
    * \param denseV - origin state to search from
@@ -474,7 +477,8 @@ protected:
 
   VertexDiscretizerPtr vertexDiscretizer_;
 
-  double ignoreEdgesSmallerThan_ = 32.502; //27.7171;
+  //double ignoreEdgesSmallerThan_ = 32.502; // 3D
+  double ignoreEdgesSmallerThan_ = 12.7; // 2D
 
 public:
 

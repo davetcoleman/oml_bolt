@@ -204,13 +204,15 @@ bool SparseDB::setup()
     discretization_ = 2 * sqrt( std::pow(discFactor, 2) / dim);
   }
 
+  ignoreEdgesSmallerThan_ = discretization_ + 0.01;
+
   // Calculate optimum stretch factor
   //stretchFactor_ = discretization_ / (0.5 * discretization_ * sqrt(2) - 2.0 * denseDelta_);
   nearestDVertex_ = sqrt(dim * std::pow(0.5 * discretization_, 2)); // z in my calculations
   //stretchFactor_ = discretization_ / ( nearestDVertex_ - 2.0 * denseDelta_); // 2D case but not 3D
   //stretchFactor_ = (discretization_ + nearestDVertex_) / ( 2 * (nearestDVertex_ - 2.0 * denseDelta_)); // N-D case
   //stretchFactor_ = discretization_ / (discretization_ - 2.0 * denseDelta_); // N-D case
-  stretchFactor_ = 1.83;
+  //stretchFactor_ = 1.83;
 
   BOLT_DEBUG(indent, 1, "--------------------------------------------------");
   BOLT_DEBUG(indent, 1, "Sparse DB Setup:");
@@ -223,6 +225,7 @@ bool SparseDB::setup()
   BOLT_DEBUG(indent + 2, 1, "Discretization          = " << discretization_);
   BOLT_DEBUG(indent + 2, 1, "Nearest Discretized V   = " << nearestDVertex_);
   BOLT_DEBUG(indent + 2, 1, "Stretch Factor          = " << stretchFactor_);
+  BOLT_DEBUG(indent + 2, 1, "Viz ignore edges below  = " << ignoreEdgesSmallerThan_);
   BOLT_DEBUG(indent, 1, "--------------------------------------------------");
 
   assert(maxExtent_ > 0);
@@ -609,14 +612,7 @@ void SparseDB::createSPARS()
   BOLT_DEBUG(0, 1, "  Num random samples added:  " << numRandSamplesAdded_);
   BOLT_DEBUG(0, 1, "  InterfaceData:                       ");
   BOLT_DEBUG(0, 1, "    States stored:           " << interfaceStats.first);
-  if (interfaceStats.second)
-  {
-    BOLT_RED_DEBUG(0, 1, "    Missing interfaces:      " << interfaceStats.second);
-  }
-  else
-  {
-    BOLT_DEBUG(0, 1, "    Missing interfaces:      " << interfaceStats.second);
-  }
+  BOLT_DEBUG(0, 1, "    Missing interfaces:      " << interfaceStats.second);
   BOLT_DEBUG(0, 1, "-----------------------------------------");
 
   if (!visualizeSparsGraph_)
@@ -903,7 +899,7 @@ void SparseDB::addRandomSamples(std::size_t indent)
         BOLT_DEBUG(indent, true, "Random sampled failed, consecutive failures: " << numConsecutiveFailures_);
       }
 
-      if (numConsecutiveFailures_ > fourthCriteriaAfterFailures_ && !useFourthCriteria_)
+      if (numConsecutiveFailures_ >= fourthCriteriaAfterFailures_ && !useFourthCriteria_)
       {
         BOLT_DEBUG(indent, true, "Starting to check for 4th quality criteria because "
                                      << numConsecutiveFailures_ << " consecutive failures have occured");
@@ -1520,9 +1516,9 @@ bool SparseDB::checkAddPath(SparseVertex v, std::size_t indent)
       InterfaceData &iData = getData(v, vp, vpp, indent + 6);
 
       // Check if we need to actually add path
-      if (spannerTestOriginal(v, vp, vpp, iData, indent + 2))
-      // if (spannerTestOuter(v, vp, vpp, iData, indent + 2))
-      // if (spannerTestAStar(v, vp, vpp, iData, indent + 2))
+      //if (spannerTestOriginal(v, vp, vpp, iData, indent + 2))
+        //if (spannerTestOuter(v, vp, vpp, iData, indent + 2))
+      if (spannerTestAStar(v, vp, vpp, iData, indent + 2))
       {
         // Actually add the vertices and possibly edges
         addQualityPath(v, vp, vpp, iData, indent + 6);
@@ -1598,6 +1594,14 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
   BOLT_BLUE_DEBUG(indent, vQuality_, "addQualityPath()");
   indent += 2;
 
+  // TEMP:
+  // if (iData.lastDistance_ == 0)
+  // {
+  //   BOLT_RED_DEBUG(0, 1, "last distance is zero!");
+  //   visual_->waitForUserFeedback();
+  // }
+
+
   // Can we connect these two vertices directly?
   if (si_->checkMotion(getSparseState(vp), getSparseState(vpp)))
   {
@@ -1605,7 +1609,6 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
 
     SparseEdge e = addEdge(vp, vpp, eRED, indent + 2);
 
-    double small = penetrationDistance_ + std::numeric_limits<double>::epsilon();
     if (edgeWeightPropertySparse_[e] > ignoreEdgesSmallerThan_) //discretization_ + small)
     {
 
@@ -1613,9 +1616,9 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
         visualizeCheckAddPath(v, vp, vpp, iData);
 
       // TEMP:
-      std::cout << "discretization_ + small: " << discretization_ + small << std::endl;
-      BOLT_DEBUG(0, true, "Spanner property violated, edge added of length " << edgeWeightPropertySparse_[e]);
-      visual_->waitForUserFeedback();
+      // std::cout << "discretization_ + small: " << discretization_ + small << std::endl;
+      // BOLT_DEBUG(0, true, "Spanner property violated, edge added of length " << edgeWeightPropertySparse_[e]);
+      // visual_->waitForUserFeedback();
     }
   }
   else
@@ -1656,13 +1659,13 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
 
     BOLT_DEBUG(indent, vQuality_, "Created path with " << path->getStateCount() << " states");
 
-    // pathSimplifier_->reduceVertices(*path, 50);
-    // pathSimplifier_->shortcutPath(*path, 50);
-    // pathSimplifier_->reduceVertices(*path, 50);
+    pathSimplifier_->reduceVertices(*path, 200);
+    pathSimplifier_->shortcutPath(*path, 200);
+    pathSimplifier_->reduceVertices(*path, 200);
 
-    const double simplifyTime = 10;  // seconds
-    pathSimplifier_->simplify(*path, simplifyTime);
-    pathSimplifier_->reduceVertices(*path, 50);
+    // const double simplifyTime = 10;  // seconds
+    // pathSimplifier_->simplify(*path, simplifyTime);
+    // pathSimplifier_->reduceVertices(*path, 50);
 
     if (visualizeQualityCriteria_ || true)
     {
@@ -1686,7 +1689,7 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
       }
     }
 
-    if (repairResult.second)
+    if (repairResult.second) // Repairing was successful
     {
       SparseVertex prior = vp;
       SparseVertex vnew;
@@ -1699,9 +1702,29 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
       {
         base::State *state = states[i];
 
+        // Check if this vertex already exists
+        if (si_->equalStates(getSparseState(v), state))
+        {
+          OMPL_ERROR("Add path state is the same!");
+          exit(-1);
+        }
+
         // no need to clone st, since we will destroy p; we just copy the pointer
         BOLT_DEBUG(indent + 2, vQuality_, "Adding node from shortcut path for QUALITY");
         vnew = addVertex(state, QUALITY);
+
+        // TEMP
+        BOLT_RED_DEBUG(indent + 2, true, "clearing nearby edges");
+
+        if (visualizeQualityCriteria_) // TEMP
+          visualizeCheckAddPath(v, vp, vpp, iData); // TEMP
+        visual_->waitForUserFeedback();
+
+        // Remove all edges from all vertices near our new vertex
+        clearEdgesNearVertex(vnew);
+
+        // TEMP
+        visual_->waitForUserFeedback();
 
         assert(prior != vnew);
         addEdge(prior, vnew, eRED, indent + 2);
@@ -1715,7 +1738,7 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
     }
     else
     {
-      BOLT_DEBUG(indent, vQuality_, "check and repair failed?");
+      BOLT_RED_DEBUG(indent + 2, true, "check and repair failed?");
       exit(-1);
     }
 
@@ -1725,9 +1748,17 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
       visualizeCheckAddPath(v, vp, vpp, iData);
 
     // TEMP:
-    BOLT_DEBUG(indent, true, "spanner property violated, path added");
-    visual_->waitForUserFeedback();
+    // BOLT_DEBUG(indent, true, "spanner property violated, path added");
+    // visual_->waitForUserFeedback();
   }
+
+  // TEMP:
+  // if (iData.lastDistance_ == 0)
+  // {
+  //   BOLT_RED_DEBUG(0, 1, "last distance is zero!");
+  //   visual_->waitForUserFeedback();
+  // }
+
 
   return true;
 }
@@ -1735,13 +1766,18 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
 bool SparseDB::spannerTestOriginal(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
                                    std::size_t indent)
 {
+  const bool verbose = true; // vQuality_
+
   // Computes all nodes which qualify as a candidate x for v, v', and v"
   double midpointPathLength = maxSpannerPath(v, vp, vpp, indent + 6);
 
   // Check if spanner property violated
+  // if (iData.lastDistance_ == 0)  // DTC added zero check
+  // {
+  //   BOLT_RED_DEBUG(indent + 6, verbose, "iData.lastDistance_ is 0");
+  // }
   if (stretchFactor_ * iData.lastDistance_ < midpointPathLength)
   {
-    bool verbose = true; // vQuality_
     BOLT_YELLOW_DEBUG(indent + 6, verbose, "Spanner property violated");
     BOLT_DEBUG(indent + 8, verbose, "Sparse Graph Midpoint Length  = " << midpointPathLength);
     BOLT_DEBUG(indent + 8, verbose, "Spanner Path Length * Stretch = " << (stretchFactor_ * iData.lastDistance_));
@@ -1851,7 +1887,8 @@ bool SparseDB::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVertex vp
     }
 
     // Theoretical max
-    double theoreticalMaxLength = iData.lastDistance_ + 2 * sparseDelta_;
+    //double theoreticalMaxLength = iData.lastDistance_ + 2 * sparseDelta_;
+    double theoreticalMaxLength = iData.lastDistance_ + sparseDelta_;
     BOLT_DEBUG(indent + 6, vQuality_, "Max allowable length: " << theoreticalMaxLength);
     theoreticalMaxLength *= stretchFactor_;
     BOLT_DEBUG(indent + 6, vQuality_, "Max allowable length with stretch: " << theoreticalMaxLength);
@@ -2235,6 +2272,25 @@ void SparseDB::abandonLists(base::State *state)
   }
 }
 
+void SparseDB::clearEdgesNearVertex(SparseVertex vertex)
+{
+  // TODO(davetcoleman): combine this with abandonLists and ensure that all interface data is equally cleared
+  // but do not clear out nearby edges if a non-quality-path vertex is added
+  std::vector<SparseVertex> graphNeighbors;
+
+  // Search
+  nn_->nearestR(vertex, sparseDelta_, graphNeighbors);
+
+  // For each of the vertices
+  foreach (SparseVertex v, graphNeighbors)
+  {
+    // Remove all edges to and from vertex
+    boost::clear_vertex(v, g_);
+  }
+
+  displaySparseDatabase();
+}
+
 void SparseDB::findGraphNeighbors(DenseVertex v1, std::vector<SparseVertex> &graphNeighborhood,
                                   std::vector<SparseVertex> &visibleNeighborhood, std::size_t threadID,
                                   std::size_t indent)
@@ -2415,14 +2471,13 @@ SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, std::size_t visua
   assert(v1 != v2);
   BOOST_ASSERT_MSG(getSparseState(v1) != getSparseState(v2), "States on both sides of an edge are the same");
 
-  // std::cout << std::string(indent, "addEdge: Connecting vertex " << v1 << " to vertex " << v2 <<
-  // std::endl;
-
   // Create the new edge
   SparseEdge e = (boost::add_edge(v1, v2, g_)).first;
 
-  // Add associated properties to the edge
+  // Weight properties
   edgeWeightPropertySparse_[e] = distanceFunction(v1, v2);  // TODO: use this value with astar
+
+  // Collision properties
   edgeCollisionStatePropertySparse_[e] = NOT_CHECKED;
 
   // Add the edge to the incrementeal connected components datastructure
@@ -2442,7 +2497,6 @@ SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, std::size_t visua
     double small = penetrationDistance_ + std::numeric_limits<double>::epsilon();
     if (false) // Use alterative color scheme
     {
-      //std::cout << "edgeWeightPropertySparse_[e]: " << edgeWeightPropertySparse_[e] << std::endl;
       if (edgeWeightPropertySparse_[e] < nearestDVertex_ + small)
       {
         visualColor = eYELLOW;
@@ -2464,9 +2518,9 @@ SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, std::size_t visua
       usleep(visualizeSparsGraphSpeed_ * 1000000);
     }
 
-    if (visualColor == tools::eRED)
+    //if (visualColor == tools::eRED)
     {
-      if (edgeWeightPropertySparse_[e] > ignoreEdgesSmallerThan_) //discretization_ + small)
+      if (edgeWeightPropertySparse_[e] > ignoreEdgesSmallerThan_)
       {
         //std::cout << "Edge distance: " << edgeWeightPropertySparse_[e] << std::endl;
         visual_->viz4Edge(getSparseState(v1), getSparseState(v2), visualColor);
