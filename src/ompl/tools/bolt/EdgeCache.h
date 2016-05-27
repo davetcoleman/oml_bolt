@@ -61,6 +61,7 @@ OMPL_CLASS_FORWARD(SparseDB);
 
 typedef std::pair<StateID, StateID> CachedEdge;
 typedef std::map<CachedEdge, bool> EdgeCacheMap;
+
 class EdgeCache
 {
 public:
@@ -127,7 +128,10 @@ private:
   std::vector<CachedEdge> keys_;
 
   /** \brief Force all collision checks to be performed from scratch */
-  bool disableCache_ = true;
+  bool disableCache_ = false;
+
+  /** \brief Available cores */
+  std::size_t numThreads_;
 
 };  // end of class EdgeCache
 

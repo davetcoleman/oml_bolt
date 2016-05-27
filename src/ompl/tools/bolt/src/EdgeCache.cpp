@@ -66,10 +66,10 @@ EdgeCache::EdgeCache(base::SpaceInformationPtr si, SparseDB *sparseDB, Visualize
 {
   resetCounters();
 
-  std::size_t numThreads = boost::thread::hardware_concurrency();
-  keys_.resize(numThreads);
-  totalCollisionChecks_.resize(numThreads, 0);
-  totalCollisionChecksFromCache_.resize(numThreads, 0);
+  numThreads_ = boost::thread::hardware_concurrency();
+  keys_.resize(numThreads_);
+  totalCollisionChecks_.resize(numThreads_, 0);
+  totalCollisionChecksFromCache_.resize(numThreads_, 0);
 
   if (disableCache_)
     OMPL_WARN("Edge cache disabled");
@@ -179,22 +179,23 @@ void EdgeCache::resetCounters()
   }
 }
 
-bool EdgeCache::checkMotionWithCache(const StateID &v1, const StateID &v2, const std::size_t &threadID)
+bool EdgeCache::checkMotionWithCache(const StateID &stateID1, const StateID &stateID2, const std::size_t &threadID)
 {
+  // Optionally skip caching
   if (disableCache_)
-    return si_->checkMotion(sparseDB_->getSparseState(v1), sparseDB_->getSparseState(v2));
+    return si_->checkMotion(sparseDB_->getState(stateID1), sparseDB_->getState(stateID2));
 
   CachedEdge &edge = keys_[threadID];
 
   // Error check
-  BOOST_ASSERT_MSG(v1 != 0, "v1: The queryVertex_ should not be checked within the EdgeCache, because it is subject to change");
-  BOOST_ASSERT_MSG(v2 != 0, "v2: The queryVertex_ should not be checked within the EdgeCache, because it is subject to change");
+  BOOST_ASSERT_MSG(stateID1 >= numThreads_, "stateID1: The queryVertex_ should not be checked within the EdgeCache, because it is subject to change");
+  BOOST_ASSERT_MSG(stateID2 >= numThreads_, "stateID2: The queryVertex_ should not be checked within the EdgeCache, because it is subject to change");
 
   // Create edge to search for - only store pairs in one direction
-  if (v1 < v2)
-    edge = CachedEdge(v1, v2);
+  if (stateID1 < stateID2)
+    edge = CachedEdge(stateID1, stateID2);
   else
-    edge = CachedEdge(v2, v1);
+    edge = CachedEdge(stateID2, stateID1);
 
   EdgeCacheMap::iterator lb = collisionCheckEdgeCache_.lower_bound(edge);
 
@@ -212,13 +213,13 @@ bool EdgeCache::checkMotionWithCache(const StateID &v1, const StateID &v2, const
   if (result) // Cache available
   {
     totalCollisionChecksFromCache_[threadID]++;
-    // std::cout << "Cache: Edge " << v1 << ", " << v2 << " collision: " << lb->second << std::endl;
+    // std::cout << "Cache: Edge " << stateID1 << ", " << stateID2 << " collision: " << lb->second << std::endl;
     return lb->second;
   }
 
   // No cache available
-  result = si_->checkMotion(sparseDB_->getSparseState(v1), sparseDB_->getSparseState(v2));
-  // std::cout << "No cache: Edge " << v1 << ", " << v2 << " collision: " << result << std::endl;
+  result = si_->checkMotion(sparseDB_->getState(stateID1), sparseDB_->getState(stateID2));
+  // std::cout << "No cache: Edge " << stateID1 << ", " << stateID2 << " collision: " << result << std::endl;
 
   {  // Get write mutex
     boost::lock_guard<boost::shared_mutex> writeLock(edgeCacheMutex_);
@@ -239,10 +240,10 @@ void EdgeCache::checkMotionCacheBenchmark()
   std::cout << std::endl;
 
   // Test new checkMotionWithCache
-  StateID v1 = 2;
-  StateID v2 = 3;
+  StateID stateID1 = 2;
+  StateID stateID2 = 3;
   std::size_t numRuns = 100000;
-  bool baselineResult = si_->checkMotion(sparseDB_->getSparseState(v1), sparseDB_->getSparseState(v2));
+  bool baselineResult = si_->checkMotion(sparseDB_->getState(stateID1), sparseDB_->getState(stateID2));
 
   // Benchmark collision check without cache
   {
@@ -251,7 +252,7 @@ void EdgeCache::checkMotionCacheBenchmark()
 
     for (std::size_t i = 0; i < numRuns; ++i)
     {
-      if (si_->checkMotion(sparseDB_->getSparseState(v1), sparseDB_->getSparseState(v2)) != baselineResult)
+      if (si_->checkMotion(sparseDB_->getState(stateID1), sparseDB_->getState(stateID2)) != baselineResult)
       {
         OMPL_ERROR("benchmark checkmotion does not match baseline result");
         exit(-1);
@@ -271,13 +272,13 @@ void EdgeCache::checkMotionCacheBenchmark()
     const std::size_t threadID = 0;
     for (std::size_t i = 0; i < numRuns / 2; ++i)
     {
-      if (checkMotionWithCache(v1, v2, threadID) != baselineResult)
+      if (checkMotionWithCache(stateID1, stateID2, threadID) != baselineResult)
       {
         OMPL_ERROR("benchmark checkmotion does not match baseline result");
         exit(-1);
       }
 
-      if (checkMotionWithCache(v2, v1, threadID) != baselineResult)
+      if (checkMotionWithCache(stateID2, stateID1, threadID) != baselineResult)
       {
         OMPL_ERROR("benchmark checkmotion does not match baseline result");
         exit(-1);
@@ -299,14 +300,14 @@ void EdgeCache::errorCheckData()
        iterator++)
   {
     std::pair<StateID,StateID> thing = iterator->first;
-    StateID &v1 = thing.first;
-    StateID &v2 = thing.second;
+    StateID &stateID1 = thing.first;
+    StateID &stateID2 = thing.second;
     bool cachedResult = iterator->second;
-    if (si_->checkMotion(sparseDB_->getSparseState(v1), sparseDB_->getSparseState(v2)) != cachedResult)
+    if (si_->checkMotion(sparseDB_->getState(stateID1), sparseDB_->getState(stateID2)) != cachedResult)
     {
       OMPL_ERROR("Found instance where cached edge data is wrong, on iteration %u", counter);
-      std::cout << "v1: " << v1 << std::endl;
-      std::cout << "v2: " << v2 << std::endl;
+      std::cout << "stateID1: " << stateID1 << std::endl;
+      std::cout << "stateID2: " << stateID2 << std::endl;
       exit(-1);
     }
     if (counter++ % 1000 == 0)

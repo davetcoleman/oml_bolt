@@ -682,7 +682,7 @@ void SparseDB::preprocessSPARSThread(std::size_t threadID, std::size_t numThread
 
 void SparseDB::createSPARS()
 {
-  std::size_t indent = 2;
+  std::size_t indent = 0;
 
   // Benchmark runtime
   time::point startTime = time::now();
@@ -691,6 +691,7 @@ void SparseDB::createSPARS()
   numSamplesAddedForConnectivity_ = 0;
   numSamplesAddedForInterface_ = 0;
   numSamplesAddedForQuality_ = 0;
+  numVerticesMoved_ = 0;
 
   numConsecutiveFailures_ = 0;
   useFourthCriteria_ = false;  // initially we do not do this step
@@ -741,6 +742,7 @@ void SparseDB::createSPARS()
   BOLT_DEBUG(0, 1, "    Interface:               " << numSamplesAddedForInterface_);
   BOLT_DEBUG(0, 1, "    Quality:                 " << numSamplesAddedForQuality_);
   BOLT_DEBUG(0, 1, "  Num random samples added:  " << numRandSamplesAdded_);
+  BOLT_DEBUG(0, 1, "  Num vertices moved:        " << numVerticesMoved_);
   BOLT_DEBUG(0, 1, "  InterfaceData:                       ");
   BOLT_DEBUG(0, 1, "    States stored:           " << interfaceStats.first);
   BOLT_DEBUG(0, 1, "    Missing interfaces:      " << interfaceStats.second);
@@ -905,6 +907,8 @@ void SparseDB::createSPARSOuterLoop()
 
 bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOrder, std::size_t &sucessfulInsertions)
 {
+  std::size_t indent = 0;
+
   sucessfulInsertions = 0;
   std::size_t loopCount = 0;
   std::size_t originalVertexInsertion = vertexInsertionOrder.size();
@@ -933,7 +937,7 @@ bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOr
 
     // TODO(davetcoleman): I would like to multi-thread this but its not worth my time currently
     std::size_t threadID = 0;
-    if (!addStateToRoadmap(vertexIt->stateID_, newVertex, addReason, threadID))
+    if (!addStateToRoadmap(vertexIt->stateID_, newVertex, addReason, threadID, indent))
     {
       // std::cout << "Failed AGAIN to add state to roadmap------" << std::endl;
 
@@ -994,69 +998,61 @@ void SparseDB::getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInser
 
 void SparseDB::addRandomSamples(std::size_t indent)
 {
-  BOLT_BLUE_DEBUG(indent, true, "addRandomSamples()");
+  BOLT_BLUE_DEBUG(indent, vCriteria_, "addRandomSamples()");
   indent += 2;
 
   // For each dense vertex we add
   numRandSamplesAdded_ = 0;
-  std::size_t addedStatesCount = 0;  // count how many states we add
   while (numRandSamplesAdded_ < 10000)
   {
-    // Add vertex
+    // Add new state
     base::State *candidateState = si_->allocState();
     StateID candidateStateID = addState(candidateState);
 
-    // For each random sample
-    while (true)
-    {
-      // Sample randomly
-      if (!clearanceSampler_->sample(candidateState))  // TODO(davetcoleman): is it ok with the DenseDB.nn_ to change the state after
+    // Sample randomly
+    if (!clearanceSampler_->sample(candidateState))  // TODO(davetcoleman): is it ok with the DenseDB.nn_ to change the state after
       // having added it to the nearest neighbor?? No, I don't think it is.
-      {
-        OMPL_ERROR("Unable to find valid sample");
-        exit(-1);  // this should never happen
-      }
-      //si_->getStateSpace()->setLevel(candidateState, 0);  // TODO no hardcode
+    {
+      OMPL_ERROR("Unable to find valid sample");
+      exit(-1);  // this should never happen
+    }
+    //si_->getStateSpace()->setLevel(candidateState, 0);  // TODO no hardcode
 
-      // Run SPARS checks
-      GuardType addReason;     // returns why the state was added
-      SparseVertex newVertex;  // the newly generated sparse vertex
-      const std::size_t threadID = 0;
-      if (addStateToRoadmap(candidateStateID, newVertex, addReason, threadID))
-      {
-        if (addedStatesCount % 10 == 0)
-          BOLT_DEBUG(indent, true, "Added random sample, total new states: " << ++addedStatesCount);
+    // Run SPARS checks
+    GuardType addReason;     // returns why the state was added
+    SparseVertex newVertex;  // the newly generated sparse vertex
+    const std::size_t threadID = 0;
+    if (addStateToRoadmap(candidateStateID, newVertex, addReason, threadID, indent + 2))
+    {
+      //if (numRandSamplesAdded_ % 10 == 0)
+      BOLT_DEBUG(indent, vCriteria_, "Added random sample with stateID " << candidateStateID
+                        << ", total new states: " << ++numRandSamplesAdded_);
+    }
+    else if (numConsecutiveFailures_ % 500 == 0)
+    {
+      BOLT_DEBUG(indent, vCriteria_, "Random sample failed, consecutive failures: " << numConsecutiveFailures_);
+    }
 
-        // Statistics
-        numRandSamplesAdded_++;
+    // Check consecutive failures
+    if (numConsecutiveFailures_ >= fourthCriteriaAfterFailures_ && !useFourthCriteria_)
+    {
+      BOLT_YELLOW_DEBUG(indent, true, "Starting to check for 4th quality criteria because "
+                        << numConsecutiveFailures_ << " consecutive failures have occured");
+      useFourthCriteria_ = true;
+      visualizeOverlayNodes_ = true;  // visualize all added nodes in a separate window
+      numConsecutiveFailures_ = 0;    // reset for new criteria
 
-        break;  // must break so that a new state can be allocated
-      }
-      else if (numConsecutiveFailures_ % 500 == 0)
-      {
-        BOLT_DEBUG(indent, true, "Random sampled failed, consecutive failures: " << numConsecutiveFailures_);
-      }
+      // Show it just once if it has not already been animated
+      if (!visualizeVoronoiDiagramAnimated_ && visualizeVoronoiDiagram_)
+        visual_->vizVoronoiDiagram();
+    }
 
-      if (numConsecutiveFailures_ >= fourthCriteriaAfterFailures_ && !useFourthCriteria_)
-      {
-        BOLT_DEBUG(indent, true, "Starting to check for 4th quality criteria because "
-                                     << numConsecutiveFailures_ << " consecutive failures have occured");
-        useFourthCriteria_ = true;
-        visualizeOverlayNodes_ = true;  // visualize all added nodes in a separate window
-        numConsecutiveFailures_ = 0;    // reset for new criteria
-
-        // Show it just once if it has not already been animated
-        if (!visualizeVoronoiDiagramAnimated_ && visualizeVoronoiDiagram_)
-          visual_->vizVoronoiDiagram();
-      }
-
-      if (useFourthCriteria_ && numConsecutiveFailures_ > terminateAfterFailures_)
-      {
-        OMPL_INFORM("SPARS creation finished because %u consecutive insertion failures reached",
-                    terminateAfterFailures_);
-        return;
-      }
-    }  // end while
+    if (useFourthCriteria_ && numConsecutiveFailures_ > terminateAfterFailures_)
+    {
+      BOLT_YELLOW_DEBUG(indent, true, "SPARS creation finished because " << terminateAfterFailures_
+                        << " consecutive insertion failures reached");
+      return;
+    }
   }    // end while
 }
 
@@ -1216,9 +1212,8 @@ bool SparseDB::getRandomOrder(std::list<WeightedVertex> &vertexInsertionOrder)
 */
 
 bool SparseDB::addStateToRoadmap(StateID candidateStateID, SparseVertex &newVertex, GuardType &addReason,
-                                 std::size_t threadID)
+                                 std::size_t threadID, std::size_t indent)
 {
-  std::size_t indent = 0;
   BOLT_DEBUG(indent, vCriteria_, "addStateToRoadmap() Adding candidate state ID " << candidateStateID);
 
   bool stateAdded = false;
@@ -2659,15 +2654,16 @@ bool SparseDB::checkRemoveCloseVertices(SparseVertex v1, std::size_t indent)
   foreach (SparseEdge edge, boost::out_edges(v2, g_))
   {
     SparseVertex v3 = boost::target(edge, g_);
-
     BOLT_DEBUG(indent+4,1,"connecting v1= " << v1 << " to v3=" << v3);
-
     addEdge(v1, v3, tools::eORANGE, indent + 4);
   }
 
   // Delete old vertex
   removeVertex(v2);
   BOLT_CYAN_DEBUG(indent + 2, 1, "REMOVING VERTEX " << v2 << " which was replaced with " << v1 << " with state " << getSparseState(v1));
+
+  // Statistics
+  numVerticesMoved_++;
 
   //std::cout << "before showing updated graph " << std::endl;
   //visual_->waitForUserFeedback();
@@ -2964,6 +2960,11 @@ base::State *&SparseDB::getSparseStateNonConst(SparseVertex v)
 const base::State *SparseDB::getSparseState(SparseVertex v) const
 {
   return stateCache_[stateCacheProperty_[v]];
+}
+
+base::State*& SparseDB::getState(StateID stateID)
+{
+  return stateCache_[stateID];
 }
 
 void SparseDB::displaySparseDatabase(bool showVertices)

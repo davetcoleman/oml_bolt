@@ -248,7 +248,7 @@ public:
    * \param addReason - if function returns true, the reson the denseVertex was added to the sparse graph
    * \return true on success
    */
-  bool addStateToRoadmap(StateID candidateStateID, SparseVertex& newVertex, GuardType& addReason, std::size_t threadID);
+  bool addStateToRoadmap(StateID candidateStateID, SparseVertex& newVertex, GuardType& addReason, std::size_t threadID, std::size_t indent);
 
   /* ----------------------------------------------------------------------------------------*/
   /** \brief SPARS-related functions */
@@ -378,6 +378,7 @@ public:
   /** \brief Shortcut function for getting the state of a vertex */
   base::State*& getSparseStateNonConst(SparseVertex v);
   const base::State* getSparseState(SparseVertex v) const;
+  base::State*& getState(StateID stateID);
 
   /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
   double distanceFunction(const SparseVertex a, const SparseVertex b) const;
