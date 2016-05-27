@@ -33,16 +33,22 @@
  *********************************************************************/
 
 /* Author: Dave Coleman <dave@dav.ee>
-   Desc:   Speed up collision checking of DenseVertex edges
+   Desc:   Speed up collision checking of StateID edges
 */
 
 // OMPL
-#include <ompl/tools/bolt/DenseDB.h>
+#include <ompl/tools/bolt/SparseDB.h>
 
 // Boost
 #include <boost/serialization/map.hpp>
-#include <boost/archive/text_iarchive.hpp>
-#include <boost/archive/text_oarchive.hpp>
+// #include <boost/archive/text_iarchive.hpp>
+// #include <boost/archive/text_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/thread.hpp>
+
+// C++
+#include <fstream>
 
 namespace og = ompl::geometric;
 namespace ot = ompl::tools;
@@ -55,8 +61,8 @@ namespace tools
 {
 namespace bolt
 {
-EdgeCache::EdgeCache(base::SpaceInformationPtr si, DenseDB *denseDB, VisualizerPtr visual)
-  : si_(si), denseDB_(denseDB), visual_(visual)
+EdgeCache::EdgeCache(base::SpaceInformationPtr si, SparseDB *sparseDB, VisualizerPtr visual)
+  : si_(si), sparseDB_(sparseDB), visual_(visual)
 {
   resetCounters();
 
@@ -76,7 +82,7 @@ bool EdgeCache::save()
   OMPL_INFORM("  Path:         %s", filePath_.c_str());
   OMPL_INFORM("  Utilization:  %f", getPercentCachedCollisionChecks());
   OMPL_INFORM("  Cache Size:   %u", getCacheSize());
-  OMPL_INFORM("  Theory Max:   %u", denseDB_->getNumVertices() * denseDB_->getNumVertices());
+  OMPL_INFORM("  Theory Max:   %u", sparseDB_->getNumVertices() * sparseDB_->getNumVertices());
   OMPL_INFORM("------------------------------------------------");
 
   std::ofstream out(filePath_, std::ios::binary);
@@ -150,7 +156,7 @@ bool EdgeCache::load()
   OMPL_INFORM("Loaded edge cache stats:");
   OMPL_INFORM("  Path:         %s", filePath_.c_str());
   OMPL_INFORM("  Cache Size:   %u", getCacheSize());
-  OMPL_INFORM("  Theory Max:   %u", denseDB_->getNumVertices() * denseDB_->getNumVertices());
+  OMPL_INFORM("  Theory Max:   %u", sparseDB_->getNumVertices() * sparseDB_->getNumVertices());
   OMPL_INFORM("  Loading time: %f", duration);
   OMPL_INFORM("------------------------------------------------------");
 
@@ -173,10 +179,10 @@ void EdgeCache::resetCounters()
   }
 }
 
-bool EdgeCache::checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v2, const std::size_t &threadID)
+bool EdgeCache::checkMotionWithCache(const StateID &v1, const StateID &v2, const std::size_t &threadID)
 {
   if (disableCache_)
-    return si_->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]);
+    return si_->checkMotion(sparseDB_->getSparseState(v1), sparseDB_->getSparseState(v2));
 
   CachedEdge &edge = keys_[threadID];
 
@@ -211,7 +217,7 @@ bool EdgeCache::checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v
   }
 
   // No cache available
-  result = si_->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]);
+  result = si_->checkMotion(sparseDB_->getSparseState(v1), sparseDB_->getSparseState(v2));
   // std::cout << "No cache: Edge " << v1 << ", " << v2 << " collision: " << result << std::endl;
 
   {  // Get write mutex
@@ -233,10 +239,10 @@ void EdgeCache::checkMotionCacheBenchmark()
   std::cout << std::endl;
 
   // Test new checkMotionWithCache
-  DenseVertex v1 = 2;
-  DenseVertex v2 = 3;
+  StateID v1 = 2;
+  StateID v2 = 3;
   std::size_t numRuns = 100000;
-  bool baselineResult = si_->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]);
+  bool baselineResult = si_->checkMotion(sparseDB_->getSparseState(v1), sparseDB_->getSparseState(v2));
 
   // Benchmark collision check without cache
   {
@@ -245,7 +251,7 @@ void EdgeCache::checkMotionCacheBenchmark()
 
     for (std::size_t i = 0; i < numRuns; ++i)
     {
-      if (si_->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]) != baselineResult)
+      if (si_->checkMotion(sparseDB_->getSparseState(v1), sparseDB_->getSparseState(v2)) != baselineResult)
       {
         OMPL_ERROR("benchmark checkmotion does not match baseline result");
         exit(-1);
@@ -292,11 +298,11 @@ void EdgeCache::errorCheckData()
   for (EdgeCacheMap::const_iterator iterator = collisionCheckEdgeCache_.begin(); iterator != collisionCheckEdgeCache_.end();
        iterator++)
   {
-    std::pair<DenseVertex,DenseVertex> thing = iterator->first;
-    DenseVertex &v1 = thing.first;
-    DenseVertex &v2 = thing.second;
+    std::pair<StateID,StateID> thing = iterator->first;
+    StateID &v1 = thing.first;
+    StateID &v2 = thing.second;
     bool cachedResult = iterator->second;
-    if (si_->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]) != cachedResult)
+    if (si_->checkMotion(sparseDB_->getSparseState(v1), sparseDB_->getSparseState(v2)) != cachedResult)
     {
       OMPL_ERROR("Found instance where cached edge data is wrong, on iteration %u", counter);
       std::cout << "v1: " << v1 << std::endl;

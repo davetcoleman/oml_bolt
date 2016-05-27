@@ -60,15 +60,12 @@ namespace tools
 {
 namespace bolt
 {
-BoltRetrieveRepair::BoltRetrieveRepair(const base::SpaceInformationPtr &si, const DenseDBPtr &denseDB,
+BoltRetrieveRepair::BoltRetrieveRepair(const base::SpaceInformationPtr &si, const SparseDBPtr &sparseDB,
                                        VisualizerPtr visual)
   : base::Planner(si, "Bolt_Retrieve_Repair")
-  , denseDB_(denseDB)
+  , sparseDB_(sparseDB)
   , visual_(visual)
 {
-  // Copy in needed objects
-  sparseDB_ = denseDB_->getSparseDB();
-
   specs_.approximateSolutions = false;
   specs_.directed = false;
 
@@ -86,9 +83,9 @@ void BoltRetrieveRepair::clear(void)
   freeMemory();
 }
 
-void BoltRetrieveRepair::setExperienceDB(const DenseDBPtr &denseDB)
+void BoltRetrieveRepair::setExperienceDB(const SparseDBPtr &sparseDB)
 {
-  denseDB_ = denseDB;
+  sparseDB_ = sparseDB;
 }
 
 void BoltRetrieveRepair::setup(void)
@@ -136,20 +133,20 @@ base::PlannerStatus BoltRetrieveRepair::solve(const base::PlannerTerminationCond
     return base::PlannerStatus::ABORT;
   }
 
-  // Error check task planning
-  if (denseDB_->getUseTaskPlanning())
-  {
-    if (denseDB_->getTaskLevel(startState) != 0)
-    {
-      OMPL_ERROR("solve: start level is %u", denseDB_->getTaskLevel(startState));
-      exit(-1);
-    }
-    if (denseDB_->getTaskLevel(goalState) != 2)
-    {
-      OMPL_ERROR("solve: goal level is %u", denseDB_->getTaskLevel(goalState));
-      exit(-1);
-    }
-  }
+  // // Error check task planning
+  // if (sparseDB_->getUseTaskPlanning())
+  // {
+  //   if (sparseDB_->getTaskLevel(startState) != 0)
+  //   {
+  //     OMPL_ERROR("solve: start level is %u", sparseDB_->getTaskLevel(startState));
+  //     exit(-1);
+  //   }
+  //   if (sparseDB_->getTaskLevel(goalState) != 2)
+  //   {
+  //     OMPL_ERROR("solve: goal level is %u", sparseDB_->getTaskLevel(goalState));
+  //     exit(-1);
+  //   }
+  // }
 
   // Create solution path as pointer so memory is not unloaded
   ob::PathPtr pathSolutionBase(new og::PathGeometric(si_));
@@ -270,7 +267,7 @@ bool BoltRetrieveRepair::getPathOffGraph(const base::State *start, const base::S
     // Get neighbors near start and goal. Note: potentially they are not *visible* - will test for this later
 
     // Start
-    int level = 0;  // denseDB_->getTaskLevel(start);
+    int level = 0;  // sparseDB_->getTaskLevel(start);
     if (verbose_)
       OMPL_INFORM("  Looking for a node near the problem start on level %i", level);
     if (!findGraphNeighbors(start, startVertexCandidateNeighbors_, level))
@@ -283,7 +280,7 @@ bool BoltRetrieveRepair::getPathOffGraph(const base::State *start, const base::S
       OMPL_INFORM("  Found %d nodes near start", startVertexCandidateNeighbors_.size());
 
     // Goal
-    level = 0;  // denseDB_->getTaskLevel(goal);
+    level = 0;  // sparseDB_->getTaskLevel(goal);
     if (verbose_)
       OMPL_INFORM("  Looking for a node near the problem goal on level %i", level);
     if (!findGraphNeighbors(goal, goalVertexCandidateNeighbors_, level))
@@ -300,6 +297,7 @@ bool BoltRetrieveRepair::getPathOffGraph(const base::State *start, const base::S
     bool result = getPathOnGraph(startVertexCandidateNeighbors_, goalVertexCandidateNeighbors_, start, goal,
                                  geometricSolution, ptc, /*debug*/ false, feedbackStartFailed);
 
+
     // Error check
     if (!result)
     {
@@ -309,28 +307,29 @@ bool BoltRetrieveRepair::getPathOffGraph(const base::State *start, const base::S
       getPathOnGraph(startVertexCandidateNeighbors_, goalVertexCandidateNeighbors_, start, goal, geometricSolution, ptc,
                      /*debug*/ true, feedbackStartFailed);
 
+      /*
       // Add the point that failed
       if (feedbackStartFailed)  // start state failed
       {
-        // Create the vertex then connect to denseDB
+        // Create the vertex then connect to sparseDB
         // TODO(davetcoleman): how to prevent from adding same state twice?
-        DenseVertex denseV = denseDB_->addVertex(si_->cloneState(start), QUALITY);
-        denseDB_->connectNewVertex(denseV);
+        SparseVertex sparseV = sparseDB_->addVertex(si_->cloneState(start), QUALITY);
+        sparseDB_->connectNewVertex(sparseV);
       }
       else  // goal state failed
       {
-        // Create the vertex then connect to denseDB
+        // Create the vertex then connect to sparseDB
         // TODO(davetcoleman): how to prevent from adding same state twice?
-        DenseVertex denseV = denseDB_->addVertex(si_->cloneState(goal), QUALITY);
-        denseDB_->connectNewVertex(denseV);
+        SparseVertex sparseV = sparseDB_->addVertex(si_->cloneState(goal), QUALITY);
+        sparseDB_->connectNewVertex(sparseV);
       }
-      numStartGoalStatesAddedToDense_++;  // for later analysis
+      numStartGoalStatesAddedToSparse_++;  // for later analysis
 
       OMPL_INFORM("Re-creating the spars graph");
       sparseDB_->createSPARS();
-
-      // std::cout << "Shutting down for debugging " << std::endl;
-      // exit(-1);
+      */
+      std::cout << "Shutting down for debugging " << std::endl;
+      exit(-1);
     }
     else
       break;  // success, continue on
@@ -669,7 +668,7 @@ bool BoltRetrieveRepair::findGraphNeighbors(const base::State *state, std::vecto
   // Filter neighbors based on level
   if (requiredLevel >= 0)
   {
-    removeVerticesNotOnLevel(graphNeighborhood, requiredLevel);
+    //removeVerticesNotOnLevel(graphNeighborhood, requiredLevel);
   }
 
   // Check if no neighbors found
@@ -687,34 +686,34 @@ bool BoltRetrieveRepair::findGraphNeighbors(const base::State *state, std::vecto
   return result;
 }
 
-bool BoltRetrieveRepair::removeVerticesNotOnLevel(std::vector<SparseVertex> &graphNeighborhood, int level)
-{
-  std::size_t original_size = graphNeighborhood.size();
+// bool BoltRetrieveRepair::removeVerticesNotOnLevel(std::vector<SparseVertex> &graphNeighborhood, int level)
+// {
+//   std::size_t original_size = graphNeighborhood.size();
 
-  // Remove edges based on layer
-  for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
-  {
-    const SparseVertex &nearVertex = graphNeighborhood[i];
+//   // Remove edges based on layer
+//   for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
+//   {
+//     const SparseVertex &nearVertex = graphNeighborhood[i];
 
-    // Make sure state is on correct level
-    if (denseDB_->getTaskLevel(nearVertex) != static_cast<std::size_t>(level))
-    {
-      if (verbose_)
-        std::cout << "      Skipping neighbor " << nearVertex << ", i=" << i
-                  << ", because wrong level: " << denseDB_->getTaskLevel(nearVertex) << ", desired level: " << level
-                  << std::endl;
-      graphNeighborhood.erase(graphNeighborhood.begin() + i);
-      i--;
-      continue;
-    }
-  }
+//     // Make sure state is on correct level
+//     if (sparseDB_->getTaskLevel(nearVertex) != static_cast<std::size_t>(level))
+//     {
+//       if (verbose_)
+//         std::cout << "      Skipping neighbor " << nearVertex << ", i=" << i
+//                   << ", because wrong level: " << sparseDB_->getTaskLevel(nearVertex) << ", desired level: " << level
+//                   << std::endl;
+//       graphNeighborhood.erase(graphNeighborhood.begin() + i);
+//       i--;
+//       continue;
+//     }
+//   }
 
-  if (verbose_)
-    OMPL_INFORM("    removeVerticesNotOnLevel(): states require level %d, removed: %u, remaining: %u", level,
-                original_size - graphNeighborhood.size(), graphNeighborhood.size());
+//   if (verbose_)
+//     OMPL_INFORM("    removeVerticesNotOnLevel(): states require level %d, removed: %u, remaining: %u", level,
+//                 original_size - graphNeighborhood.size(), graphNeighborhood.size());
 
-  return true;
-}
+//   return true;
+// }
 
 bool BoltRetrieveRepair::convertVertexPathToStatePath(std::vector<SparseVertex> &vertexPath,
                                                       const base::State *actualStart, const base::State *actualGoal,
@@ -757,7 +756,7 @@ bool BoltRetrieveRepair::convertVertexPathToStatePath(std::vector<SparseVertex> 
 
       SparseEdge edge = boost::edge(vertexPath[i - 1], vertexPath[i - 2], sparseDB_->g_).first;
 
-      /* This functionality has moved to DenseDB
+      /* This functionality has moved to SparseDB
       if (sparseDB_->getPopularityBiasEnabled())
       {
           // reduce cost of this edge because it was just used

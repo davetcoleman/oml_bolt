@@ -50,11 +50,11 @@
 
 // Bolt
 #include <ompl/tools/debug/Visualizer.h>
-#include <ompl/tools/bolt/DenseDB.h>
 #include <ompl/tools/bolt/BoltGraph.h>
 #include <ompl/tools/bolt/EdgeCache.h>
 #include <ompl/tools/bolt/Debug.h>
 #include <ompl/tools/bolt/VertexDiscretizer.h>
+#include <ompl/tools/bolt/BoltStorage.h>
 
 // Boost
 #include <boost/function.hpp>
@@ -62,6 +62,7 @@
 
 // C++
 #include <list>
+#include <random>
 
 namespace ompl
 {
@@ -77,7 +78,6 @@ namespace bolt
 
 /// @cond IGNORE
 OMPL_CLASS_FORWARD(SparseDB);
-OMPL_CLASS_FORWARD(DenseDB);
 /// @endcond
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -125,8 +125,9 @@ public:
 class SparseDB
 {
   friend class BoltRetrieveRepair;
-  friend class DenseDB;
   friend class Discretizer;
+  friend class BoltStorage;
+  friend class EdgeCache;
 
 public:
   ////////////////////////////////////////////////////////////////////////////////////////
@@ -136,13 +137,37 @@ public:
   /** \brief Constructor needs the state space used for planning.
    *  \param space - state space
    */
-  SparseDB(base::SpaceInformationPtr si, DenseDB* denseDB, VisualizerPtr visual, EdgeCachePtr edgeCache);
+  SparseDB(base::SpaceInformationPtr si, VisualizerPtr visual);
 
   /** \brief Deconstructor */
   virtual ~SparseDB(void);
 
   /** \brief Initialize database */
   bool setup();
+
+  /**
+   * \brief Load database from file
+   * \return true if file loaded successfully
+   */
+  bool load();
+
+  /**
+   * \brief Save loaded database to file, except skips saving if no paths have been added
+   * \return true if file saved successfully
+   */
+  bool saveIfChanged();
+
+  /**
+   * \brief Save loaded database to file
+   * \return true if file saved successfully
+   */
+  bool save();
+
+  /** \brief Set the file path to load/save to/from */
+  void setFilePath(const std::string& filePath)
+  {
+    filePath_ = filePath;
+  }
 
   /** \brief Given two milestones from the same connected component, construct a path connecting them and set it as
    * the solution
@@ -197,8 +222,8 @@ public:
   void clearEdgeCollisionStates();
 
   /** \brief Utilize multi-threading by using lots of caching */
-  void preprocessSPARS();
-  void preprocessSPARSThread(std::size_t threadID, std::size_t numThreads, base::SpaceInformationPtr si);
+  //void preprocessSPARS();
+  //void preprocessSPARSThread(std::size_t threadID, std::size_t numThreads, base::SpaceInformationPtr si);
 
   /** \brief Create a SPARS graph from the discretized dense graph and its popularity metric */
   void createSPARS();
@@ -208,19 +233,13 @@ public:
   void addDiscretizedStates(std::size_t indent);
 
   /** \brief Helper function for choosing the correct method for vertex insertion ordering */
-  void getVertexInsertionOrdering(std::list<WeightedVertex>& vertexInsertionOrder);
+  //void getVertexInsertionOrdering(std::list<WeightedVertex>& vertexInsertionOrder);
 
   void addRandomSamples(std::size_t indent);
 
-  /** \brief Helper for counting the number of disjoint sets in the sparse graph */
-  std::size_t getDisjointSetsCount(bool verbose = false);
-
-  bool getPopularityOrder(std::list<WeightedVertex>& vertexInsertionOrder);
-  bool getDefaultOrder(std::list<WeightedVertex>& vertexInsertionOrder);
-  bool getRandomOrder(std::list<WeightedVertex>& vertexInsertionOrder);
-
-  /** \brief Helper function for random integer creation */
-  int iRand(int min, int max);
+  // bool getPopularityOrder(std::list<WeightedVertex>& vertexInsertionOrder);
+  // bool getDefaultOrder(std::list<WeightedVertex>& vertexInsertionOrder);
+  // bool getRandomOrder(std::list<WeightedVertex>& vertexInsertionOrder);
 
   /**
    * \brief Run various checks/criteria to determine if to keep DenseVertex in sparse graph
@@ -229,20 +248,20 @@ public:
    * \param addReason - if function returns true, the reson the denseVertex was added to the sparse graph
    * \return true on success
    */
-  bool addStateToRoadmap(DenseVertex denseVertex, SparseVertex& newVertex, GuardType& addReason, std::size_t threadID);
+  bool addStateToRoadmap(StateID candidateStateID, SparseVertex& newVertex, GuardType& addReason, std::size_t threadID);
 
   /* ----------------------------------------------------------------------------------------*/
   /** \brief SPARS-related functions */
-  bool checkAddCoverage(DenseVertex denseV, std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
+  bool checkAddCoverage(StateID candidateStateID, std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
                         std::size_t indent);
-  bool checkAddConnectivity(DenseVertex denseV, std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
+  bool checkAddConnectivity(StateID candidateStateID, std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
                             std::size_t indent);
-  bool checkAddInterface(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
+  bool checkAddInterface(StateID candidateStateID, std::vector<SparseVertex>& graphNeighborhood,
                          std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex, std::size_t indent);
-  bool checkAddQuality(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
+  bool checkAddQuality(StateID candidateStateID, std::vector<SparseVertex>& graphNeighborhood,
                        std::vector<SparseVertex>& visibleNeighborhood, base::State* workState, SparseVertex& newVertex,
                        std::size_t indent);
-  void visualizeCheckAddQuality(base::State *candidateState, SparseVertex candidateRep);
+  void visualizeCheckAddQuality(StateID candidateStateID, SparseVertex candidateRep);
 
   /* ----------------------------------------------------------------------------------------*/
   // 4th Criteria
@@ -271,7 +290,7 @@ public:
   /** \brief Finds representatives of samples near candidateState_ which are not his representative
              Referred to as 'Get_Close_Reps' in paper
    */
-  void findCloseRepresentatives(base::State* workState, const base::State* candidateState, SparseVertex candidateRep,
+  void findCloseRepresentatives(base::State* workState, StateID stateID, SparseVertex candidateRep,
                                 std::map<SparseVertex, base::State*>& closeRepresentatives, std::size_t indent);
 
   /** \brief Updates pair point information for a representative with neighbor r
@@ -318,7 +337,7 @@ public:
    * \param visibleNeighborhood - resulting nearby states that are visible
    * \param indent - debugging tool
    */
-  void findGraphNeighbors(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
+  void findGraphNeighbors(StateID candidateStateID, std::vector<SparseVertex>& graphNeighborhood,
                           std::vector<SparseVertex>& visibleNeighborhood, std::size_t threadID, std::size_t indent);
 
   /** \brief After adding a new vertex, check if there is a really close nearby vertex that can be merged with this one */
@@ -326,11 +345,20 @@ public:
 
   DenseVertex getInterfaceNeighbor(DenseVertex q, SparseVertex rep);
 
+  std::size_t getDisjointSetsCount(bool verbose = false);
+
+  std::size_t checkConnectedComponents();
+
   bool sameComponent(SparseVertex v1, SparseVertex v2);
 
+  void addVertexFromFile(BoltStorage::BoltVertexData v);
+  void addEdgeFromFile(BoltStorage::BoltEdgeData e);
+
+  StateID addState(base::State *state);
+
   /** \brief Add vertices to graph */
-  SparseVertex addVertex(base::State* state, const GuardType& type);
-  SparseVertex addVertex(DenseVertex denseV, const GuardType& type);
+  SparseVertex addVertex(base::State *state, const GuardType &type);
+  SparseVertex addVertex(StateID stateID, const GuardType& type);
 
   /** \brief Add edge to graph */
   SparseEdge addEdge(SparseVertex v1, SparseVertex v2, std::size_t visualColor, std::size_t indent);
@@ -350,7 +378,6 @@ public:
   /** \brief Shortcut function for getting the state of a vertex */
   base::State*& getSparseStateNonConst(SparseVertex v);
   const base::State* getSparseState(SparseVertex v) const;
-  base::State*& getDenseState(DenseVertex denseV);
 
   /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
   double distanceFunction(const SparseVertex a, const SparseVertex b) const;
@@ -371,7 +398,6 @@ public:
   SparseVertex getSparseRepresentative(base::State* state);
 
   /** \brief Return true if state is far enough away from nearest obstacle */
-  bool sufficientClearance(DenseVertex denseV);
   bool sufficientClearance(base::State *state);
 
   /** \brief Custom A* visitor statistics */
@@ -396,21 +422,27 @@ public:
     return vertexDiscretizer_;
   }
 
+  std::size_t getNumQueryVertices()
+  {
+    return queryVertices_.size();
+  }
+
 protected:
+
   /** \brief Short name of this class */
   const std::string name_ = "SparseDB";
 
   /** \brief The created space information */
   base::SpaceInformationPtr si_;
 
-  /** \brief The database of motions to search through */
-  DenseDB* denseDB_;
-
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;
 
   /** \brief Speed up collision checking by saving redundant checks and using file storage */
   EdgeCachePtr edgeCache_;
+
+  /** \brief Track where to load/save datastructures */
+  std::string filePath_;
 
   /** \brief Nearest neighbors data structure */
   std::shared_ptr<NearestNeighbors<SparseVertex> > nn_;
@@ -422,16 +454,18 @@ protected:
   std::vector<SparseVertex> queryVertices_;
 
   /** \brief Access to the weights of each Edge */
-  boost::property_map<SparseGraph, boost::edge_weight_t>::type edgeWeightPropertySparse_;
+  boost::property_map<SparseGraph, boost::edge_weight_t>::type edgeWeightProperty_;
 
   /** \brief Access to the collision checking state of each Edge */
   SparseEdgeCollisionStateMap edgeCollisionStatePropertySparse_;
 
   /** \brief Access to the internal base::state at each Vertex */
-  boost::property_map<SparseGraph, vertex_dense_pointer_t>::type denseVertexProperty_;
+  boost::property_map<SparseGraph, vertex_state_cache_t>::type stateCacheProperty_;
+
+  std::vector<base::State *> stateCache_;
 
   /** \brief Access to the SPARS vertex type for the vertices */
-  boost::property_map<SparseGraph, vertex_type_t>::type typePropertySparse_;
+  boost::property_map<SparseGraph, vertex_type_t>::type typeProperty_;
 
   /** \brief Access to the interface pair information for the vertices */
   boost::property_map<SparseGraph, vertex_interface_data_t>::type interfaceDataProperty_;
@@ -449,6 +483,10 @@ protected:
   /** \brief Sampler user for generating valid samples in the state space */
   base::ValidStateSamplerPtr regularSampler_;
   base::MinimumClearanceValidStateSamplerPtr clearanceSampler_;
+
+  /** \brief Random number generator components */
+  //std::random_device rand_dev_;
+  //std::default_random_engine rand_eng_(rand_dev_());
 
   /** \brief Special flag for tracking mode when inserting into sparse graph */
   bool secondSparseInsertionAttempt_ = false;
@@ -493,7 +531,12 @@ protected:
   //double ignoreEdgesSmallerThan_ = 32.502; // 3D
   double ignoreEdgesSmallerThan_ = 12.7; // 2D
 
+  bool graphUnsaved_ = false;
+
 public:
+
+  /** \brief Allow the database to save to file (new experiences) */
+  bool savingEnabled_ = true;
 
   /** \brief Various options for visualizing the algorithmns performance */
   bool visualizeAstar_ = false;

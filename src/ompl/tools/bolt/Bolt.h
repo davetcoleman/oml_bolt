@@ -40,10 +40,10 @@
 
 #include <ompl/tools/experience/ExperienceSetup.h>  // the parent class
 
-#include <ompl/tools/bolt/DenseDB.h>
+#include <ompl/tools/bolt/SparseDB.h>
 #include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/BoltRetrieveRepair.h>
-#include <ompl/tools/bolt/Discretizer.h>
+//#include <ompl/tools/bolt/Discretizer.h>
 
 #include <ompl/base/Planner.h>
 #include <ompl/base/PlannerData.h>
@@ -176,8 +176,8 @@ public:
   /** \brief Convert PlannerData to PathGeometric. Assume ordering of verticies is order of path */
   void convertPlannerData(const base::PlannerDataPtr plannerData, geometric::PathGeometric &path);
 
-  /** \brief Hook for getting access to dense db */
-  DenseDBPtr getDenseDB();
+  /** \brief Hook for getting access to sparse db */
+  SparseDBPtr getSparseDB();
 
   /** \brief Allow accumlated experiences to be processed */
   bool doPostProcessing();
@@ -190,7 +190,7 @@ protected:
   BoltRetrieveRepairPtr boltPlanner_;
 
   /** \brief A shared object between all the planners for saving and loading previous experience */
-  DenseDBPtr denseDB_;
+  SparseDBPtr sparseDB_;
 
   /** \brief Accumulated experiences to be later added to experience database */
   std::vector<geometric::PathGeometric> queuedSolutionPaths_;

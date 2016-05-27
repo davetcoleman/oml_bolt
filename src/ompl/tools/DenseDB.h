@@ -511,6 +511,7 @@ protected:
   bool graphUnsaved_ = false;
 
 public:
+
   /** \brief Allow the database to save to file (new experiences) */
   bool savingEnabled_ = true;
 

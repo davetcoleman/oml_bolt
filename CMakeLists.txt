@@ -38,11 +38,9 @@ include_directories(
 add_library(${PROJECT_NAME}
   src/ompl/tools/bolt/src/Bolt.cpp
   src/ompl/tools/bolt/src/BoltRetrieveRepair.cpp
-  src/ompl/tools/bolt/src/DenseDB.cpp
   src/ompl/tools/bolt/src/SparseDB.cpp
   src/ompl/tools/bolt/src/BoltStorage.cpp
   src/ompl/tools/bolt/src/EdgeCache.cpp
-  src/ompl/tools/bolt/src/Discretizer.cpp
   src/ompl/tools/bolt/src/VertexDiscretizer.cpp
 )
 # Specify libraries to link a library or executable target against

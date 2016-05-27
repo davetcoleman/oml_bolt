@@ -89,6 +89,9 @@ enum GuardType
 /** \brief The type used internally for representing vertex IDs */
 typedef unsigned long int VertexIndexType;  // TODO(davetcoleman): just use size_t?
 
+/** \brief Identification for states in the StateCache */
+typedef VertexIndexType StateID;
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // SPARSE INTERFACE BOOK KEEPING
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -98,7 +101,7 @@ typedef std::pair<VertexIndexType, VertexIndexType> VertexPair;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 /** \brief Interface information storage class, which does bookkeeping for criterion four. */
-struct InterfaceData
+struct InterfaceData // TODO move this into separate file?
 {
   // Note: interface1 is between this vertex v and the vertex with the lower index v'
   // Note: interface2 is between this vertex v and the vertex with the higher index v''
@@ -253,22 +256,6 @@ struct InterfaceData
 typedef std::unordered_map<VertexPair, InterfaceData> InterfaceHash;
 
 ////////////////////////////////////////////////////////////////////////////////////////
-// The InterfaceHash structure is wrapped inside of this struct due to a compilation error on
-// GCC 4.6 with Boost 1.48.  An implicit assignment operator overload does not compile with these
-// components, so an explicit overload is given here.
-// Remove this struct when the minimum Boost requirement is > v1.48.
-// TODO remove this
-// struct InterfaceHashStruct
-// {
-//   InterfaceHashStruct& operator=(const InterfaceHashStruct& rhs)
-//   {
-//     interfaceHash = rhs.interfaceHash;
-//     return *this;
-//   }
-//   InterfaceHash interfaceHash;
-// };
-
-////////////////////////////////////////////////////////////////////////////////////////
 
 /** \brief Boost vertex properties */
 struct vertex_state_t
@@ -276,7 +263,7 @@ struct vertex_state_t
   typedef boost::vertex_property_tag kind;
 };
 
-struct vertex_dense_pointer_t
+struct vertex_state_cache_t
 {
   typedef boost::vertex_property_tag kind;
 };
@@ -334,7 +321,7 @@ enum EdgeCollisionState
    appropriate than an adjacency_matrix. Edges are undirected.
 
    *Properties of vertices*
-   - vertex_dense_pointer_t: a reference back to the dense graph where the original state is stored
+   - vertex_state_cache_t: a reference back to the dense graph where the original state is stored
    - vertex_predecessor_t: Requred by incremental connected components algorithm (disjoint sets)
    - vertex_rank_t: Requred by incremental connected components algorithm (disjoint sets)
    - vertex_type_t: The type of guard this node is
@@ -351,7 +338,8 @@ enum EdgeCollisionState
 
 /** Wrapper for the vertex's multiple as its property. */
 // clang-format off
-typedef boost::property<vertex_dense_pointer_t, VertexIndexType,
+typedef //boost::property<vertex_state_t, base::State *,
+        boost::property<vertex_state_cache_t, VertexIndexType,
         boost::property<boost::vertex_predecessor_t, VertexIndexType,
         boost::property<boost::vertex_rank_t, VertexIndexType,
         boost::property<vertex_type_t, GuardType,
@@ -415,7 +403,6 @@ typedef boost::property_map<SparseGraph, edge_collision_state_t>::type SparseEdg
 */
 
 /** Wrapper for the vertex's multiple as its property. */
-
 // clang-format off
 typedef boost::property<vertex_state_t, base::State *,
         boost::property<boost::vertex_predecessor_t, VertexIndexType,
@@ -457,7 +444,7 @@ struct WeightedVertex
   {
   }
 
-  WeightedVertex(DenseVertex v, double weight) : v_(v), weight_(weight)
+  WeightedVertex(StateID stateID, double weight) : stateID_(stateID), weight_(weight)
   {
   }
 
@@ -472,7 +459,7 @@ struct WeightedVertex
   //   ar& v_;
   // }
 
-  DenseVertex v_;
+  StateID stateID_;
   double weight_;
 };
 

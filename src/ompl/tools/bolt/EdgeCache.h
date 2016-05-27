@@ -33,7 +33,7 @@
  *********************************************************************/
 
 /* Author: Dave Coleman <dave@dav.ee>
-   Desc:   Speed up collision checking of DenseVertex edges
+   Desc:   Speed up collision checking of SparseVertex edges
 */
 
 #ifndef OMPL_TOOLS_BOLT_EDGE_CACHE_
@@ -57,16 +57,16 @@ namespace tools
 namespace bolt
 {
 OMPL_CLASS_FORWARD(EdgeCache);
-OMPL_CLASS_FORWARD(DenseDB);
+OMPL_CLASS_FORWARD(SparseDB);
 
-typedef std::pair<DenseVertex, DenseVertex> CachedEdge;
+typedef std::pair<StateID, StateID> CachedEdge;
 typedef std::map<CachedEdge, bool> EdgeCacheMap;
 class EdgeCache
 {
 public:
 
   /** \brief Constructor */
-  EdgeCache(base::SpaceInformationPtr si, DenseDB *denseDB, VisualizerPtr visual);
+  EdgeCache(base::SpaceInformationPtr si, SparseDB *sparseDB, VisualizerPtr visual);
 
   /** \brief Save cache to file */
   bool save();
@@ -81,7 +81,7 @@ public:
   void resetCounters();
 
   /** \brief Returns true if motion is valid, false if in collision. Checks cache first and also stores result  */
-  bool checkMotionWithCache(const DenseVertex &v1, const DenseVertex &v2, const std::size_t &threadID);
+  bool checkMotionWithCache(const StateID &v1, const StateID &v2, const std::size_t &threadID);
 
   /** \brief Test for benchmarking cache */
   void checkMotionCacheBenchmark();
@@ -106,7 +106,7 @@ private:
   base::SpaceInformationPtr si_;
 
   /** \brief The database of motions to search through */
-  DenseDB* denseDB_;
+  SparseDB* sparseDB_;
 
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;
