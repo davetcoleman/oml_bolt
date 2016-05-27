@@ -46,6 +46,8 @@
 
 // Boost
 #include <boost/thread/shared_mutex.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
 
 // C++
 #include <map>
@@ -59,13 +61,14 @@ namespace bolt
 OMPL_CLASS_FORWARD(DenseCache);
 OMPL_CLASS_FORWARD(SparseDB);
 
+typedef base::State* CachedState;
+typedef std::vector<CachedState> StateCache;
 typedef std::pair<StateID, StateID> CachedEdge;
-typedef std::map<CachedEdge, bool> DenseCacheMap;
+typedef std::map<CachedEdge, bool> EdgeCacheMap;
 
 class DenseCache
 {
 public:
-
   /** \brief Constructor */
   DenseCache(base::SpaceInformationPtr si, SparseDB *sparseDB, VisualizerPtr visual);
 
@@ -81,7 +84,19 @@ public:
   /** \brief Reset the counters */
   void resetCounters();
 
+  void saveStates(boost::archive::binary_oarchive &oa);
+  void loadStates(unsigned int numStates, boost::archive::binary_iarchive &ia);
+
+  /** \brief Add a state to the cache */
+  StateID addState(base::State *state);
+
+  /** \brief Get a state from the cache */
+  const base::State* getState(StateID stateID) const;
+  base::State* &getStateNonConst(StateID stateID);
+
   /** \brief Returns true if motion is valid, false if in collision. Checks cache first and also stores result  */
+  bool checkMotionWithCacheVertex(const SparseVertex &v1, const SparseVertex &v2, const std::size_t &threadID);
+
   bool checkMotionWithCache(const StateID &v1, const StateID &v2, const std::size_t &threadID);
 
   /** \brief Test for benchmarking cache */
@@ -90,9 +105,10 @@ public:
   /** \brief Ensure that the collision edge data loaded from file is correct, for debuging */
   void errorCheckData();
 
-  void setFilePath(const std::string& filePath);
+  void setFilePath(const std::string &filePath);
 
-  std::size_t getCacheSize();
+  std::size_t getStateCacheSize();
+  std::size_t getEdgeCacheSize();
 
   std::size_t getTotalCollisionChecksFromCache();
 
@@ -103,17 +119,59 @@ public:
 
 private:
 
+  /* \brief Information stored at the beginning of the DenseCache archive */
+  struct Header
+  {
+    /* \brief Bolt specific marker (fixed value) */
+    boost::uint32_t marker;
+
+    /* \brief Number of vertices stored in the archive */
+    std::size_t vertex_count;
+
+    /* \brief Number of edges stored in the archive */
+    std::size_t edge_count;
+
+    /* \brief Signature of state space that allocated the saved states in the vertices (see */
+    /* ompl::base::StateSpace::computeSignature()) */
+    std::vector<int> signature;
+
+    /* \brief boost::serialization routine  */
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int /*version*/)
+    {
+      ar &marker;
+      ar &vertex_count;
+      ar &edge_count;
+      ar &signature;
+    }
+  };
+
+  /// \brief The object containing all vertex data that will be stored
+  struct StateSerialized
+  {
+    template <typename Archive>
+    void serialize(Archive &ar, const unsigned int /*version*/)
+    {
+      ar &stateSerialized_;
+    }
+
+    std::vector<unsigned char> stateSerialized_;
+  };
+
   /** \brief The created space information */
   base::SpaceInformationPtr si_;
 
   /** \brief The database of motions to search through */
-  SparseDB* sparseDB_;
+  SparseDB *sparseDB_;
 
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;
 
   /** \brief Cache previously performed collision checks */
-  DenseCacheMap collisionCheckDenseCache_;
+  EdgeCacheMap collisionCheckDenseCache_;
+
+  /** \brief Cache sampled states */
+  StateCache stateCache_;
 
   /** \brief Stats for the checkMotionWithCache feature */
   std::vector<std::size_t> totalCollisionChecks_;
@@ -122,7 +180,7 @@ private:
   /** \brief Where to store the cache on disk */
   std::string filePath_;
 
-  /** \brief Mutex for both reading or writing to the DenseCacheMap */
+  /** \brief Mutex for both reading or writing to the EdgeCacheMap */
   boost::shared_mutex denseCacheMutex_;
 
   std::vector<CachedEdge> keys_;
@@ -132,6 +190,10 @@ private:
 
   /** \brief Available cores */
   std::size_t numThreads_;
+
+  /** \brief Number of cached item at last load/save */
+  std::size_t prevNumCachedEdges;
+  std::size_t prevNumCachedStates;
 
 };  // end of class DenseCache
 

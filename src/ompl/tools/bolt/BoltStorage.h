@@ -112,13 +112,9 @@ public:
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int /*version*/)
     {
-      // ar &v_;
       ar &stateSerialized_;
       ar &type_;
     }
-
-    /// \brief The state represented by this vertex
-    base::State *state_;
 
     std::vector<unsigned char> stateSerialized_;
     int type_;

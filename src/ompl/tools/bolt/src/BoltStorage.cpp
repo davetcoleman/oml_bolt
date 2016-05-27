@@ -239,10 +239,13 @@ void BoltStorage::loadVertices(unsigned int numVertices, boost::archive::binary_
     base::State *state = space->allocState();
     space->deserialize(state, &vertexData.stateSerialized_[0]);
 
-    vertexData.state_ = state;
+    // vertexData.state_ = state;
+    // // Add to Sparse graph
+    // sparseDB_->addVertexFromFile(vertexData);
 
     // Add to Sparse graph
-    sparseDB_->addVertexFromFile(vertexData);
+    GuardType type = static_cast<GuardType>(vertexData.type_);
+    sparseDB_->addVertex(state, type);
 
     // Feedback
     if ((i + 1) % feedbackFrequency == 0)

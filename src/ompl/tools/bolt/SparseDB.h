@@ -351,7 +351,7 @@ public:
 
   bool sameComponent(SparseVertex v1, SparseVertex v2);
 
-  void addVertexFromFile(BoltStorage::BoltVertexData v);
+  //void addVertexFromFile(BoltStorage::BoltVertexData v);
   void addEdgeFromFile(BoltStorage::BoltEdgeData e);
 
   StateID addState(base::State *state);
@@ -378,7 +378,7 @@ public:
   /** \brief Shortcut function for getting the state of a vertex */
   base::State*& getSparseStateNonConst(SparseVertex v);
   const base::State* getSparseState(SparseVertex v) const;
-  base::State*& getState(StateID stateID);
+  const base::State* getState(StateID stateID) const;
 
   /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
   double distanceFunction(const SparseVertex a, const SparseVertex b) const;
@@ -451,8 +451,11 @@ protected:
   /** \brief Connectivity graph */
   SparseGraph g_;
 
+  std::size_t numThreads_;
+
   /** \brief Vertices for performing nearest neighbor queries on multiple threads */
   std::vector<SparseVertex> queryVertices_;
+  std::vector<base::State*> queryState_;
 
   /** \brief Access to the weights of each Edge */
   boost::property_map<SparseGraph, boost::edge_weight_t>::type edgeWeightProperty_;
@@ -462,8 +465,6 @@ protected:
 
   /** \brief Access to the internal base::state at each Vertex */
   boost::property_map<SparseGraph, vertex_state_cache_t>::type stateCacheProperty_;
-
-  std::vector<base::State *> stateCache_;
 
   /** \brief Access to the SPARS vertex type for the vertices */
   boost::property_map<SparseGraph, vertex_type_t>::type typeProperty_;

@@ -41,10 +41,6 @@
 
 // Boost
 #include <boost/serialization/map.hpp>
-// #include <boost/archive/text_iarchive.hpp>
-// #include <boost/archive/text_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/archive/binary_oarchive.hpp>
 #include <boost/thread.hpp>
 
 // C++
@@ -61,6 +57,9 @@ namespace tools
 {
 namespace bolt
 {
+
+static const boost::uint32_t BOLT_DENSE_CACHE_MARKER = 0x1044414D; // unknown value
+
 DenseCache::DenseCache(base::SpaceInformationPtr si, SparseDB *sparseDB, VisualizerPtr visual)
   : si_(si), sparseDB_(sparseDB), visual_(visual)
 {
@@ -72,24 +71,30 @@ DenseCache::DenseCache(base::SpaceInformationPtr si, SparseDB *sparseDB, Visuali
   totalCollisionChecksFromCache_.resize(numThreads_, 0);
 
   if (disableCache_)
-    OMPL_WARN("Edge cache disabled");
+    OMPL_WARN("dense cache disabled");
 }
 
 bool DenseCache::save()
 {
   OMPL_INFORM("------------------------------------------------");
-  OMPL_INFORM("Saving Edge Cache");
+  OMPL_INFORM("Saving Dense Cache");
   OMPL_INFORM("  Path:         %s", filePath_.c_str());
-  OMPL_INFORM("  Utilization:  %f", getPercentCachedCollisionChecks());
-  OMPL_INFORM("  Cache Size:   %u", getCacheSize());
-  OMPL_INFORM("  Theory Max:   %u", sparseDB_->getNumVertices() * sparseDB_->getNumVertices());
+  OMPL_INFORM("  Edges:");
+  OMPL_INFORM("    Utilization:  %f %", getPercentCachedCollisionChecks());
+  OMPL_INFORM("    Cache Size:   %u (new: %u)", getEdgeCacheSize(), getEdgeCacheSize() - prevNumCachedEdges);
+  OMPL_INFORM("  States:");
+  OMPL_INFORM("    Cache Size:   %u (new: %u)", getStateCacheSize(), getStateCacheSize() - prevNumCachedStates);
   OMPL_INFORM("------------------------------------------------");
+
+  // Save previous data
+  prevNumCachedEdges = getEdgeCacheSize();
+  prevNumCachedStates = getStateCacheSize();
 
   std::ofstream out(filePath_, std::ios::binary);
 
   if (!out.good())
   {
-    OMPL_ERROR("Failed to save edge cache: output stream is invalid");
+    OMPL_ERROR("Failed to save dense cache: output stream is invalid");
     return false;
   }
 
@@ -98,11 +103,21 @@ bool DenseCache::save()
     try
     {
       boost::archive::binary_oarchive oa(out);
+
+      // Write header
+      Header header;
+      header.marker = BOLT_DENSE_CACHE_MARKER;
+      header.vertex_count = stateCache_.size();
+      header.edge_count = collisionCheckDenseCache_.size();
+      si_->getStateSpace()->computeSignature(header.signature);
+      oa << header;
+
+      saveStates(oa);
       oa << collisionCheckDenseCache_;
     }
     catch (boost::archive::archive_exception &ae)
     {
-      OMPL_ERROR("Failed to save edge cache: %s", ae.what());
+      OMPL_ERROR("Failed to save dense cache: %s", ae.what());
       return false;
     }
   }
@@ -113,14 +128,14 @@ bool DenseCache::save()
 
 bool DenseCache::load()
 {
-  OMPL_INFORM("Loading edge cache from %s", filePath_.c_str());
+  OMPL_INFORM("Loading dense cache from %s", filePath_.c_str());
 
   // Benchmark runtime
   time::point startTime = time::now();
 
   if (!collisionCheckDenseCache_.empty())
   {
-    OMPL_ERROR("Collision check edge cache has %u edges and is not empty, unable to load.", collisionCheckDenseCache_.size());
+    OMPL_ERROR("Collision check dense cache has %u edges and is not empty, unable to load.", collisionCheckDenseCache_.size());
     return false;
   }
 
@@ -129,18 +144,41 @@ bool DenseCache::load()
   // Error check
   if (!in.good())
   {
-    OMPL_INFORM("Failed to load edge cache: input stream is invalid");
+    OMPL_INFORM("Failed to load dense cache: input stream is invalid (file not found)");
     return false;
   }
 
   try
   {
     boost::archive::binary_iarchive ia(in);
+
+    // Read header
+    Header header;
+    ia >> header;
+
+    // Checking the archive marker
+    if (header.marker != BOLT_DENSE_CACHE_MARKER)
+    {
+      OMPL_ERROR("Failed to load DenseCachea: header marker not found");
+      return false;
+    }
+
+    // Verify that the state space is the same
+    std::vector<int> sig;
+    si_->getStateSpace()->computeSignature(sig);
+    if (header.signature != sig)
+    {
+      OMPL_ERROR("Failed to load DenseCache: StateSpace signature mismatch");
+      return false;
+    }
+
+    // File seems ok - load vertices and edges
+    loadStates(header.vertex_count, ia);
     ia >> collisionCheckDenseCache_;
   }
   catch (boost::archive::archive_exception &ae)
   {
-    OMPL_ERROR("Failed to load edge cache: %s", ae.what());
+    OMPL_ERROR("Failed to load dense cache: %s", ae.what());
     return false;
   }
 
@@ -153,19 +191,23 @@ bool DenseCache::load()
   double duration = time::seconds(time::now() - startTime);
 
   OMPL_INFORM("------------------------------------------------------");
-  OMPL_INFORM("Loaded edge cache stats:");
-  OMPL_INFORM("  Path:         %s", filePath_.c_str());
-  OMPL_INFORM("  Cache Size:   %u", getCacheSize());
-  OMPL_INFORM("  Theory Max:   %u", sparseDB_->getNumVertices() * sparseDB_->getNumVertices());
-  OMPL_INFORM("  Loading time: %f", duration);
+  OMPL_INFORM("Loaded dense cache stats:");
+  OMPL_INFORM("  File Path:         %s", filePath_.c_str());
+  OMPL_INFORM("  Edge Cache Size:   %u", getEdgeCacheSize());
+  OMPL_INFORM("  State Cache Size:  %u", getStateCacheSize());
+  OMPL_INFORM("  Loading time:      %f", duration);
   OMPL_INFORM("------------------------------------------------------");
+
+  // Save previous data
+  prevNumCachedEdges = getEdgeCacheSize();
+  prevNumCachedStates = getStateCacheSize();
 
   return true;
 }
 
 void DenseCache::clear()
 {
-  OMPL_INFORM("Clearing edge cache");
+  OMPL_INFORM("Clearing dense cache");
   collisionCheckDenseCache_.clear();
   resetCounters();
 }
@@ -179,17 +221,98 @@ void DenseCache::resetCounters()
   }
 }
 
+void DenseCache::saveStates(boost::archive::binary_oarchive &oa)
+{
+  const base::StateSpacePtr &space = si_->getStateSpace();
+
+  std::vector<unsigned char> state(space->getSerializationLength());
+  std::size_t feedbackFrequency = stateCache_.size() / 10;
+
+  std::cout << "Saving states: " << std::flush;
+  for (std::size_t stateID = 0; stateID < stateCache_.size(); ++stateID)
+  {
+    // Convert to new structure
+    StateSerialized stateData;
+
+    // Serializing the state contained in this vertex
+    space->serialize(&state[0], stateCache_[stateID]);
+    stateData.stateSerialized_ = state;
+
+    // Save to file
+    oa << stateData;
+
+    // Feedback
+    if (stateID % feedbackFrequency == 0)
+      std::cout << std::fixed << std::setprecision(0) << (stateID / double(stateCache_.size())) * 100.0 << "% "
+                << std::flush;
+  }
+
+  std::cout << std::endl;
+}
+
+void DenseCache::loadStates(unsigned int numStates, boost::archive::binary_iarchive &ia)
+{
+  OMPL_INFORM("Loading %u states from file", numStates);
+
+  const base::StateSpacePtr &space = si_->getStateSpace();
+  std::size_t feedbackFrequency = numStates / 10;
+
+  std::cout << "States loaded: ";
+  for (unsigned int i = 0; i < numStates; ++i)
+  {
+    // Copy in data from file
+    StateSerialized stateData;
+    ia >> stateData;
+
+    // Allocating a new state and deserializing it from the buffer
+    base::State *state = space->allocState();
+    space->deserialize(state, &stateData.stateSerialized_[0]);
+
+    // Add to vector
+    stateCache_.push_back(state);
+
+    // Feedback
+    if ((i + 1) % feedbackFrequency == 0)
+      std::cout << std::fixed << std::setprecision(0) << (i / double(numStates)) * 100.0 << "% " << std::flush;
+  }
+  std::cout << std::endl;
+}
+
+StateID DenseCache::addState(base::State *state)
+{
+  // TODO: thread safety?
+  stateCache_.push_back(state);
+  return stateCache_.size() - 1;
+}
+
+const base::State* DenseCache::getState(StateID stateID) const
+{
+  // TODO: thread safety?
+  return stateCache_[stateID];
+}
+
+base::State* &DenseCache::getStateNonConst(StateID stateID)
+{
+  // TODO: thread safety?
+  return stateCache_[stateID];
+}
+
+bool DenseCache::checkMotionWithCacheVertex(const SparseVertex &v1, const SparseVertex &v2, const std::size_t &threadID)
+{
+  return checkMotionWithCache(sparseDB_->stateCacheProperty_[v1], sparseDB_->stateCacheProperty_[v2], threadID);
+}
+
 bool DenseCache::checkMotionWithCache(const StateID &stateID1, const StateID &stateID2, const std::size_t &threadID)
 {
   // Optionally skip caching
   if (disableCache_)
-    return si_->checkMotion(sparseDB_->getState(stateID1), sparseDB_->getState(stateID2));
+    return si_->checkMotion(stateCache_[stateID1], stateCache_[stateID2]);
 
   CachedEdge &edge = keys_[threadID];
 
   // Error check
-  BOOST_ASSERT_MSG(stateID1 >= numThreads_, "stateID1: The queryVertex_ should not be checked within the DenseCache, because it is subject to change");
-  BOOST_ASSERT_MSG(stateID2 >= numThreads_, "stateID2: The queryVertex_ should not be checked within the DenseCache, because it is subject to change");
+  //BOOST_ASSERT_MSG(stateID1 >= numThreads_, "stateID1: The queryVertex_ should not be checked within the DenseCache, because it is subject to change");
+  //BOOST_ASSERT_MSG(stateID2 >= numThreads_, "stateID2: The queryVertex_ should not be checked within the DenseCache, because it is subject to change");
 
   // Create edge to search for - only store pairs in one direction
   if (stateID1 < stateID2)
@@ -197,7 +320,7 @@ bool DenseCache::checkMotionWithCache(const StateID &stateID1, const StateID &st
   else
     edge = CachedEdge(stateID2, stateID1);
 
-  DenseCacheMap::iterator lb = collisionCheckDenseCache_.lower_bound(edge);
+  EdgeCacheMap::iterator lb = collisionCheckDenseCache_.lower_bound(edge);
 
   bool result;
   {  // Get read-only mutex
@@ -218,7 +341,7 @@ bool DenseCache::checkMotionWithCache(const StateID &stateID1, const StateID &st
   }
 
   // No cache available
-  result = si_->checkMotion(sparseDB_->getState(stateID1), sparseDB_->getState(stateID2));
+  result = si_->checkMotion(stateCache_[stateID1], stateCache_[stateID2]);
   // std::cout << "No cache: Edge " << stateID1 << ", " << stateID2 << " collision: " << result << std::endl;
 
   {  // Get write mutex
@@ -226,7 +349,7 @@ bool DenseCache::checkMotionWithCache(const StateID &stateID1, const StateID &st
 
     // The key does not exist in the map, so add it to the map
     // Use lb as a hint to insert, so it can avoid another lookup
-    collisionCheckDenseCache_.insert(lb, DenseCacheMap::value_type(edge, result));
+    collisionCheckDenseCache_.insert(lb, EdgeCacheMap::value_type(edge, result));
   }
 
   return result;
@@ -243,7 +366,7 @@ void DenseCache::checkMotionCacheBenchmark()
   StateID stateID1 = 2;
   StateID stateID2 = 3;
   std::size_t numRuns = 100000;
-  bool baselineResult = si_->checkMotion(sparseDB_->getState(stateID1), sparseDB_->getState(stateID2));
+  bool baselineResult = si_->checkMotion(stateCache_[stateID1], stateCache_[stateID2]);
 
   // Benchmark collision check without cache
   {
@@ -252,7 +375,7 @@ void DenseCache::checkMotionCacheBenchmark()
 
     for (std::size_t i = 0; i < numRuns; ++i)
     {
-      if (si_->checkMotion(sparseDB_->getState(stateID1), sparseDB_->getState(stateID2)) != baselineResult)
+      if (si_->checkMotion(stateCache_[stateID1], stateCache_[stateID2]) != baselineResult)
       {
         OMPL_ERROR("benchmark checkmotion does not match baseline result");
         exit(-1);
@@ -294,16 +417,16 @@ void DenseCache::checkMotionCacheBenchmark()
 
 void DenseCache::errorCheckData()
 {
-  OMPL_INFORM("Error checking edge cache...");
+  OMPL_INFORM("Error checking dense cache...");
   std::size_t counter = 0;
-  for (DenseCacheMap::const_iterator iterator = collisionCheckDenseCache_.begin(); iterator != collisionCheckDenseCache_.end();
+  for (EdgeCacheMap::const_iterator iterator = collisionCheckDenseCache_.begin(); iterator != collisionCheckDenseCache_.end();
        iterator++)
   {
     std::pair<StateID,StateID> thing = iterator->first;
     StateID &stateID1 = thing.first;
     StateID &stateID2 = thing.second;
     bool cachedResult = iterator->second;
-    if (si_->checkMotion(sparseDB_->getState(stateID1), sparseDB_->getState(stateID2)) != cachedResult)
+    if (si_->checkMotion(stateCache_[stateID1], stateCache_[stateID2]) != cachedResult)
     {
       OMPL_ERROR("Found instance where cached edge data is wrong, on iteration %u", counter);
       std::cout << "stateID1: " << stateID1 << std::endl;
@@ -320,7 +443,12 @@ void DenseCache::setFilePath(const std::string &filePath)
   filePath_ = filePath;
 }
 
-std::size_t DenseCache::getCacheSize()
+std::size_t DenseCache::getStateCacheSize()
+{
+  return stateCache_.size();
+}
+
+std::size_t DenseCache::getEdgeCacheSize()
 {
   return collisionCheckDenseCache_.size();
 }
