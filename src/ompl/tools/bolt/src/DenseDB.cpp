@@ -980,21 +980,21 @@ otb::DenseVertex DenseDB::addVertex(base::State *state, const GuardType &type)
   DenseVertex v = boost::add_vertex(g_);
 
   // Add properties
-  typeProperty_[v] = type;
+  //typeProperty_[v] = type;
   stateProperty_[v] = state;
-  representativesProperty_[v] = 0;  // which sparse vertex reps this dense vertex
+  //representativesProperty_[v] = 0;  // which sparse vertex reps this dense vertex
 
   // Connected component tracking
-  disjointSets_.make_set(v);
+  //disjointSets_.make_set(v);
 
   // Add vertex to nearest neighbor structure
-  nn_->add(v);
+  //nn_->add(v);
 
   // Track vertex for later removal if temporary
-  if (type == CARTESIAN)
-  {
-    tempVerticies_.push_back(v);
-  }
+  // if (type == CARTESIAN)
+  // {
+  //   tempVerticies_.push_back(v);
+  // }
 
   return v;
 }

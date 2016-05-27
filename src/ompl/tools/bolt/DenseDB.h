@@ -46,7 +46,7 @@
 //#include <ompl/base/PlannerData.h>
 //#include <ompl/base/PlannerDataStorage.h>
 #include <ompl/datastructures/NearestNeighbors.h>
-#include <ompl/tools/debug/Visualizer.h> 
+#include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/SparseDB.h>
 #include <ompl/tools/bolt/BoltGraph.h>
 

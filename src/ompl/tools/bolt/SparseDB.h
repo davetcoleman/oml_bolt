@@ -58,6 +58,7 @@
 
 // Boost
 #include <boost/function.hpp>
+#include <ompl/tools/boost/disjoint_sets.hpp>
 
 // C++
 #include <list>
@@ -251,7 +252,7 @@ public:
    *         Referred to as 'Test_Add_paths' in paper
    */
   bool checkAddPath(SparseVertex v, std::size_t indent);
-  void visualizeCheckAddPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData);
+  void visualizeCheckAddPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
 
   bool addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
 
@@ -320,6 +321,9 @@ public:
   void findGraphNeighbors(DenseVertex denseV, std::vector<SparseVertex>& graphNeighborhood,
                           std::vector<SparseVertex>& visibleNeighborhood, std::size_t threadID, std::size_t indent);
 
+  /** \brief After adding a new vertex, check if there is a really close nearby vertex that can be merged with this one */
+  bool checkRemoveCloseVertices(SparseVertex v1, std::size_t indent = 0);
+
   DenseVertex getInterfaceNeighbor(DenseVertex q, SparseVertex rep);
 
   bool sameComponent(SparseVertex v1, SparseVertex v2);
@@ -330,6 +334,8 @@ public:
 
   /** \brief Add edge to graph */
   SparseEdge addEdge(SparseVertex v1, SparseVertex v2, std::size_t visualColor, std::size_t indent);
+
+  void removeVertex(SparseVertex v);
 
   std::size_t getVizVertexType(const GuardType& type);
 
@@ -363,6 +369,10 @@ public:
   std::pair<std::size_t, std::size_t> getInterfaceStateStorageSize();
 
   SparseVertex getSparseRepresentative(base::State* state);
+
+  /** \brief Return true if state is far enough away from nearest obstacle */
+  bool sufficientClearance(DenseVertex denseV);
+  bool sufficientClearance(base::State *state);
 
   /** \brief Custom A* visitor statistics */
   void recordNodeOpened()  // discovered
@@ -430,18 +440,21 @@ protected:
   boost::property_map<SparseGraph, vertex_popularity_t>::type vertexPopularity_;
 
   /** \brief Data structure that maintains the connected components */
-  boost::disjoint_sets<boost::property_map<SparseGraph, boost::vertex_rank_t>::type,
-                       boost::property_map<SparseGraph, boost::vertex_predecessor_t>::type> disjointSets_;
+  boost::my_disjoint_sets<boost::property_map<SparseGraph, boost::vertex_rank_t>::type,
+                          boost::property_map<SparseGraph, boost::vertex_predecessor_t>::type> disjointSets_;
 
   /** \brief A path simplifier used to simplify dense paths added to S */
   geometric::PathSimplifierPtr pathSimplifier_;
 
   /** \brief Sampler user for generating valid samples in the state space */
-  //base::ValidStateSamplerPtr sampler_
-  base::MinimumClearanceValidStateSamplerPtr sampler_;
+  base::ValidStateSamplerPtr regularSampler_;
+  base::MinimumClearanceValidStateSamplerPtr clearanceSampler_;
 
   /** \brief Special flag for tracking mode when inserting into sparse graph */
   bool secondSparseInsertionAttempt_ = false;
+
+  /** \brief Special flag for tracking mode when inserting from discretized grid */
+  bool discretizedSamplesInsertion_ = false;
 
   /** \brief Amount of sub-optimality allowed */
   double sparseDelta_ = 2.0;
@@ -465,7 +478,7 @@ protected:
   double penetrationDistance_;
 
   /** \brief Distance to the nearest possible vertex in the grid, referred to as z */
-  double nearestDVertex_;
+  double nearestDiscretizedV_;
 
   bool useFourthCriteria_;
 
@@ -522,8 +535,6 @@ public:
   /** \brief Change verbosity levels */
   bool vCriteria_ = false;
   bool vQuality_ = false;
-  bool disjointVerbose_ = true;
-  bool fourthCheckVerbose_ = true;
 
   /** \brief Show the sparse graph being generated */
   bool visualizeSparsGraph_ = false;

@@ -315,8 +315,6 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
       double dist;
       if (!si->getStateValidityChecker()->isValid(candidateState, dist))
       {
-        std::cout << "not valid " << std::endl;
-
         // Visualize
         if (visualizeGridGeneration_)
         {
@@ -330,7 +328,6 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
 
       if (dist < clearance_)
       {
-        std::cout << "no clearance " << std::endl;
         // Visualize
         if (visualizeGridGeneration_)
         {
