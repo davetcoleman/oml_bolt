@@ -56,7 +56,7 @@
 
 // this package
 #include <ompl/tools/bolt/BoltStorage.h>
-#include <ompl/tools/bolt/EdgeCache.h>
+#include <ompl/tools/bolt/DenseCache.h>
 
 namespace ompl
 {
@@ -88,7 +88,7 @@ class DenseDB
   friend class SparseDB;
   friend class BoltStorage;
   friend class Discretizer;
-  friend class EdgeCache;
+  friend class DenseCache;
 
 public:
   // ////////////////////////////////////////////////////////////////////////////////////////
@@ -494,7 +494,7 @@ protected:
                        boost::property_map<DenseGraph, boost::vertex_predecessor_t>::type> disjointSets_;
 
   /** \brief Class for storing collision check data of edges */
-  EdgeCachePtr edgeCache_;
+  DenseCachePtr denseCache_;
 
   /** \brief Tool for gridding state space */
   DiscretizerPtr discretizer_;

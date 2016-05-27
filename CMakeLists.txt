@@ -40,7 +40,7 @@ add_library(${PROJECT_NAME}
   src/ompl/tools/bolt/src/BoltRetrieveRepair.cpp
   src/ompl/tools/bolt/src/SparseDB.cpp
   src/ompl/tools/bolt/src/BoltStorage.cpp
-  src/ompl/tools/bolt/src/EdgeCache.cpp
+  src/ompl/tools/bolt/src/DenseCache.cpp
   src/ompl/tools/bolt/src/VertexDiscretizer.cpp
 )
 # Specify libraries to link a library or executable target against

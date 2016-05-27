@@ -127,17 +127,17 @@ DenseDB::DenseDB(base::SpaceInformationPtr si, VisualizerPtr visual)
   initializeQueryState();
 
   // Initialize collision cache
-  edgeCache_.reset(new EdgeCache(si_, this, visual_));
+  denseCache_.reset(new DenseCache(si_, this, visual_));
 
   // Initialize sparse database
-  sparseDB_.reset(new SparseDB(si_, this, visual_, edgeCache_));
+  sparseDB_.reset(new SparseDB(si_, this, visual_, denseCache_));
 
   // Initialize nearest neighbor datastructure
   nn_.reset(new NearestNeighborsGNAT<DenseVertex>());
   nn_->setDistanceFunction(boost::bind(&DenseDB::distanceFunction, this, _1, _2));
 
   // Initialize the discretize grid tool
-  discretizer_.reset(new Discretizer(si_, this, edgeCache_, visual_));
+  discretizer_.reset(new Discretizer(si_, this, denseCache_, visual_));
 }
 
 DenseDB::~DenseDB(void)
@@ -209,7 +209,7 @@ bool DenseDB::load()
   double duration = time::seconds(time::now() - start);
 
   // Load collision cache
-  edgeCache_->load();
+  denseCache_->load();
 
   // Visualize
   // visual_->viz1Trigger();
@@ -280,7 +280,7 @@ bool DenseDB::save()
   storage_.save(filePath_.c_str());
 
   // Save collision cache
-  edgeCache_->save();
+  denseCache_->save();
 
   // Benchmark
   double loadTime = time::seconds(time::now() - start);
@@ -1302,7 +1302,7 @@ void DenseDB::removeInvalidVertices()
     if (actuallyRemove)
     {
       // Must clear out edge cache since we changed the numbering of vertices
-      edgeCache_->clear();
+      denseCache_->clear();
       graphUnsaved_ = true;
     }
   }

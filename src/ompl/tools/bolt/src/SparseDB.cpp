@@ -142,7 +142,7 @@ SparseDB::SparseDB(base::SpaceInformationPtr si, VisualizerPtr visual)
   , disjointSets_(boost::get(boost::vertex_rank, g_), boost::get(boost::vertex_predecessor, g_))
 {
   // Initialize collision cache
-  edgeCache_.reset(new EdgeCache(si_, this, visual_));
+  denseCache_.reset(new DenseCache(si_, this, visual_));
 
   // Add search state
   initializeQueryState();
@@ -311,7 +311,7 @@ bool SparseDB::load()
   double duration = time::seconds(time::now() - start);
 
   // Load collision cache
-  edgeCache_->load();
+  denseCache_->load();
 
   // Visualize
   // visual_->viz1Trigger();
@@ -382,7 +382,7 @@ bool SparseDB::save()
   storage_.save(filePath_.c_str());
 
   // Save collision cache
-  edgeCache_->save();
+  denseCache_->save();
 
   // Benchmark
   double loadTime = time::seconds(time::now() - start);
@@ -660,7 +660,7 @@ void SparseDB::preprocessSPARSThread(std::size_t threadID, std::size_t numThread
     }
     if (v1 % saveFrequency == 0)
     {
-      edgeCache_->save();
+      denseCache_->save();
     }
 
     // Search
@@ -671,7 +671,7 @@ void SparseDB::preprocessSPARSThread(std::size_t threadID, std::size_t numThread
     for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
     {
       const DenseVertex v2 = graphNeighborhood[i];
-      edgeCache_->checkMotionWithCache(v1, v2, threadID);
+      denseCache_->checkMotionWithCache(v1, v2, threadID);
     }
 
     // Increment
@@ -732,10 +732,10 @@ void SparseDB::createSPARS()
   BOLT_DEBUG(0, 1, "  Total generations:         " << numGraphGenerations_);
   BOLT_DEBUG(0, 1, "  Disjoint sets:             " << numSets);
   BOLT_DEBUG(0, 1, "  Edge collision cache         ");
-  BOLT_DEBUG(0, 1, "    Size:                    " << edgeCache_->getCacheSize());
-  BOLT_DEBUG(0, 1, "    Total checks:            " << edgeCache_->getTotalCollisionChecks());
-  BOLT_DEBUG(0, 1, "    Cached checks:           " << edgeCache_->getTotalCollisionChecksFromCache() << " ("
-             << edgeCache_->getPercentCachedCollisionChecks() << "%)");
+  BOLT_DEBUG(0, 1, "    Size:                    " << denseCache_->getCacheSize());
+  BOLT_DEBUG(0, 1, "    Total checks:            " << denseCache_->getTotalCollisionChecks());
+  BOLT_DEBUG(0, 1, "    Cached checks:           " << denseCache_->getTotalCollisionChecksFromCache() << " ("
+             << denseCache_->getPercentCachedCollisionChecks() << "%)");
   BOLT_DEBUG(0, 1, "  Criteria additions:          ");
   BOLT_DEBUG(0, 1, "    Coverage:                " << numSamplesAddedForCoverage_);
   BOLT_DEBUG(0, 1, "    Connectivity:            " << numSamplesAddedForConnectivity_);
@@ -752,7 +752,7 @@ void SparseDB::createSPARS()
     displaySparseDatabase();
 
   // Save collision cache
-  edgeCache_->save();
+  denseCache_->save();
 
   OMPL_INFORM("Finished creating sparse database");
 }
@@ -831,7 +831,7 @@ void SparseDB::createSPARSOuterLoop()
   // Reset parameters
   setup();
   visualizeOverlayNodes_ = false;  // DO NOT visualize all added nodes in a separate window
-  edgeCache_->resetCounters();
+  denseCache_->resetCounters();
 
   // Get the ordering to insert vertices
   std::list<WeightedVertex> vertexInsertionOrder;
@@ -881,7 +881,7 @@ void SparseDB::createSPARSOuterLoop()
       secondSparseInsertionAttempt_ = true;
 
       // Save collision cache, just in case there is a bug
-      edgeCache_->save();
+      denseCache_->save();
     }
 
     bool debugOverRideJustTwice = true;
@@ -924,8 +924,8 @@ bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOr
       std::cout << ANSI_COLOR_BLUE;
       std::cout << std::fixed << std::setprecision(1)
                 << "Sparse generation progress: " << (static_cast<double>(loopCount) / originalVertexInsertion) * 100.0
-                << "% Cache size: " << edgeCache_->getCacheSize()
-                << " Cache usage: " << edgeCache_->getPercentCachedCollisionChecks() << "%" << std::endl;
+                << "% Cache size: " << denseCache_->getCacheSize()
+                << " Cache usage: " << denseCache_->getPercentCachedCollisionChecks() << "%" << std::endl;
       std::cout << ANSI_COLOR_RESET;
       if (visualizeSparsGraph_)
         visual_->viz2Trigger();
@@ -1414,7 +1414,7 @@ bool SparseDB::checkAddInterface(StateID candidateStateID, std::vector<SparseVer
     if (!hasEdge(visibleNeighborhood[0], visibleNeighborhood[1]))
     {
       // If they can be directly connected
-      if (edgeCache_->checkMotionWithCache(stateCacheProperty_[visibleNeighborhood[0]],
+      if (denseCache_->checkMotionWithCache(stateCacheProperty_[visibleNeighborhood[0]],
                                            stateCacheProperty_[visibleNeighborhood[1]], threadID))
       {
         BOLT_DEBUG(indent + 2, vCriteria_, "INTERFACE: directly connected nodes");
@@ -2540,7 +2540,7 @@ void SparseDB::findGraphNeighbors(StateID candidateStateID, std::vector<SparseVe
       // Only collision check motion if they don't already share an edge in the dense graph
       //if (!boost::edge(v1, v2, g_).second) // TODO: reimplement this
       {
-        if (!edgeCache_->checkMotionWithCache(candidateStateID, stateCacheProperty_[v2], threadID))
+        if (!denseCache_->checkMotionWithCache(candidateStateID, stateCacheProperty_[v2], threadID))
         {
           continue;
         }

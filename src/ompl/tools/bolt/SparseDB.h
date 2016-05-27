@@ -51,7 +51,7 @@
 // Bolt
 #include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/BoltGraph.h>
-#include <ompl/tools/bolt/EdgeCache.h>
+#include <ompl/tools/bolt/DenseCache.h>
 #include <ompl/tools/bolt/Debug.h>
 #include <ompl/tools/bolt/VertexDiscretizer.h>
 #include <ompl/tools/bolt/BoltStorage.h>
@@ -127,7 +127,7 @@ class SparseDB
   friend class BoltRetrieveRepair;
   friend class Discretizer;
   friend class BoltStorage;
-  friend class EdgeCache;
+  friend class DenseCache;
 
 public:
   ////////////////////////////////////////////////////////////////////////////////////////
@@ -370,9 +370,9 @@ public:
   /** \brief Show in visualizer the sparse graph */
   void displaySparseDatabase(bool showVertices = false);
 
-  EdgeCachePtr getEdgeCache()
+  DenseCachePtr getDenseCache()
   {
-    return edgeCache_;
+    return denseCache_;
   }
 
   /** \brief Shortcut function for getting the state of a vertex */
@@ -440,7 +440,7 @@ protected:
   VisualizerPtr visual_;
 
   /** \brief Speed up collision checking by saving redundant checks and using file storage */
-  EdgeCachePtr edgeCache_;
+  DenseCachePtr denseCache_;
 
   /** \brief Track where to load/save datastructures */
   std::string filePath_;
@@ -601,6 +601,7 @@ public:
   int numSamplesAddedForConnectivity_ = 0;
   int numSamplesAddedForInterface_ = 0;
   int numSamplesAddedForQuality_ = 0;
+  int numVerticesMoved_ = 0;
 
   bool testingBool_;
 };  // end of class SparseDB

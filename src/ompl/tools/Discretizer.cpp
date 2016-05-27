@@ -60,9 +60,9 @@ namespace tools
 {
 namespace bolt
 {
-Discretizer::Discretizer(base::SpaceInformationPtr si, DenseDB *denseDB, EdgeCachePtr edgeCache,
+Discretizer::Discretizer(base::SpaceInformationPtr si, DenseDB *denseDB, DenseCachePtr denseCache,
                          VisualizerPtr visual)
-  : si_(si), denseDB_(denseDB), edgeCache_(edgeCache), visual_(visual)
+  : si_(si), denseDB_(denseDB), denseCache_(denseCache), visual_(visual)
 {
   numThreads_ = boost::thread::hardware_concurrency();
 
@@ -500,8 +500,8 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
     {
       std::cout << "Generating edges progress: " << std::setprecision(1)
                 << (v1 - startVertex) / static_cast<double>(endVertex - startVertex) * 100.0
-                << " % Total edges: " << denseDB_->getNumEdges() << " Cache size: " << edgeCache_->getCacheSize()
-                << " Cache usage: " << edgeCache_->getPercentCachedCollisionChecks() << "%" << std::endl;
+                << " % Total edges: " << denseDB_->getNumEdges() << " Cache size: " << denseCache_->getCacheSize()
+                << " Cache usage: " << denseCache_->getPercentCachedCollisionChecks() << "%" << std::endl;
     }
 
     // Add edges
@@ -538,7 +538,7 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
 
       // Check edge for collision
       // if (!si->checkMotion(denseDB_->stateProperty_[v1], denseDB_->stateProperty_[v2]))
-      if (!edgeCache_->checkMotionWithCache(v1, v2, threadID))
+      if (!denseCache_->checkMotionWithCache(v1, v2, threadID))
       {
         numEdgesInCollision++;
         continue;

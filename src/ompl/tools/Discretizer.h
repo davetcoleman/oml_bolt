@@ -44,7 +44,7 @@
 #include <ompl/tools/debug/Visualizer.h> 
 #include <ompl/tools/bolt/BoltGraph.h>
 #include <ompl/tools/bolt/DenseDB.h>
-#include <ompl/tools/bolt/EdgeCache.h>
+#include <ompl/tools/bolt/DenseCache.h>
 
 // Boost
 #include <boost/thread/mutex.hpp>
@@ -68,7 +68,7 @@ public:
   /** \brief Constructor needs the state space used for planning.
    *  \param space - state space
    */
-  Discretizer(base::SpaceInformationPtr si, DenseDB* denseDB, EdgeCachePtr edgeCache, VisualizerPtr visual);
+  Discretizer(base::SpaceInformationPtr si, DenseDB* denseDB, DenseCachePtr denseCache, VisualizerPtr visual);
 
   /** \brief Deconstructor */
   virtual ~Discretizer(void);
@@ -118,7 +118,7 @@ private:
   DenseDB* denseDB_;
 
   /** \brief Class for storing collision check data of edges */
-  EdgeCachePtr edgeCache_;
+  DenseCachePtr denseCache_;
 
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;

@@ -279,7 +279,7 @@ base::PlannerStatus Bolt::solve(double time)
 
 bool Bolt::setFilePath(const std::string &filePath)
 {
-  sparseDB_->getEdgeCache()->setFilePath(filePath+".collision");
+  sparseDB_->getDenseCache()->setFilePath(filePath+".collision");
   sparseDB_->setFilePath(filePath+".ompl");
   return true;
 }

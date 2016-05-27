@@ -36,8 +36,8 @@
    Desc:   Speed up collision checking of SparseVertex edges
 */
 
-#ifndef OMPL_TOOLS_BOLT_EDGE_CACHE_
-#define OMPL_TOOLS_BOLT_EDGE_CACHE_
+#ifndef OMPL_TOOLS_BOLT_DENSE_CACHE_
+#define OMPL_TOOLS_BOLT_DENSE_CACHE_
 
 // OMPL
 #include <ompl/base/SpaceInformation.h>
@@ -56,18 +56,18 @@ namespace tools
 {
 namespace bolt
 {
-OMPL_CLASS_FORWARD(EdgeCache);
+OMPL_CLASS_FORWARD(DenseCache);
 OMPL_CLASS_FORWARD(SparseDB);
 
 typedef std::pair<StateID, StateID> CachedEdge;
-typedef std::map<CachedEdge, bool> EdgeCacheMap;
+typedef std::map<CachedEdge, bool> DenseCacheMap;
 
-class EdgeCache
+class DenseCache
 {
 public:
 
   /** \brief Constructor */
-  EdgeCache(base::SpaceInformationPtr si, SparseDB *sparseDB, VisualizerPtr visual);
+  DenseCache(base::SpaceInformationPtr si, SparseDB *sparseDB, VisualizerPtr visual);
 
   /** \brief Save cache to file */
   bool save();
@@ -113,7 +113,7 @@ private:
   VisualizerPtr visual_;
 
   /** \brief Cache previously performed collision checks */
-  EdgeCacheMap collisionCheckEdgeCache_;
+  DenseCacheMap collisionCheckDenseCache_;
 
   /** \brief Stats for the checkMotionWithCache feature */
   std::vector<std::size_t> totalCollisionChecks_;
@@ -122,8 +122,8 @@ private:
   /** \brief Where to store the cache on disk */
   std::string filePath_;
 
-  /** \brief Mutex for both reading or writing to the EdgeCacheMap */
-  boost::shared_mutex edgeCacheMutex_;
+  /** \brief Mutex for both reading or writing to the DenseCacheMap */
+  boost::shared_mutex denseCacheMutex_;
 
   std::vector<CachedEdge> keys_;
 
@@ -133,10 +133,10 @@ private:
   /** \brief Available cores */
   std::size_t numThreads_;
 
-};  // end of class EdgeCache
+};  // end of class DenseCache
 
 }  // namespace bolt
 }  // namespace tools
 }  // namespace ompl
 
-#endif  // OMPL_TOOLS_BOLT_EDGE_CACHE_
+#endif  // OMPL_TOOLS_BOLT_DENSE_CACHE_
