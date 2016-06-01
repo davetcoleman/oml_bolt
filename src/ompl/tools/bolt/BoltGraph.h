@@ -44,6 +44,7 @@
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/base/PlannerTerminationCondition.h>
 #include <ompl/util/Hash.h>
+#include <ompl/tools/bolt/InterfaceData.h>
 
 // Boost
 #include <boost/range/adaptor/map.hpp>
@@ -96,173 +97,14 @@ enum EdgeType
 /** \brief The type used internally for representing vertex IDs */
 typedef unsigned long int VertexIndexType;  // TODO(davetcoleman): just use size_t?
 
-/** \brief Identification for states in the StateCache */
-typedef VertexIndexType StateID;
-
-////////////////////////////////////////////////////////////////////////////////////////
-// SPARSE INTERFACE BOOK KEEPING
-////////////////////////////////////////////////////////////////////////////////////////
-
 /** \brief Pair of vertices which support an interface. */
 typedef std::pair<VertexIndexType, VertexIndexType> VertexPair;
-
-////////////////////////////////////////////////////////////////////////////////////////
-/** \brief Interface information storage class, which does bookkeeping for criterion four. */
-struct InterfaceData // TODO move this into separate file?
-{
-  // Note: interface1 is between this vertex v and the vertex with the lower index v'
-  // Note: interface2 is between this vertex v and the vertex with the higher index v''
-
-  base::State* interface1Inside_; // Lies inside the visibility region of the vertex and supports its interface
-  base::State* interface1Outside_; // Lies outside the visibility region of the vertex and supports its interface (sigma)
-
-  base::State* interface2Inside_; // Lies inside the visibility region of the vertex and supports its interface.
-  base::State* interface2Outside_; // Lies outside the visibility region of the vertex and supports its interface (sigma)
-
-  /** \brief Last known distance between the two interfaces supported by points_ and sigmas. */
-  double lastDistance_;
-
-  /** \brief Constructor */
-  InterfaceData()
-    : interface1Inside_(nullptr)
-    , interface1Outside_(nullptr)
-    , interface2Inside_(nullptr)
-    , interface2Outside_(nullptr)
-    , lastDistance_(std::numeric_limits<double>::infinity())
-  {
-  }
-
-  /** \brief Clears the given interface data. */
-  void clear(const base::SpaceInformationPtr& si)
-  {
-    if (interface1Inside_)
-    {
-      si->freeState(interface1Inside_);
-      interface1Inside_ = nullptr;
-    }
-    if (interface2Inside_)
-    {
-      si->freeState(interface2Inside_);
-      interface2Inside_ = nullptr;
-    }
-    if (interface1Outside_)
-    {
-      si->freeState(interface1Outside_);
-      interface1Outside_ = nullptr;
-    }
-    if (interface2Outside_)
-    {
-      si->freeState(interface2Outside_);
-      interface2Outside_ = nullptr;
-    }
-    lastDistance_ = std::numeric_limits<double>::infinity();
-  }
-
-  /** \brief Sets information for the first interface (i.e. interface with smaller index vertex). */
-  void setInterface1(const base::State* q, const base::State* qp, const base::SpaceInformationPtr& si)
-  {
-    // Set point A
-    if (interface1Inside_)
-      si->copyState(interface1Inside_, q);
-    else
-      interface1Inside_ = si->cloneState(q);
-
-    // Set sigma A
-    if (interface1Outside_)
-      si->copyState(interface1Outside_, qp);
-    else
-      interface1Outside_ = si->cloneState(qp);
-
-    // Calc distance if we have found both representatives for this vertex pair
-    if (hasInterface2())
-    {
-      lastDistance_ = si->distance(interface1Inside_, interface2Inside_);
-    }
-  }
-
-  /** \brief Sets information for the second interface (i.e. interface with larger index vertex). */
-  void setInterface2(const base::State* q, const base::State* qp, const base::SpaceInformationPtr& si)
-  {
-    // Set point B
-    if (interface2Inside_)
-      si->copyState(interface2Inside_, q);
-    else
-      interface2Inside_ = si->cloneState(q);
-
-    // Set sigma B
-    if (interface2Outside_)
-      si->copyState(interface2Outside_, qp);
-    else
-      interface2Outside_ = si->cloneState(qp);
-
-    // Calc distance
-    if (hasInterface1())
-    {
-      lastDistance_ = si->distance(interface1Inside_, interface2Inside_);
-    }
-  }
-
-  /** \brief Helper to determine wether interface 1 has been found */
-  bool hasInterface1()
-  {
-    return interface1Inside_ != nullptr;
-  }
-
-  /** \brief Helper to determine wether interface 2 has been found */
-  bool hasInterface2()
-  {
-    return interface2Inside_ != nullptr;
-  }
-
-  base::State* getInsideInterfaceOfV1(std::size_t v1, std::size_t v2)
-  {
-    if (v1 < v2)
-      return interface1Inside_;
-    else if (v1 > v2)
-      return interface2Inside_;
-
-    throw Exception("InterfaceHash", "Vertices are the same index");
-    return NULL;
-  }
-
-  base::State* getInsideInterfaceOfV2(std::size_t v1, std::size_t v2)
-  {
-    if (v1 < v2)
-      return interface2Inside_;
-    else if (v1 > v2)
-      return interface1Inside_;
-
-    throw Exception("InterfaceHash", "Vertices are the same index");
-    return NULL;
-  }
-
-  base::State* getOutsideInterfaceOfV1(std::size_t v1, std::size_t v2)
-  {
-    if (v1 < v2)
-      return interface1Outside_;
-    else if (v1 > v2)
-      return interface2Outside_;
-
-    throw Exception("InterfaceHash", "Vertices are the same index");
-    return NULL;
-  }
-
-  base::State* getOutsideInterfaceOfV2(std::size_t v1, std::size_t v2)
-  {
-    if (v1 < v2)
-      return interface2Outside_;
-    else if (v1 > v2)
-      return interface1Outside_;
-
-    throw Exception("InterfaceHash", "Vertices are the same index");
-    return NULL;
-  }
-};
 
 /** \brief the hash which maps pairs of neighbor points to pairs of states */
 typedef std::unordered_map<VertexPair, InterfaceData> InterfaceHash;
 
-////////////////////////////////////////////////////////////////////////////////////////
+/** \brief Identification for states in the StateCache */
+typedef VertexIndexType StateID;
 
 /** \brief Boost vertex properties */
 struct vertex_state_t

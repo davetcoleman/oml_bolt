@@ -149,13 +149,13 @@ void Bolt::visualize()
     ompl::base::PathPtr originalPath = boltPlanner_->getOriginalSolutionPath();
 
     // Make the chosen path a different color and thickness
-    visual_->viz5Path(originalPath, /*style*/ 1);
+    visual_->viz5Path(originalPath, /*style*/ 1, tools::BLACK);
     visual_->viz5Trigger();
 
     // Don't show raw trajectory twice in larger dimensions
     if (si_->getStateSpace()->getDimension() == 3)
     {
-      visual_->viz6Path(originalPath, /*style*/ 1);
+      visual_->viz6Path(originalPath, /*style*/ 1, tools::BLACK);
       visual_->viz6Trigger();
     }
   }
@@ -163,12 +163,12 @@ void Bolt::visualize()
   const ompl::base::PathPtr pathSolutionBase = pdef_->getSolutionPath();
 
   // Show smoothed & interpolated path
-  visual_->viz6Path(pathSolutionBase, /*style*/ 2);
+  visual_->viz6Path(pathSolutionBase, /*style*/ 1, tools::BLUE);
   visual_->viz6Trigger();
 
   // Show robot animated if not 2D
   if (si_->getStateSpace()->getDimension() > 3)
-    visual_->viz6Path(pathSolutionBase, /*style*/ 3);
+    visual_->viz6Path(pathSolutionBase, /*style*/ 3, tools::DEFAULT);
 }
 
 void Bolt::logResults()
