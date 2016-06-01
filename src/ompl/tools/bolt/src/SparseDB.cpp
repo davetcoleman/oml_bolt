@@ -597,98 +597,6 @@ void SparseDB::clearEdgeCollisionStates()
     edgeCollisionStatePropertySparse_[e] = NOT_CHECKED;  // each edge has an unknown state
 }
 
-/*
-void SparseDB::preprocessSPARS()
-{
-  std::size_t numThreads = boost::thread::hardware_concurrency();
-
-  // Setup so ensure sparseDelta_ is correct
-  setup();
-
-  // Increase the sparseDelta
-  // sparseDelta_ = getSecondarySparseDelta();
-
-  // Debugging
-  if (false)
-  {
-    OMPL_WARN("Overriding number of threads for testing to 1");
-    numThreads_ = 1;
-  }
-
-  // Setup threading
-  std::vector<boost::thread *> threads(numThreads_);
-  OMPL_INFORM("Preprocessing SPRS graph using %u threads", numThreads_);
-
-  // For each thread
-  for (std::size_t i = 0; i < threads.size(); ++i)
-  {
-    base::SpaceInformationPtr si(new base::SpaceInformation(si_->getStateSpace()));
-    si->setStateValidityChecker(si_->getStateValidityChecker());
-    si->setMotionValidator(si_->getMotionValidator());
-
-    threads[i] = new boost::thread(boost::bind(&SparseDB::preprocessSPARSThread, this, i, numThreads_, si));
-  }
-
-  // Join threads
-  for (std::size_t i = 0; i < threads.size(); ++i)
-  {
-    threads[i]->join();
-    delete threads[i];
-  }
-
-  //denseDB_->graphUnsaved_ = true;
-}
-
-void SparseDB::preprocessSPARSThread(std::size_t threadID, std::size_t numThreads, base::SpaceInformationPtr si)
-{
-  const bool verbose = true;
-
-  // Choose start vertex, skip over the queryVertices
-  DenseVertex v1 = queryVertices_.size() + threadID;
-
-  std::size_t numVertices = denseDB_->getNumVertices();  // cache for speed
-  std::size_t debugFrequency = std::max(std::size_t(10), static_cast<std::size_t>(numVertices / 200));
-  std::size_t saveFrequency = std::max(std::size_t(1000), static_cast<std::size_t>(numVertices / 20));
-
-  if (verbose)
-    std::cout << "Thread " << threadID << " starting on vertex " << v1 << " debugFrequency: " << debugFrequency
-              << std::endl;
-
-  // Error check
-  assert(sparseDelta_ > 0.0001);
-  assert(numVertices > 0);
-  assert(v1 < numVertices);
-
-  std::vector<DenseVertex> graphNeighborhood;
-  while (v1 < numVertices)
-  {
-    // Feedback
-    if (v1 % debugFrequency == 0)
-    {
-      std::cout << "Preprocessing spars progress: " << (v1 / double(numVertices) * 100.0) << " %" << std::endl;
-    }
-    if (v1 % saveFrequency == 0)
-    {
-      denseCache_->save();
-    }
-
-    // Search
-    graphNeighborhood.clear();
-    denseDB_->nn_->nearestR(v1, sparseDelta_, graphNeighborhood);
-
-    // Collision check edges
-    for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
-    {
-      const DenseVertex v2 = graphNeighborhood[i];
-      denseCache_->checkMotionWithCache(v1, v2, threadID);
-    }
-
-    // Increment
-    v1 += numThreads_;
-  }
-}
-*/
-
 void SparseDB::createSPARS()
 {
   std::size_t indent = 0;
@@ -1718,7 +1626,7 @@ bool SparseDB::checkAddPath(SparseVertex v, std::size_t indent)
 void SparseDB::visualizeCheckAddPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
                                      std::size_t indent)
 {
-  BOLT_BLUE_DEBUG(indent, vQuality_, "visualizeCheckAddPath");
+  BOLT_BLUE_DEBUG(indent, vQuality_, "visualizeCheckAddPath()");
   visual_->viz5DeleteAllMarkers();
 
   // Show candidate rep
@@ -1805,11 +1713,17 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
       // visual_->waitForUserFeedback();
     }
 
-    std::cout << "addQualityPath - addEdge " << std::endl;
     return true;
   }
 
-  BOLT_YELLOW_DEBUG(indent, visualizeQualityPathSimp_, "Geometric path being added for spanner");
+  // Super debug
+  if (superDebug_ && si_->checkMotion(getVertexState(vp), getVertexState(vpp)))
+  {
+    OMPL_ERROR("Failed test - edge was in collision in cache, but not from scratch");
+    visual_->waitForUserFeedback("error");
+  }
+
+  BOLT_YELLOW_DEBUG(indent, visualizeQualityPathSimp_, "Unable to connect directly - geometric path must be created for spanner");
 
   if (visualizeQualityCriteria_)                           // TEMP
     visualizeCheckAddPath(v, vp, vpp, iData, indent + 4);  // TEMP
@@ -1847,8 +1761,7 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
       if (visualizeQualityPathSimp_)
       {
         visual_->viz1DeleteAllMarkers();
-        base::PathPtr pathPtr(new geometric::PathGeometric(*path));
-        visual_->viz1Path(pathPtr, 1, tools::RED);
+        visual_->viz1Path(path, 1, tools::RED);
         visual_->viz1Trigger();
         usleep(0.001 * 1000000);
       }
@@ -1941,8 +1854,7 @@ bool SparseDB::smoothQualityPath(SparseVertex v, SparseVertex vp, SparseVertex v
   if (visualizeQualityPathSimp_)
   {
     visual_->viz1DeleteAllMarkers();
-    base::PathPtr pathPtr(new geometric::PathGeometric(*path));
-    visual_->viz1Path(pathPtr, 1, tools::BLUE);
+    visual_->viz1Path(path, 1, tools::BLUE);
     visual_->viz1Trigger();
     usleep(0.001 * 1000000);
   }
@@ -1964,8 +1876,7 @@ bool SparseDB::smoothQualityPath(SparseVertex v, SparseVertex vp, SparseVertex v
     if (visualizeQualityPathSimp_)
     {
       visual_->viz1DeleteAllMarkers();
-      base::PathPtr pathPtr(new geometric::PathGeometric(*path));
-      visual_->viz1Path(pathPtr, 1, tools::ORANGE);
+      visual_->viz1Path(path, 1, tools::ORANGE);
       visual_->viz1Trigger();
       usleep(0.1 * 1000000);
       //visual_->waitForUserFeedback("optimizing path");
@@ -1976,8 +1887,7 @@ bool SparseDB::smoothQualityPath(SparseVertex v, SparseVertex vp, SparseVertex v
     if (visualizeQualityPathSimp_)
     {
       visual_->viz1DeleteAllMarkers();
-      base::PathPtr pathPtr(new geometric::PathGeometric(*path));
-      visual_->viz1Path(pathPtr, 1, tools::BLUE);
+      visual_->viz1Path(path, 1, tools::BLUE);
       visual_->viz1Trigger();
       usleep(0.1 * 1000000);
       //visual_->waitForUserFeedback("optimizing path");
@@ -1991,8 +1901,7 @@ bool SparseDB::smoothQualityPath(SparseVertex v, SparseVertex vp, SparseVertex v
   if (visualizeQualityPathSimp_)
   {
     visual_->viz1DeleteAllMarkers();
-    base::PathPtr pathPtr(new geometric::PathGeometric(*path));
-    visual_->viz1Path(pathPtr, 1, tools::GREEN);
+    visual_->viz1Path(path, 1, tools::GREEN);
     visual_->viz1Trigger();
     // usleep(0.001 * 1000000);
     visual_->waitForUserFeedback("finished quality path");
@@ -2031,12 +1940,11 @@ bool SparseDB::spannerTestOriginal(SparseVertex v, SparseVertex vp, SparseVertex
     double rejectStretchFactor = midpointPathLength / iData.getLastDistance();
     BOLT_DEBUG(indent + 10, verbose, "to reject, stretch factor > " << rejectStretchFactor);
 
-    return true;  // spannerPropertyWasViolated
+    return true;  // spanner property was violated
   }
-  else
-    BOLT_DEBUG(indent + 6, vQuality_, "Spanner property not violated");
 
-  return false;  // spannerPropertyWasViolated = false
+  BOLT_DEBUG(indent + 6, vQuality_, "Spanner property not violated");
+  return false;  // spanner property was NOT violated
 }
 
 bool SparseDB::spannerTestOuter(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
@@ -2353,26 +2261,36 @@ double SparseDB::maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vp
   std::vector<SparseVertex> qualifiedVertices;
 
   // Get nearby vertices 'x' that could also be used to find the path to v''
-  foreach (SparseVertex x, boost::adjacent_vertices(vpp, g_))
+  if (true)
   {
-    if (hasEdge(x, v) && !hasEdge(x, vp))
+    foreach (SparseVertex x, boost::adjacent_vertices(vpp, g_))
     {
-      InterfaceData &iData = getData(v, vpp, x, indent + 4);
-
-      // Check if we previously had found a pair of points that support this interface
-      if ((vpp < x && iData.getInterface1Inside()) || (x < vpp && iData.getInterface2Inside()))
+      if (hasEdge(x, v) && !hasEdge(x, vp))
       {
-        BOLT_RED_DEBUG(indent, vQuality_, "Found an additional qualified vertex!");
-        // This is a possible alternative path to v''
-        qualifiedVertices.push_back(x);
+        InterfaceData &iData = getData(v, vpp, x, indent + 2);
 
-        if (visualizeQualityCriteria_)
+        // Check if we previously had found a pair of points that support this interface
+        if ((vpp < x && iData.getInterface1Inside()) || (x < vpp && iData.getInterface2Inside()))
         {
-          visual_->viz5State(getVertexState(x), tools::LARGE, tools::BLACK, 0);
+          BOLT_RED_DEBUG(indent, vQuality_, "Found an additional qualified vertex " << x);
+          // This is a possible alternative path to v''
+          qualifiedVertices.push_back(x);
+
+          if (visualizeQualityCriteria_)
+          {
+            visual_->viz5State(getVertexState(x), tools::LARGE, tools::BLACK, 0);
+
+            // Temp?
+            visual_->viz6DeleteAllMarkers();
+            visual_->viz6State(getVertexState(x), tools::LARGE, tools::BLACK, 0);
+            visual_->viz6Trigger();
+          }
         }
       }
     }
   }
+  else
+    BOLT_YELLOW_DEBUG(indent, vQuality_, "Disabled nearby verticies in maxSpannerPath");
 
   // vpp is always qualified because of its previous checks
   qualifiedVertices.push_back(vpp);
@@ -2383,14 +2301,14 @@ double SparseDB::maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vp
   double maxDist = 0.0;
   foreach (SparseVertex qualifiedVertex, qualifiedVertices)
   {
-    BOLT_DEBUG(indent + 2, vQuality_, "Vertex: " << qualifiedVertex);
     if (visualizeQualityCriteria_)
       visual_->viz5State(getVertexState(qualifiedVertex), tools::SMALL, tools::PINK, 0);
 
+    // Divide by 2 because of the midpoint path 'M'
     double tempDist = (si_->distance(getVertexState(vp), getVertexState(v)) +
-                       si_->distance(getVertexState(v), getVertexState(qualifiedVertex))) /
-                      2.0;
-    // do we divide by 2 because of the midpoint path?? TODO(davetcoleman): figure out this proof
+                       si_->distance(getVertexState(v), getVertexState(qualifiedVertex))) / 2.0;
+    BOLT_DEBUG(indent + 2, vQuality_, "Checking vertex: " << qualifiedVertex << " distance: " << tempDist);
+
     if (tempDist > maxDist)
     {
       BOLT_DEBUG(indent + 4, vQuality_, "Is larger than previous");
@@ -2920,12 +2838,15 @@ SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, st
 {
   BOLT_CYAN_DEBUG(indent, vAdd_, "addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
 
-  assert(v1 <= getNumVertices());
-  assert(v2 <= getNumVertices());
-  assert(v1 != v2);
-  assert(!hasEdge(v1, v2));
-  assert(hasEdge(v1, v2) == hasEdge(v2, v1));
-  BOOST_ASSERT_MSG(getVertexState(v1) != getVertexState(v2), "States on both sides of an edge are the same");
+  if (superDebug_) // Extra checks
+  {
+    assert(v1 <= getNumVertices());
+    assert(v2 <= getNumVertices());
+    assert(v1 != v2);
+    assert(!hasEdge(v1, v2));
+    assert(hasEdge(v1, v2) == hasEdge(v2, v1));
+    BOOST_ASSERT_MSG(getVertexState(v1) != getVertexState(v2), "States on both sides of an edge are the same");
+  }
 
   // Create the new edge
   SparseEdge e = (boost::add_edge(v1, v2, g_)).first;
@@ -2945,31 +2866,6 @@ SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, st
   // Visualize
   if (visualizeSparsGraph_)
   {
-    /* Color Key:
-       0   - GREEN  - connectivity
-       25  - LIGHT GREEN - connectivity second round
-       50  - YELLOW - interface
-       75  - ORANGE - interface second round
-       100 - RED    - interface special
-    */
-
-    // double small = penetrationDistance_ + std::numeric_limits<double>::epsilon();
-    // if (false) // Use alterative color scheme
-    // {
-    //   if (edgeWeightProperty_[e] < nearestDiscretizedV_ + small)
-    //   {
-    //     visualColor = eYELLOW;
-    //   }
-    //   else if (edgeWeightProperty_[e] < discretization_ + small)
-    //   {
-    //     visualColor = eGREEN;
-    //   }
-    //   else
-    //   {
-    //     visualColor = eRED;
-    //   }
-    // }
-
     visual_->viz2Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
     if (visualizeSparsGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
@@ -2977,15 +2873,12 @@ SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, st
       usleep(visualizeSparsGraphSpeed_ * 1000000);
     }
 
-    // if (visualColor == tools::eRED)
+    if (edgeWeightProperty_[e] > ignoreEdgesSmallerThan_)
     {
-      if (edgeWeightProperty_[e] > ignoreEdgesSmallerThan_)
-      {
-        // std::cout << "Edge distance: " << edgeWeightProperty_[e] << std::endl;
-        visual_->viz4Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
-        visual_->viz4Trigger();
-        usleep(0.001 * 1000000);
-      }
+      // std::cout << "Edge distance: " << edgeWeightProperty_[e] << std::endl;
+      visual_->viz4Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
+      visual_->viz4Trigger();
+      usleep(0.001 * 1000000);
     }
   }
 

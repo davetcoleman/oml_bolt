@@ -594,6 +594,9 @@ public:
   bool vQuality_ = false;
   bool vRemoveClose_ = false;
 
+  /** \brief Run with extra safety checks */
+  bool superDebug_ = false;
+
   /** \brief Show the sparse graph being generated */
   bool visualizeSparsGraph_ = false;
   bool visualizeAttemptedStates_ = false;
