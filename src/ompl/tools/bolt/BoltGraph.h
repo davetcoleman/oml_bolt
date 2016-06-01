@@ -85,6 +85,13 @@ enum GuardType
   QUALITY,
   CARTESIAN
 };
+enum EdgeType
+{
+  eCONNECTIVITY,
+  eINTERFACE,
+  eQUALITY,
+  eCARTESIAN
+};
 
 /** \brief The type used internally for representing vertex IDs */
 typedef unsigned long int VertexIndexType;  // TODO(davetcoleman): just use size_t?
@@ -296,6 +303,11 @@ struct edge_collision_state_t
   typedef boost::edge_property_tag kind;
 };
 
+struct edge_type_t
+{
+  typedef boost::edge_property_tag kind;
+};
+
 /** \brief Possible collision states of an edge */
 enum EdgeCollisionState
 {
@@ -339,19 +351,20 @@ enum EdgeCollisionState
 /** Wrapper for the vertex's multiple as its property. */
 // clang-format off
 typedef //boost::property<vertex_state_t, base::State *,
-        boost::property<vertex_state_cache_t, VertexIndexType,
-        boost::property<boost::vertex_predecessor_t, VertexIndexType,
-        boost::property<boost::vertex_rank_t, VertexIndexType,
-        boost::property<vertex_type_t, GuardType,
-        boost::property<vertex_popularity_t, double,
-        boost::property<vertex_interface_data_t, InterfaceHash
+        boost::property<vertex_state_cache_t, VertexIndexType, // State
+        boost::property<boost::vertex_predecessor_t, VertexIndexType, // Disjoint Sets
+        boost::property<boost::vertex_rank_t, VertexIndexType, // Disjoint Sets
+        boost::property<vertex_type_t, GuardType, // Sparse Type
+        boost::property<vertex_popularity_t, double, // Popularity
+        boost::property<vertex_interface_data_t, InterfaceHash // Sparse meta data
         > > > > > > SparseVertexProperties;
 // clang-format on
 
 /** Wrapper for the double assigned to an edge as its weight property. */
 // clang-format off
 typedef boost::property<boost::edge_weight_t, double,
-        boost::property<edge_collision_state_t, int> > SparseEdgeProperties;
+        boost::property<edge_type_t, EdgeType,
+        boost::property<edge_collision_state_t, int> > > SparseEdgeProperties;
 // clang-format on
 
 /** The underlying boost graph type (undirected weighted-edge adjacency list with above properties). */

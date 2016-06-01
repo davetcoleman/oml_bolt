@@ -102,7 +102,7 @@ void otb::CustomAstarVisitor::discover_vertex(SparseVertex v, const SparseGraph 
   parent_->recordNodeOpened();
 
   if (parent_->visualizeAstar_)
-    parent_->getVisual()->viz4State(parent_->getSparseState(v), tools::SMALL, tools::GREEN, 1);
+    parent_->getVisual()->viz4State(parent_->getVertexState(v), tools::SMALL, tools::GREEN, 1);
 }
 
 void otb::CustomAstarVisitor::examine_vertex(SparseVertex v, const SparseGraph &) const
@@ -112,7 +112,7 @@ void otb::CustomAstarVisitor::examine_vertex(SparseVertex v, const SparseGraph &
 
   if (parent_->visualizeAstar_)
   {
-    parent_->getVisual()->viz4State(parent_->getSparseState(v), tools::LARGE, tools::BLACK, 1);
+    parent_->getVisual()->viz4State(parent_->getVertexState(v), tools::LARGE, tools::BLACK, 1);
     parent_->getVisual()->viz4Trigger();
     usleep(parent_->visualizeAstarSpeed_ * 1000000);
   }
@@ -132,6 +132,7 @@ SparseDB::SparseDB(base::SpaceInformationPtr si, VisualizerPtr visual)
   , visual_(visual)
   // Property accessors of edges
   , edgeWeightProperty_(boost::get(boost::edge_weight, g_))
+  , edgeTypeProperty_(boost::get(edge_type_t(), g_))
   , edgeCollisionStatePropertySparse_(boost::get(edge_collision_state_t(), g_))
   // Property accessors of vertices
   , stateCacheProperty_(boost::get(vertex_state_cache_t(), g_))
@@ -200,32 +201,35 @@ bool SparseDB::setup()
   nearSamplePoints_ = nearSamplePointsMultiple_ * si_->getStateDimension();
 
   // Discretization for initial input into sparse graph
-  //double sparseMultiple = si_->getStateDimension() * magicMultiple_;
+  // double sparseMultiple = si_->getStateDimension() * magicMultiple_;
   double sparseMultiple = 1.25;
 
-  if (false) // Method 1
+  if (false)  // Method 1
   {
     discretization_ = sparseDelta_ * sparseMultiple;
   }
-  else // Method 2
+  else  // Method 2
   {
-    penetrationDistance_ = magicMultiple_; //0.01; // TODO(davetcoleman): how to choose this
+    penetrationDistance_ = magicMultiple_;  // 0.01; // TODO(davetcoleman): how to choose this
     const double discFactor = sparseDelta_ - penetrationDistance_;
-    discretization_ = 2 * sqrt( std::pow(discFactor, 2) / dim);
+    discretization_ = 2 * sqrt(std::pow(discFactor, 2) / dim);
   }
 
   ignoreEdgesSmallerThan_ = (discretization_ + 0.01);
 
   // Calculate optimum stretch factor
-  //stretchFactor_ = discretization_ / (0.5 * discretization_ * sqrt(2) - 2.0 * denseDelta_);
-  nearestDiscretizedV_ = sqrt(dim * std::pow(0.5 * discretization_, 2)); // z in my calculations
-  //stretchFactor_ = 2.0 * discretization_ / ( nearestDiscretizedV_ - 2.0 * denseDelta_) + stretchFactor_; // 2D case but not 3D
-  stretchFactor_ = 2.0 * discretization_ / ( nearestDiscretizedV_ ) + stretchFactor_; // 2D case without estimated interface amount
-  //stretchFactor_ = (discretization_ + nearestDiscretizedV_) / ( 2 * (nearestDiscretizedV_ - 2.0 * denseDelta_)); // N-D case
-  //stretchFactor_ = discretization_ / (discretization_ - 2.0 * denseDelta_); // N-D case
+  // stretchFactor_ = discretization_ / (0.5 * discretization_ * sqrt(2) - 2.0 * denseDelta_);
+  nearestDiscretizedV_ = sqrt(dim * std::pow(0.5 * discretization_, 2));  // z in my calculations
+  // stretchFactor_ = 2.0 * discretization_ / ( nearestDiscretizedV_ - 2.0 * denseDelta_) + stretchFactor_; // 2D case
+  // but not 3D
+  stretchFactor_ =
+      2.0 * discretization_ / (nearestDiscretizedV_) + stretchFactor_;  // 2D case without estimated interface amount
+  // stretchFactor_ = (discretization_ + nearestDiscretizedV_) / ( 2 * (nearestDiscretizedV_ - 2.0 * denseDelta_)); //
+  // N-D case
+  // stretchFactor_ = discretization_ / (discretization_ - 2.0 * denseDelta_); // N-D case
 
-  // Make stretch factor slightly larger to avoid rounding errors?
-  //stretchFactor_ *= 1.1;
+  // Override
+  stretchFactor_ = 1.5;
 
   BOLT_DEBUG(indent, 1, "--------------------------------------------------");
   BOLT_DEBUG(indent, 1, "Sparse DB Setup:");
@@ -262,8 +266,10 @@ bool SparseDB::setup()
   }
 
   if (si_->getStateValidityChecker()->getClearanceSearchDistance() < obstacleClearance_)
-    OMPL_WARN("State validity checker clearance search distance %f is less than the required obstacle clearance %f for our "
-              "state sampler, incompatible settings!", si_->getStateValidityChecker()->getClearanceSearchDistance(), obstacleClearance_);
+    OMPL_WARN("State validity checker clearance search distance %f is less than the required obstacle clearance %f for "
+              "our "
+              "state sampler, incompatible settings!",
+              si_->getStateValidityChecker()->getClearanceSearchDistance(), obstacleClearance_);
 
   // Initialize path simplifier
   if (!pathSimplifier_)
@@ -492,7 +498,7 @@ bool SparseDB::astarSearch(const SparseVertex start, const SparseVertex goal, st
       if (v1 != v2)
       {
         // std::cout << "Edge " << v1 << " to " << v2 << std::endl;
-        visual_->viz4Edge(getSparseState(v1), getSparseState(v2), 10);
+        visual_->viz4Edge(getVertexState(v1), getVertexState(v2), 10);
       }
     }
     visual_->viz4Trigger();
@@ -511,7 +517,7 @@ double SparseDB::astarHeuristic(const SparseVertex a, const SparseVertex b) cons
   // Assume vertex 'a' is the one we care about its populariy
 
   // Get the classic distance
-  double dist = si_->distance(getSparseState(a), getSparseState(b));
+  double dist = si_->distance(getVertexState(a), getVertexState(b));
 
   if (false)  // method 1
   {
@@ -726,12 +732,11 @@ void SparseDB::createSPARS()
   std::size_t numSets = getDisjointSetsCount();
   std::pair<std::size_t, std::size_t> interfaceStats = getInterfaceStateStorageSize();
 
-
   BOLT_DEBUG(0, 1, "-----------------------------------------");
   BOLT_DEBUG(0, 1, "Created SPARS graph                      ");
   BOLT_DEBUG(0, 1, "  Vertices:                  " << getNumVertices());
   BOLT_DEBUG(0, 1, "  Edges:                     " << getNumEdges());
-  BOLT_DEBUG(0, 1, "  Generation time:           " <<  duration);
+  BOLT_DEBUG(0, 1, "  Generation time:           " << duration);
   BOLT_DEBUG(0, 1, "  Total generations:         " << numGraphGenerations_);
   BOLT_DEBUG(0, 1, "  Disjoint sets:             " << numSets);
   BOLT_DEBUG(0, 1, "  DenseCache                 ");
@@ -739,7 +744,7 @@ void SparseDB::createSPARS()
   BOLT_DEBUG(0, 1, "      Size:                    " << denseCache_->getEdgeCacheSize());
   BOLT_DEBUG(0, 1, "      Total checks:            " << denseCache_->getTotalCollisionChecks());
   BOLT_DEBUG(0, 1, "      Cached checks:           " << denseCache_->getTotalCollisionChecksFromCache() << " ("
-             << denseCache_->getPercentCachedCollisionChecks() << "%)");
+                                                     << denseCache_->getPercentCachedCollisionChecks() << "%)");
   BOLT_DEBUG(0, 1, "    State cache                ");
   BOLT_DEBUG(0, 1, "      Size:                    " << denseCache_->getStateCacheSize());
   BOLT_DEBUG(0, 1, "  Criteria additions:        ");
@@ -755,7 +760,7 @@ void SparseDB::createSPARS()
   BOLT_DEBUG(0, 1, "-----------------------------------------");
 
   if (!visualizeSparsGraph_)
-    displaySparseDatabase();
+    displayDatabase(true, indent);
 
   // Save collision cache
   denseCache_->save();
@@ -780,7 +785,7 @@ void SparseDB::addDiscretizedStates(std::size_t indent)
   std::cout << "startOffset: " << startOffset << std::endl;
 
   //  double percentVisibilityRegionEdgeOverlap = 0.5;
-  //double startOffset = sparseDelta_ * percentVisibilityRegionEdgeOverlap;
+  // double startOffset = sparseDelta_ * percentVisibilityRegionEdgeOverlap;
 
   // Create two levels of grids
   for (std::size_t i = 0; i < 2; ++i)
@@ -901,7 +906,7 @@ void SparseDB::createSPARSOuterLoop()
   // If we haven't animated the creation, just show it all at once
   if (!visualizeSparsGraph_)
   {
-    displaySparseDatabase();
+    displayDatabase(true, indent+4);
   }
   else if (visualizeSparsGraphSpeed_ < std::numeric_limits<double>::epsilon())
   {
@@ -938,7 +943,7 @@ bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOr
     }
 
     // Run SPARS checks
-    GuardType addReason;         // returns why the state was added
+    GuardType addReason;     // returns why the state was added
     SparseVertex newVertex;  // the newly generated sparse vertex
 
     // TODO(davetcoleman): I would like to multi-thread this but its not worth my time currently
@@ -1012,8 +1017,8 @@ void SparseDB::addRandomSamples(std::size_t indent)
 
   // Add from file if available - remember where it was
   std::size_t lastCachedStateIndex = denseCache_->getStateCacheSize();
-  std::size_t currentStateCacheID = 0;
-  bool usingCachedStates = true; // allow to trigger user feedback
+  std::size_t currentStateCacheID = 1;  // skip 0, because that is the "deleted" NULL state ID
+  bool usingCachedStates = true;        // allow to trigger user feedback
   while (true)
   {
     StateID candidateStateID;
@@ -1023,21 +1028,26 @@ void SparseDB::addRandomSamples(std::size_t indent)
     {
       // Add from cache
       candidateStateID = currentStateCacheID;
-      //std::cout << "Adding from CACHE: " << currentStateCacheID << " total " << lastCachedStateIndex << " stateID: " << candidateStateID << std::endl;
+      BOLT_DEBUG(indent, vCriteria_, "Adding from CACHE: " << currentStateCacheID << " total " << lastCachedStateIndex
+                                                           << " stateID: " << candidateStateID);
 
       currentStateCacheID++;
     }
-    else // Add new state
+    else  // Add new state
     {
       if (usingCachedStates)
       {
-        BOLT_YELLOW_DEBUG(indent + 2, vCriteria_ || true, "No longer using cached states - sampling new ones");
         usingCachedStates = false;
+        // BOLT_YELLOW_DEBUG(indent + 2, vCriteria_ || true, "addRandomSamples: No longer using cached states - sampling
+        // new ones");
+        // visual_->waitForUserFeedback();
       }
 
       base::State *candidateState = si_->allocState();
       candidateStateID = denseCache_->addState(candidateState);
-      //std::cout << "NOT adding from cache: " << currentStateCacheID << " total " << lastCachedStateIndex << " stateID: " << candidateStateID << std::endl;
+      BOLT_DEBUG(indent, vCriteria_, "NOT adding from cache, currentStateCacheID: "
+                                         << currentStateCacheID << " lastCachedStateIndex: " << lastCachedStateIndex
+                                         << " stateID: " << candidateStateID);
 
       // Sample randomly
       if (!clearanceSampler_->sample(candidateState))
@@ -1045,7 +1055,7 @@ void SparseDB::addRandomSamples(std::size_t indent)
         OMPL_ERROR("Unable to find valid sample");
         exit(-1);  // this should never happen
       }
-      //si_->getStateSpace()->setLevel(candidateState, 0);  // TODO no hardcode
+      // si_->getStateSpace()->setLevel(candidateState, 0);  // TODO no hardcode
     }
 
     // Run SPARS checks
@@ -1054,9 +1064,9 @@ void SparseDB::addRandomSamples(std::size_t indent)
     const std::size_t threadID = 0;
     if (addStateToRoadmap(candidateStateID, newVertex, addReason, threadID, indent + 2))
     {
-      //if (numRandSamplesAdded_ % 10 == 0)
-      BOLT_DEBUG(indent, vCriteria_, "Added random sample with stateID " << candidateStateID
-                        << ", total new states: " << ++numRandSamplesAdded_);
+      // if (numRandSamplesAdded_ % 10 == 0)
+      BOLT_DEBUG(indent, vCriteria_, "Added random sample with stateID "
+                                         << candidateStateID << ", total new states: " << ++numRandSamplesAdded_);
     }
     else if (numConsecutiveFailures_ % 500 == 0)
     {
@@ -1067,7 +1077,7 @@ void SparseDB::addRandomSamples(std::size_t indent)
     if (numConsecutiveFailures_ >= fourthCriteriaAfterFailures_ && !useFourthCriteria_)
     {
       BOLT_YELLOW_DEBUG(indent, true, "Starting to check for 4th quality criteria because "
-                        << numConsecutiveFailures_ << " consecutive failures have occured");
+                                          << numConsecutiveFailures_ << " consecutive failures have occured");
       useFourthCriteria_ = true;
       visualizeOverlayNodes_ = true;  // visualize all added nodes in a separate window
       numConsecutiveFailures_ = 0;    // reset for new criteria
@@ -1080,10 +1090,12 @@ void SparseDB::addRandomSamples(std::size_t indent)
     if (useFourthCriteria_ && numConsecutiveFailures_ > terminateAfterFailures_)
     {
       BOLT_YELLOW_DEBUG(indent, true, "SPARS creation finished because " << terminateAfterFailures_
-                        << " consecutive insertion failures reached");
+                                                                         << " consecutive insertion failures reached");
       return;
     }
-  }    // end while
+
+    // visual_->waitForUserFeedback("add next state");
+  }  // end while
 }
 
 /*
@@ -1246,6 +1258,14 @@ bool SparseDB::addStateToRoadmap(StateID candidateStateID, SparseVertex &newVert
 {
   BOLT_DEBUG(indent, vCriteria_, "addStateToRoadmap() Adding candidate state ID " << candidateStateID);
 
+  if (visualizeAttemptedStates_)
+  {
+    visual_->viz1DeleteAllMarkers();
+    visual_->viz1State(getState(candidateStateID), tools::LARGE, tools::GREEN, 0);
+    visual_->viz1Trigger();
+    usleep(0.001 * 1000000);
+  }
+
   bool stateAdded = false;
   base::State *workState = si_->allocState();
 
@@ -1316,7 +1336,7 @@ bool SparseDB::checkAddCoverage(StateID candidateStateID, std::vector<SparseVert
   // No free paths means we add for coverage
   BOLT_DEBUG(indent + 2, vCriteria_, "Adding node for COVERAGE ");
 
-  newVertex = addVertex(candidateStateID, COVERAGE);
+  newVertex = addVertex(candidateStateID, COVERAGE, indent + 4);
 
   // Note: we do not connect this node with any edges because we have already determined
   // it is too far away from any nearby nodes
@@ -1349,6 +1369,13 @@ bool SparseDB::checkAddConnectivity(StateID candidateStateID, std::vector<Sparse
       // If they are in different components
       if (!sameComponent(visibleNeighborhood[i], visibleNeighborhood[j]))
       {
+        BOLT_DEBUG(indent + 2, vCriteria_, "Different connected component: " << visibleNeighborhood[i] << ", "
+                                                                             << visibleNeighborhood[j]);
+        visual_->viz1State(getVertexState(visibleNeighborhood[i]), tools::MEDIUM, tools::BLUE, 0);
+        visual_->viz1State(getVertexState(visibleNeighborhood[j]), tools::MEDIUM, tools::BLUE, 0);
+        visual_->viz1Trigger();
+        usleep(0.001 * 1000000);
+
         statesInDiffConnectedComponents.insert(visibleNeighborhood[i]);
         statesInDiffConnectedComponents.insert(visibleNeighborhood[j]);
       }
@@ -1365,7 +1392,7 @@ bool SparseDB::checkAddConnectivity(StateID candidateStateID, std::vector<Sparse
   BOLT_DEBUG(indent + 2, vCriteria_, "Adding node for CONNECTIVITY ");
 
   // Add the node
-  newVertex = addVertex(candidateStateID, CONNECTIVITY);
+  newVertex = addVertex(candidateStateID, CONNECTIVITY, indent + 4);
 
   // Check if there are really close vertices nearby which should be merged
   checkRemoveCloseVertices(newVertex, indent + 4);
@@ -1374,38 +1401,34 @@ bool SparseDB::checkAddConnectivity(StateID candidateStateID, std::vector<Sparse
   for (std::set<SparseVertex>::const_iterator vertexIt = statesInDiffConnectedComponents.begin();
        vertexIt != statesInDiffConnectedComponents.end(); ++vertexIt)
   {
-    if (getSparseState(*vertexIt) == NULL)
+    if (stateCacheProperty_[*vertexIt] == 0)
     {
-      BOLT_RED_DEBUG(indent + 3, 1, "Skipping because vertex was removed");
-      visual_->waitForUserFeedback();
+      BOLT_RED_DEBUG(indent + 4, vCriteria_, "Skipping because vertex " << *vertexIt << " was removed (state marked as 0)");
+      //visual_->waitForUserFeedback("skipping because vertex was removed");
       continue;
     }
 
     // Do not add edge from self to self
-    if (si_->getStateSpace()->equalStates(getSparseState(*vertexIt), getSparseState(newVertex)))
+    if (si_->getStateSpace()->equalStates(getVertexState(*vertexIt), getVertexState(newVertex)))
     {
       std::cout << "Prevented same vertex from being added twice " << std::endl;
       continue;  // skip this pairing
     }
 
-    BOLT_DEBUG(indent + 3, vCriteria_, "Loop: Adding vertex " << *vertexIt);
+    BOLT_DEBUG(indent + 4, vCriteria_, "Loop: Adding vertex " << *vertexIt);
 
     // New vertex should not be connected to anything - there's no edge between the two states
     if (hasEdge(newVertex, *vertexIt) == true)
     {
-      OMPL_ERROR("The new vertex %u is already connected to old vertex %u, probably because of the remove function", newVertex, *vertexIt);
+      BOLT_DEBUG(indent + 4, 1, "The new vertex " << newVertex << " is already connected to old vertex");
       continue;
     }
 
     // The components haven't been united by previous edges created in this for loop
     if (!sameComponent(*vertexIt, newVertex))
     {
-      std::size_t visualColor = eGREEN;
-      // if (secondSparseInsertionAttempt_)
-      //   visualColor = eUGLY_YELLOW;
-
       // Connect
-      addEdge(newVertex, *vertexIt, visualColor, indent + 4);
+      addEdge(newVertex, *vertexIt, eCONNECTIVITY, indent + 4);
     }
     else
     {
@@ -1433,9 +1456,6 @@ bool SparseDB::checkAddInterface(StateID candidateStateID, std::vector<SparseVer
     return false;
   }
 
-  std::size_t visualColor = eYELLOW;
-  visualColor = eORANGE;
-
   // If the two closest nodes are also visible
   const std::size_t threadID = 0;
   if (graphNeighborhood[0] == visibleNeighborhood[0] && graphNeighborhood[1] == visibleNeighborhood[1])
@@ -1449,18 +1469,18 @@ bool SparseDB::checkAddInterface(StateID candidateStateID, std::vector<SparseVer
         BOLT_DEBUG(indent + 2, vCriteria_, "INTERFACE: directly connected nodes");
 
         // Connect them
-        addEdge(visibleNeighborhood[0], visibleNeighborhood[1], visualColor, indent + 4);
+        addEdge(visibleNeighborhood[0], visibleNeighborhood[1], eINTERFACE, indent + 4);
 
         // Also add the vertex if we are in a special mode where we know its desired
         if (discretizedSamplesInsertion_)
-          newVertex = addVertex(candidateStateID, INTERFACE);
+          newVertex = addVertex(candidateStateID, INTERFACE, indent + 4);
       }
       else  // They cannot be directly connected
       {
         // Add the new node to the graph, to bridge the interface
         BOLT_DEBUG(indent + 2, vCriteria_, "Adding node for INTERFACE");
 
-        newVertex = addVertex(candidateStateID, INTERFACE);
+        newVertex = addVertex(candidateStateID, INTERFACE, indent + 4);
 
         // Check if there are really close vertices nearby which should be merged
         if (checkRemoveCloseVertices(newVertex, indent + 4))
@@ -1469,21 +1489,21 @@ bool SparseDB::checkAddInterface(StateID candidateStateID, std::vector<SparseVer
           return true;
         }
 
-        if (getSparseState(visibleNeighborhood[0]) == NULL)
+        if (getVertexState(visibleNeighborhood[0]) == NULL)
         {
           BOLT_RED_DEBUG(indent + 3, 1, "Skipping edge 0 because vertex was removed");
-          visual_->waitForUserFeedback();
+          visual_->waitForUserFeedback("skipping edge 0");
         }
         else
-          addEdge(newVertex, visibleNeighborhood[0], visualColor, indent + 4);
+          addEdge(newVertex, visibleNeighborhood[0], eINTERFACE, indent + 4);
 
-        if (getSparseState(visibleNeighborhood[1]) == NULL)
+        if (getVertexState(visibleNeighborhood[1]) == NULL)
         {
           BOLT_RED_DEBUG(indent + 3, 1, "Skipping edge 1 because vertex was removed");
-          visual_->waitForUserFeedback();
+          visual_->waitForUserFeedback("skipping edge 2");
         }
         else
-          addEdge(newVertex, visibleNeighborhood[1], visualColor, indent + 4);
+          addEdge(newVertex, visibleNeighborhood[1], eINTERFACE, indent + 4);
 
         BOLT_DEBUG(indent + 2, vCriteria_, "INTERFACE: connected two neighbors through new interface node");
       }
@@ -1513,25 +1533,15 @@ bool SparseDB::checkAddQuality(StateID candidateStateID, std::vector<SparseVerte
     return false;
   }
 
-  base::State *candidateState = denseCache_->getStateNonConst(candidateStateID); //paper's name: q
-  SparseVertex candidateRep = visibleNeighborhood[0];   // paper's name: v
+  base::State *candidateState = denseCache_->getStateNonConst(candidateStateID);  // paper's name: q
+  SparseVertex candidateRep = visibleNeighborhood[0];                             // paper's name: v
 
   bool added = false;
   std::map<SparseVertex, base::State *> closeRepresentatives;  // [nearSampledRep, nearSampledState]
   findCloseRepresentatives(workState, candidateStateID, candidateRep, closeRepresentatives, indent + 2);
 
-  if (closeRepresentatives.size())
-  {
-    BOLT_GREEN_DEBUG(indent, vQuality_, "back in checkAddQuality(): Found " << closeRepresentatives.size()
-                                                                            << " close "
-                                                                               "representatives");
-  }
-  else
-  {
-    BOLT_RED_DEBUG(indent, vQuality_, "back in checkAddQuality(): Found " << closeRepresentatives.size()
-                                                                          << " close "
-                                                                             "representatives");
-  }
+  BOLT_DEBUG(indent, vQuality_, "back in checkAddQuality(): Found " << closeRepresentatives.size()
+                                                                    << " close representatives");
 
   bool updated = false;  // track whether a change was made to any vertices' representatives
 
@@ -1545,13 +1555,14 @@ bool SparseDB::checkAddQuality(StateID candidateStateID, std::vector<SparseVerte
 
     if (visualizeQualityCriteria_ && false)  // Visualization
     {
-      visual_->viz3Edge(getSparseState(nearSampledRep), nearSampledState, tools::eRED);
+      visual_->viz3Edge(getVertexState(nearSampledRep), nearSampledState, tools::eRED);
 
       visual_->viz3State(nearSampledState, tools::MEDIUM, tools::GREEN, 0);
 
       // Replicate a regular vertex visualization
-      //visual_->viz3State(getSparseState(nearSampledRep), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
-      visual_->viz3State(getSparseState(nearSampledRep), tools::LARGE, tools::PURPLE, sparseDelta_);
+      // visual_->viz3State(getVertexState(nearSampledRep), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
+      // sparseDelta_);
+      visual_->viz3State(getVertexState(nearSampledRep), tools::LARGE, tools::PURPLE, sparseDelta_);
 
       visual_->viz3Trigger();
       usleep(0.001 * 1000000);
@@ -1588,8 +1599,8 @@ bool SparseDB::checkAddQuality(StateID candidateStateID, std::vector<SparseVerte
   // Visualize the interfaces around the candidate rep
   if (visualizeQualityCriteria_)
   {
-    //visualizeCheckAddQuality(candidateState, candidateRep);
-    //visualizeInterfaces(candidateRep, indent + 2);
+    // visualizeCheckAddQuality(candidateState, candidateRep);
+    // visualizeInterfaces(candidateRep, indent + 2);
 
     // static std::size_t updateCount = 0;
     // if (updateCount++ % 50 == 0)
@@ -1628,20 +1639,21 @@ void SparseDB::visualizeCheckAddQuality(StateID candidateStateID, SparseVertex c
 {
   visual_->viz3DeleteAllMarkers();
 
-  visual_->viz3Edge(denseCache_->getState(candidateStateID), getSparseState(candidateRep), tools::eORANGE);
+  visual_->viz3Edge(denseCache_->getState(candidateStateID), getVertexState(candidateRep), tools::eORANGE);
 
   // Show candidate state
-  //visual_->viz3State(denseCache_->getState(candidateStateID), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, denseDelta_);
+  // visual_->viz3State(denseCache_->getState(candidateStateID), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
+  // denseDelta_);
   visual_->viz3State(denseCache_->getState(candidateStateID), tools::LARGE, tools::RED, 0);
 
   // Show candidate state's representative
-  visual_->viz3State(getSparseState(candidateRep), tools::LARGE, tools::BLUE, 0);
+  visual_->viz3State(getVertexState(candidateRep), tools::LARGE, tools::BLUE, 0);
 
   // Show candidate state's representative's neighbors
   foreach (SparseVertex adjVertex, boost::adjacent_vertices(candidateRep, g_))
   {
-    visual_->viz3Edge(getSparseState(adjVertex), getSparseState(candidateRep), tools::eGREEN);
-    visual_->viz3State(getSparseState(adjVertex), tools::LARGE, tools::PURPLE, 0);
+    visual_->viz3Edge(getVertexState(adjVertex), getVertexState(candidateRep), tools::eGREEN);
+    visual_->viz3State(getVertexState(adjVertex), tools::LARGE, tools::PURPLE, 0);
   }
 
   visual_->viz3Trigger();
@@ -1684,8 +1696,8 @@ bool SparseDB::checkAddPath(SparseVertex v, std::size_t indent)
 
       // Check if we need to actually add path
       if (spannerTestOriginal(v, vp, vpp, iData, indent + 2))
-        //if (spannerTestOuter(v, vp, vpp, iData, indent + 2))
-      //if (spannerTestAStar(v, vp, vpp, iData, indent + 2))
+      // if (spannerTestOuter(v, vp, vpp, iData, indent + 2))
+      // if (spannerTestAStar(v, vp, vpp, iData, indent + 2))
       {
         // Actually add the vertices and possibly edges
         addQualityPath(v, vp, vpp, iData, indent + 6);
@@ -1704,41 +1716,46 @@ bool SparseDB::checkAddPath(SparseVertex v, std::size_t indent)
   return spannerPropertyWasViolated;
 }
 
-void SparseDB::visualizeCheckAddPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent)
+void SparseDB::visualizeCheckAddPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
+                                     std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vQuality_, "visualizeCheckAddPath");
   visual_->viz5DeleteAllMarkers();
 
   // Show candidate rep
-  visual_->viz5State(getSparseState(v), tools::LARGE, tools::BLUE, 0);
+  visual_->viz5State(getVertexState(v), tools::LARGE, tools::BLUE, 0);
 
   // Show adjacent state
-  visual_->viz5State(getSparseState(vp), tools::LARGE, tools::PURPLE, 0);
-  //visual_->viz5State(getSparseState(vp), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
+  visual_->viz5State(getVertexState(vp), tools::LARGE, tools::PURPLE, 0);
+  // visual_->viz5State(getVertexState(vp), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
 
   // Show edge between them
-  visual_->viz5Edge(getSparseState(vp), getSparseState(v), tools::eGREEN);
+  visual_->viz5Edge(getVertexState(vp), getVertexState(v), tools::eGREEN);
 
   // Show adjacent state
-  visual_->viz5State(getSparseState(vpp), tools::LARGE, tools::PURPLE, 0);
-  //visual_->viz5State(getSparseState(vpp), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
+  visual_->viz5State(getVertexState(vpp), tools::LARGE, tools::PURPLE, 0);
+  // visual_->viz5State(getVertexState(vpp), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
 
   // Show edge between them
-  visual_->viz5Edge(getSparseState(vpp), getSparseState(v), tools::eORANGE);
+  visual_->viz5Edge(getVertexState(vpp), getVertexState(v), tools::eORANGE);
   visual_->viz5Trigger();
   usleep(0.001 * 1000000);
 
   // Show iData
   if (iData.hasInterface1())
   {
+    std::cout << "hasInterface1 " << std::flush;
     visual_->viz5State(iData.interface1Inside_, tools::MEDIUM, tools::ORANGE, 0);
+    std::cout << "1 " << std::flush;
     visual_->viz5State(iData.interface1Outside_, tools::MEDIUM, tools::GREEN, 0);
+    std::cout << "2 " << std::flush;
     visual_->viz5Edge(iData.interface1Inside_, iData.interface1Outside_, tools::eRED);
+    std::cout << "3 " << std::endl;
 
     if (vp < vpp)
-      visual_->viz5Edge(getSparseState(vp), iData.interface1Outside_, tools::eRED);
+      visual_->viz5Edge(getVertexState(vp), iData.interface1Outside_, tools::eRED);
     else
-      visual_->viz5Edge(getSparseState(vpp), iData.interface1Outside_, tools::eRED);
+      visual_->viz5Edge(getVertexState(vpp), iData.interface1Outside_, tools::eRED);
   }
   if (iData.hasInterface2())
   {
@@ -1747,9 +1764,9 @@ void SparseDB::visualizeCheckAddPath(SparseVertex v, SparseVertex vp, SparseVert
     visual_->viz5Edge(iData.interface2Inside_, iData.interface2Outside_, tools::eRED);
 
     if (vp < vpp)
-      visual_->viz5Edge(getSparseState(vpp), iData.interface2Outside_, tools::eRED);
+      visual_->viz5Edge(getVertexState(vpp), iData.interface2Outside_, tools::eRED);
     else
-      visual_->viz5Edge(getSparseState(vp), iData.interface2Outside_, tools::eRED);
+      visual_->viz5Edge(getVertexState(vp), iData.interface2Outside_, tools::eRED);
   }
 
   visual_->viz5Trigger();
@@ -1762,26 +1779,17 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
   BOLT_BLUE_DEBUG(indent, vQuality_, "addQualityPath()");
   indent += 2;
 
-  // TEMP:
-  // if (iData.lastDistance_ == 0)
-  // {
-  //   BOLT_RED_DEBUG(0, 1, "last distance is zero!");
-  //   visual_->waitForUserFeedback();
-  // }
-
-
   // Can we connect these two vertices directly?
   const std::size_t threadID = 0;
   if (denseCache_->checkMotionWithCacheVertex(vp, vpp, threadID))
-    //if (si_->checkMotion(getSparseState(vp), getSparseState(vpp)))
+  // if (si_->checkMotion(getVertexState(vp), getVertexState(vpp)))
   {
     BOLT_DEBUG(indent, vQuality_, "Adding edge between vp and vpp");
 
-    SparseEdge e = addEdge(vp, vpp, eRED, indent + 2);
+    SparseEdge e = addEdge(vp, vpp, eQUALITY, indent + 2);
 
-    if (edgeWeightProperty_[e] > ignoreEdgesSmallerThan_) //discretization_ + small)
+    if (edgeWeightProperty_[e] > ignoreEdgesSmallerThan_)  // discretization_ + small)
     {
-
       if (visualizeQualityCriteria_)
         visualizeCheckAddPath(v, vp, vpp, iData, indent + 4);
 
@@ -1793,212 +1801,82 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
   }
   else
   {
-    BOLT_YELLOW_DEBUG(indent, true, "Geometric path being added for spanner");
+    BOLT_YELLOW_DEBUG(indent, visualizeQualityPathSimp_, "Geometric path being added for spanner");
 
-    if (visualizeQualityCriteria_) // TEMP
-      visualizeCheckAddPath(v, vp, vpp, iData, indent + 4); // TEMP
+    if (visualizeQualityCriteria_)                           // TEMP
+      visualizeCheckAddPath(v, vp, vpp, iData, indent + 4);  // TEMP
 
     geometric::PathGeometric *path = new geometric::PathGeometric(si_);
-    if (vp < vpp)
+
+    // Create path and simplify
+    smoothQualityPath(v, vp, vpp, iData, path, indent + 4);
+
+    // Insert simplified path into graph
+    SparseVertex prior = vp;
+    SparseVertex newVertex;
+    std::vector<base::State *> &states = path->getStates();
+
+    BOLT_DEBUG(indent + 2, vQuality_, "Shortcuted path now has " << path->getStateCount() << " states");
+
+    if (states.size() < 3)
     {
-      path->append(getSparseState(vp));
-      path->append(iData.interface1Outside_);
-      path->append(iData.interface1Inside_);
-      path->append(getSparseState(v));
-      path->append(iData.interface2Inside_);
-      path->append(iData.interface2Outside_);
-      path->append(getSparseState(vpp));
-    }
-    else
-    {
-      path->append(getSparseState(vp));
-      path->append(iData.interface2Outside_);
-      path->append(iData.interface2Inside_);
-      path->append(getSparseState(v));
-      path->append(iData.interface1Inside_);
-      path->append(iData.interface1Outside_);
-      path->append(getSparseState(vpp));
+      BOLT_RED_DEBUG(indent + 2, true, "Somehow path was shrunk to less than three verticies: " << states.size());
+      visual_->waitForUserFeedback("path shrunk to two");
+      return false;
     }
 
-    // Visualize path
-    if (visualizeQualityCriteria_ || true)
+    bool addEdgeEnabled = true;                          // if a vertex is skipped, stop adding edges
+    for (std::size_t i = 1; i < states.size() - 1; ++i)  // first and last states are vp and vpp, don't addVertex()
     {
-      visual_->viz1DeleteAllMarkers();
-      base::PathPtr pathPtr(new geometric::PathGeometric(*path));
-      visual_->viz1Path(base::PathPtr(pathPtr), 1);
-      visual_->viz1Trigger();
-      usleep(0.001 * 1000000);
-    }
+      base::State *state = states[i];
 
-    BOLT_DEBUG(indent, vQuality_ || 1, "Created 'quality path' candidate with " << path->getStateCount() << " states");
-    visual_->waitForUserFeedback();
-
-    // pathSimplifier_->reduceVertices(*path, 1000);
-
-    // if (visualizeQualityCriteria_ || true)
-    // {
-    //   visual_->viz1DeleteAllMarkers();
-    //   base::PathPtr pathPtr(new geometric::PathGeometric(*path));
-    //   visual_->viz1Path(base::PathPtr(pathPtr), 1);
-    //   visual_->viz1Trigger();
-    //   visual_->waitForUserFeedback();
-    // }
-
-    // Set the motion validator to use clearance, this way isValid() checks clearance before confirming valid
-    base::DiscreteMotionValidator *dmv = dynamic_cast<base::DiscreteMotionValidator*>(si_->getMotionValidatorNonConst().get());
-    dmv->setRequiredStateClearance(obstacleClearance_);
-
-    for (std::size_t i = 0; i < 3; ++i)
-    {
-      pathSimplifier_->simplifyMax(*path);
-
-      if (visualizeQualityCriteria_ || true)
+      // Check if this vertex already exists
+      if (si_->distance(getVertexState(v), state) < denseDelta_)  // TODO: is it ok to re-use this denseDelta var?
       {
-        visual_->viz1DeleteAllMarkers();
-        base::PathPtr pathPtr(new geometric::PathGeometric(*path));
-        visual_->viz1Path(base::PathPtr(pathPtr), 1);
-        visual_->viz1Trigger();
-        //std::cout << "after simplify max " << std::endl;
-        visual_->waitForUserFeedback();
-      }
-
-      pathSimplifier_->reduceVertices(*path, 1000, path->getStateCount() * 4);
-
-      // const double simplifyTime = 10;  // seconds
-      // pathSimplifier_->simplify(*path, simplifyTime);
-      // pathSimplifier_->reduceVertices(*path, 200);
-
-      if (visualizeQualityCriteria_ || true)
-      {
-        visual_->viz1DeleteAllMarkers();
-        base::PathPtr pathPtr(new geometric::PathGeometric(*path));
-        visual_->viz1Path(base::PathPtr(pathPtr), 2);
-        visual_->viz1Trigger();
-        usleep(0.001 * 1000000);
-        //std::cout << "after reduce vertices " << std::endl;
-        visual_->waitForUserFeedback();
-      }
-
-      // pathSimplifier_->shortcutPath(*path, 1000);
-
-      // if (visualizeQualityCriteria_ || true)
-      // {
-      //   visual_->viz1DeleteAllMarkers();
-      //   base::PathPtr pathPtr(new geometric::PathGeometric(*path));
-      //   visual_->viz1Path(base::PathPtr(pathPtr), 4);
-      //   visual_->viz1Trigger();
-      //   usleep(0.001 * 1000000);
-      //   std::cout << "after shortcut path " << std::endl;
-      //   visual_->waitForUserFeedback();
-      // }
-    }
-    // Turn off the clearance requirement
-    dmv->setRequiredStateClearance(0.0);
-
-
-    pathSimplifier_->reduceVertices(*path, 1000, path->getStateCount() * 4);
-
-    if (visualizeQualityCriteria_ || true)
-    {
-      visual_->viz1DeleteAllMarkers();
-      base::PathPtr pathPtr(new geometric::PathGeometric(*path));
-      visual_->viz1Path(base::PathPtr(pathPtr), 4);
-      visual_->viz1Trigger();
-      usleep(0.001 * 1000000);
-      //std::cout << "after reduce vertices final " << std::endl;
-      visual_->waitForUserFeedback();
-    }
-
-    std::pair<bool, bool> repairResult = path->checkAndRepair(100);
-    // if (!repairResult.first)
-    // {
-    //   OMPL_WARN("Check and repair found invalid states");
-
-    //   if (visualizeQualityCriteria_ || true)
-    //   {
-    //     base::PathPtr pathPtr(new geometric::PathGeometric(*path));
-    //     visual_->viz1Path(base::PathPtr(pathPtr), 4);
-    //     visual_->viz1Trigger();
-    //     usleep(0.001 * 1000000);
-    //   }
-    //   return false;
-    // }
-
-    if (repairResult.second) // Repairing was successful
-    {
-      SparseVertex prior = vp;
-      SparseVertex newVertex;
-      std::vector<base::State *> &states = path->getStates();
-
-      BOLT_DEBUG(indent + 2, vQuality_, "Shortcuted path now has " << path->getStateCount() << " states");
-
-      if (states.size() < 3)
-      {
-        BOLT_RED_DEBUG(indent + 2, true, "Somehow path was shrunk to less than two edges: " << states.size());
+        BOLT_RED_DEBUG(indent + 2, true, "Add path state is too similar to v!");
+        visual_->waitForUserFeedback("Add path state is too similar to v");
         return false;
       }
 
-      bool addEdgeEnabled = true; // if a vertex is skipped, stop adding edges
-      for (std::size_t i = 1; i < states.size() - 1; ++i)  // first and last states are vp and vpp, don't addVertex()
+      // Check if new vertex has enough clearance
+      if (!sufficientClearance(state))
       {
-        base::State *state = states[i];
-
-        // Check if this vertex already exists
-        if (si_->distance(getSparseState(v), state) < denseDelta_) // TODO: is it ok to re-use this denseDelta var?
-        {
-          BOLT_RED_DEBUG(indent + 2, true, "Add path state is too similar to v!");
-          visual_->waitForUserFeedback();
-          return false;
-        }
-
-        // Check if new vertex has enough clearance
-        if (!sufficientClearance(state))
-        {
-          BOLT_YELLOW_DEBUG(indent + 2, true, "Skipped adding vertex in new path b/c insufficient clearance");
-          visual_->waitForUserFeedback();
-          addEdgeEnabled = false;
-          continue;
-        }
-
-        // no need to clone st, since we will destroy p; we just copy the pointer
-        BOLT_DEBUG(indent + 2, vQuality_, "Adding node from shortcut path for QUALITY");
-        newVertex = addVertex(state, QUALITY);
-
-        // Check if there are really close vertices nearby which should be merged
-        if (checkRemoveCloseVertices(newVertex, indent + 4))
-        {
-          // New vertex replaced a nearby vertex, we can continue no further because graph has been re-indexed
-          return true;
-        }
-        // TODO should we clearEdgesNearVertex before return true ?
-
-        // TEMP
-        BOLT_RED_DEBUG(indent + 2, true, "clearing nearby edges");
-
-        // Remove all edges from all vertices near our new vertex
-        clearEdgesNearVertex(newVertex);
-
-        if (addEdgeEnabled)
-        {
-          assert(prior != newVertex);
-          addEdge(prior, newVertex, eRED, indent + 2);
-          prior = newVertex;
-        }
+        BOLT_YELLOW_DEBUG(indent + 2, true, "Skipped adding vertex in new path b/c insufficient clearance");
+        visual_->waitForUserFeedback("insufficient clearance");
+        addEdgeEnabled = false;
+        continue;
       }
 
-      // clear the states, so memory is not freed twice
-      states.clear();
+      // no need to clone st, since we will destroy p; we just copy the pointer
+      BOLT_DEBUG(indent + 2, vQuality_, "Adding node from shortcut path for QUALITY");
+      newVertex = addVertex(state, QUALITY, indent + 4);
+
+      // Check if there are really close vertices nearby which should be merged
+      if (checkRemoveCloseVertices(newVertex, indent + 4))
+      {
+        // New vertex replaced a nearby vertex, we can continue no further because graph has been re-indexed
+        return true;
+      }
+      // TODO should we clearEdgesNearVertex before return true ?
+
+      // Remove all edges from all vertices near our new vertex
+      clearEdgesNearVertex(newVertex);
 
       if (addEdgeEnabled)
       {
-        assert(prior != vpp);
-        addEdge(prior, vpp, eRED, indent + 2);
+        assert(prior != newVertex);
+        addEdge(prior, newVertex, eQUALITY, indent + 2);
+        prior = newVertex;
       }
     }
-    else
+
+    // clear the states, so memory is not freed twice
+    states.clear();
+
+    if (addEdgeEnabled)
     {
-      BOLT_RED_DEBUG(indent + 2, true, "check and repair failed?");
-      exit(-1);
+      assert(prior != vpp);
+      addEdge(prior, vpp, eQUALITY, indent + 2);
     }
 
     delete path;
@@ -2006,19 +1884,105 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
     if (visualizeQualityCriteria_)
       visualizeCheckAddPath(v, vp, vpp, iData, indent + 4);
 
-    // TEMP:
-    // BOLT_DEBUG(indent, true, "spanner property violated, path added");
-    // visual_->waitForUserFeedback();
   }
 
-  // TEMP:
-  // if (iData.lastDistance_ == 0)
-  // {
-  //   BOLT_RED_DEBUG(0, 1, "last distance is zero!");
-  //   visual_->waitForUserFeedback();
-  // }
+  return true;
+}
 
+bool SparseDB::smoothQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
+                                 geometric::PathGeometric *path, std::size_t indent)
+{
+  BOLT_BLUE_DEBUG(indent, vQuality_, "smoothQualityPath()");
+  indent += 2;
 
+  base::PathPtr pathPtr(new geometric::PathGeometric(*path));
+
+  if (vp < vpp)
+  {
+    path->append(getVertexState(vp));
+    path->append(iData.interface1Outside_);
+    path->append(iData.interface1Inside_);
+    path->append(getVertexState(v));
+    path->append(iData.interface2Inside_);
+    path->append(iData.interface2Outside_);
+    path->append(getVertexState(vpp));
+  }
+  else
+  {
+    path->append(getVertexState(vp));
+    path->append(iData.interface2Outside_);
+    path->append(iData.interface2Inside_);
+    path->append(getVertexState(v));
+    path->append(iData.interface1Inside_);
+    path->append(iData.interface1Outside_);
+    path->append(getVertexState(vpp));
+  }
+
+  // Visualize path
+  if (visualizeQualityPathSimp_)
+  {
+    visual_->viz1DeleteAllMarkers();
+    base::PathPtr pathPtr(new geometric::PathGeometric(*path));
+    visual_->viz1Path(pathPtr, 1);
+    visual_->viz1Trigger();
+    usleep(0.001 * 1000000);
+  }
+
+  BOLT_DEBUG(indent, visualizeQualityPathSimp_, "Created 'quality path' candidate with " << path->getStateCount()
+                                                                                         << " states");
+  if (visualizeQualityPathSimp_)
+    visual_->waitForUserFeedback("path simplification");
+
+  // Set the motion validator to use clearance, this way isValid() checks clearance before confirming valid
+  base::DiscreteMotionValidator *dmv =
+      dynamic_cast<base::DiscreteMotionValidator *>(si_->getMotionValidatorNonConst().get());
+  dmv->setRequiredStateClearance(obstacleClearance_);
+
+  for (std::size_t i = 0; i < 3; ++i)
+  {
+    pathSimplifier_->simplifyMax(*path);
+
+    if (visualizeQualityPathSimp_)
+    {
+      visual_->viz1DeleteAllMarkers();
+      visual_->viz1Path(pathPtr, 1);
+      visual_->viz1Trigger();
+      //usleep(0.1 * 1000000);
+      visual_->waitForUserFeedback("optimizing path");
+    }
+
+    pathSimplifier_->reduceVertices(*path, 1000, path->getStateCount() * 4);
+
+    if (visualizeQualityPathSimp_)
+    {
+      visual_->viz1DeleteAllMarkers();
+      visual_->viz1Path(pathPtr, 2);
+      visual_->viz1Trigger();
+      //usleep(0.1 * 1000000);
+      visual_->waitForUserFeedback("optimizing path");
+    }
+  }
+  // Turn off the clearance requirement
+  dmv->setRequiredStateClearance(0.0);
+
+  pathSimplifier_->reduceVertices(*path, 1000, path->getStateCount() * 4);
+
+  if (visualizeQualityPathSimp_)
+  {
+    visual_->viz1DeleteAllMarkers();
+    visual_->viz1Path(pathPtr, 4);
+    visual_->viz1Trigger();
+    //usleep(0.001 * 1000000);
+    visual_->waitForUserFeedback("finished quality path");
+  }
+
+  std::pair<bool, bool> repairResult = path->checkAndRepair(100);
+
+  if (!repairResult.second)  // Repairing was not successful
+  {
+    BOLT_RED_DEBUG(indent + 2, true, "check and repair failed?");
+    exit(-1);
+  }
   return true;
 }
 
@@ -2113,25 +2077,25 @@ bool SparseDB::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVertex vp
         assert(vertexPath.size() > 1);
         for (std::size_t i = 1; i < vertexPath.size(); ++i)
         {
-          visual_->viz6Edge(getSparseState(vertexPath[i - 1]), getSparseState(vertexPath[i]), tools::eGREEN);
+          visual_->viz6Edge(getVertexState(vertexPath[i - 1]), getVertexState(vertexPath[i]), tools::eGREEN);
         }
       }
 
       // Add connecting segments:
-      double connector1 = si_->distance(getSparseState(vp), iData.getOutsideInterfaceOfV1(vp, vpp));
+      double connector1 = si_->distance(getVertexState(vp), iData.getOutsideInterfaceOfV1(vp, vpp));
       // TODO(davetcoleman): may want to include the dist from inside to outside of interface
       BOLT_DEBUG(indent + 6, vQuality_, "connector1 " << connector1);
       if (visualizeQualityCriteria_)
       {
-        visual_->viz6Edge(getSparseState(vp), iData.getOutsideInterfaceOfV1(vp, vpp), tools::eORANGE);
+        visual_->viz6Edge(getVertexState(vp), iData.getOutsideInterfaceOfV1(vp, vpp), tools::eORANGE);
       }
 
-      double connector2 = si_->distance(getSparseState(vpp), iData.getOutsideInterfaceOfV2(vp, vpp));
+      double connector2 = si_->distance(getVertexState(vpp), iData.getOutsideInterfaceOfV2(vp, vpp));
       // TODO(davetcoleman): may want to include the dist from inside to outside of interface
       BOLT_DEBUG(indent + 6, vQuality_, "connector2 " << connector2);
       if (visualizeQualityCriteria_)
       {
-        visual_->viz6Edge(getSparseState(vpp), iData.getOutsideInterfaceOfV2(vp, vpp), tools::eYELLOW);
+        visual_->viz6Edge(getVertexState(vpp), iData.getOutsideInterfaceOfV2(vp, vpp), tools::eYELLOW);
       }
 
       pathLength += connector1 + connector2;
@@ -2146,7 +2110,7 @@ bool SparseDB::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVertex vp
     }
 
     // Theoretical max
-    //double theoreticalMaxLength = iData.lastDistance_ + 2 * sparseDelta_;
+    // double theoreticalMaxLength = iData.lastDistance_ + 2 * sparseDelta_;
     double theoreticalMaxLength = iData.lastDistance_ + sparseDelta_;
     BOLT_DEBUG(indent + 6, vQuality_, "Max allowable length: " << theoreticalMaxLength);
     theoreticalMaxLength *= stretchFactor_;
@@ -2187,7 +2151,7 @@ SparseVertex SparseDB::findGraphRepresentative(base::State *state, std::size_t i
   for (std::size_t i = 0; i < graphNeighbors.size(); ++i)
   {
     BOLT_DEBUG(indent + 2, vQuality_, "Checking motion of graph representative candidate " << i);
-    if (si_->checkMotion(state, getSparseState(graphNeighbors[i])))
+    if (si_->checkMotion(state, getVertexState(graphNeighbors[i])))
     {
       BOLT_DEBUG(indent + 4, vQuality_, "graph representative valid ");
       result = graphNeighbors[i];
@@ -2222,7 +2186,7 @@ void SparseDB::findCloseRepresentatives(base::State *workState, const StateID ca
       BOLT_DEBUG(indent + 4, vQuality_, "Sample attempt " << attempt);
 
       regularSampler_->sampleNear(sampledState, denseCache_->getState(candidateStateID), denseDelta_);
-      //si_->getStateSpace()->setLevel(sampledState, 0);  // TODO no hardcode
+      // si_->getStateSpace()->setLevel(sampledState, 0);  // TODO no hardcode
 
       if (!si_->isValid(sampledState))
       {
@@ -2235,8 +2199,9 @@ void SparseDB::findCloseRepresentatives(base::State *workState, const StateID ca
       }
       if (si_->distance(denseCache_->getState(candidateStateID), sampledState) > denseDelta_)
       {
-        BOLT_DEBUG(indent + 6, vQuality_, "Distance too far " << si_->distance(denseCache_->getState(candidateStateID), sampledState)
-                                                              << " needs to be less than " << denseDelta_);
+        BOLT_DEBUG(indent + 6, vQuality_, "Distance too far "
+                                              << si_->distance(denseCache_->getState(candidateStateID), sampledState)
+                                              << " needs to be less than " << denseDelta_);
 
         if (visualizeQualityCriteria_ && visualizeSampler)
           visual_->viz3State(sampledState, tools::SMALL, tools::RED, 0);
@@ -2282,7 +2247,7 @@ void SparseDB::findCloseRepresentatives(base::State *workState, const StateID ca
       if (sufficientClearance(sampledState))
       {
         BOLT_DEBUG(indent + 4, vQuality_, "Adding node for COVERAGE");
-        addVertex(si_->cloneState(sampledState), COVERAGE);
+        addVertex(si_->cloneState(sampledState), COVERAGE, indent + 4);
       }
 
       BOLT_DEBUG(indent + 4, vQuality_, "STOP EFFORTS TO ADD A DENSE PATH");
@@ -2381,7 +2346,7 @@ double SparseDB::maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vp
 
         if (visualizeQualityCriteria_)
         {
-          visual_->viz5State(getSparseState(x), tools::LARGE, tools::BLACK, 0);
+          visual_->viz5State(getVertexState(x), tools::LARGE, tools::BLACK, 0);
         }
       }
     }
@@ -2398,10 +2363,10 @@ double SparseDB::maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vp
   {
     BOLT_DEBUG(indent + 2, vQuality_, "Vertex: " << qualifiedVertex);
     if (visualizeQualityCriteria_)
-      visual_->viz5State(getSparseState(qualifiedVertex), tools::SMALL, tools::PINK, 0);
+      visual_->viz5State(getVertexState(qualifiedVertex), tools::SMALL, tools::PINK, 0);
 
-    double tempDist = (si_->distance(getSparseState(vp), getSparseState(v)) +
-                       si_->distance(getSparseState(v), getSparseState(qualifiedVertex))) /
+    double tempDist = (si_->distance(getVertexState(vp), getVertexState(v)) +
+                       si_->distance(getVertexState(v), getVertexState(qualifiedVertex))) /
                       2.0;
     // do we divide by 2 because of the midpoint path?? TODO(davetcoleman): figure out this proof
     if (tempDist > maxDist)
@@ -2551,7 +2516,8 @@ void SparseDB::clearEdgesNearVertex(SparseVertex vertex)
     boost::clear_vertex(v, g_);
   }
 
-  displaySparseDatabase();
+  std::size_t indent = 0;
+  displayDatabase(true, indent);
 }
 
 void SparseDB::findGraphNeighbors(StateID candidateStateID, std::vector<SparseVertex> &graphNeighborhood,
@@ -2574,25 +2540,10 @@ void SparseDB::findGraphNeighbors(StateID candidateStateID, std::vector<SparseVe
     // Don't collision check if they are the same state
     if (candidateStateID != stateCacheProperty_[v2])
     {
-      // Only collision check motion if they don't already share an edge in the dense graph
-      //if (!boost::edge(v1, v2, g_).second) // TODO: reimplement this
+      if (!denseCache_->checkMotionWithCache(candidateStateID, stateCacheProperty_[v2], threadID))
       {
-        if (!denseCache_->checkMotionWithCache(candidateStateID, stateCacheProperty_[v2], threadID))
-        {
-          continue;
-        }
+        continue;
       }
-      // else if (verbose)
-      // {
-      //   std::cout << "Skipping check motion because already share an edge in dense graph! " << std::endl;
-
-      //   // Visualize for checking that this is true
-      //   visual_->viz3DeleteAllMarkers();
-      //   visual_->viz3State(denseCache_->getState(candidateStateID), tools::SMALL, tools::BLUE, 0);
-      //   visual_->viz3State(getSparseState(graphNeighborhood[i]), tools::SMALL, tools::BLUE, 0);
-      //   visual_->viz3Trigger();
-      //   usleep(1 * 1000000);
-      // }
     }
     else if (verbose)
       std::cout << " ---- Skipping collision checking because same vertex " << std::endl;
@@ -2607,110 +2558,107 @@ void SparseDB::findGraphNeighbors(StateID candidateStateID, std::vector<SparseVe
 
 bool SparseDB::checkRemoveCloseVertices(SparseVertex v1, std::size_t indent)
 {
-  bool verbose = false;
-  std::vector<SparseVertex> graphNeighbors;
-  const std::size_t numNeighbors = 2; // the first neighbor is the vertex itself
+  BOLT_CYAN_DEBUG(indent, vRemoveClose_, "checkRemoveCloseVertices() v1 = " << v1);
+  indent += 2;
 
+  // Get neighbors
+  std::vector<SparseVertex> graphNeighbors;
+  const std::size_t numNeighbors = 2;  // the first neighbor is (usually?) the vertex itself
   nn_->nearestK(v1, numNeighbors, graphNeighbors);
 
-
-  BOLT_DEBUG(indent, verbose,  "Neighbors of " << v1 << " are: ");
-  if (verbose)
-    std::copy(graphNeighbors.begin(), graphNeighbors.end(), std::ostream_iterator<SparseVertex>(std::cout, ","));
-
-  // TODO remove this stop-gap check
-  assert( !(graphNeighbors.size() == 1 && graphNeighbors.front() != v1) );
+  if (vRemoveClose_)
+  {
+    std::stringstream ss;
+    std::copy(graphNeighbors.begin(), graphNeighbors.end(), std::ostream_iterator<SparseVertex>(ss, ","));
+    BOLT_DEBUG(indent, vRemoveClose_, "Neighbors of " << v1 << " are: " << ss.str());
+  }
 
   // Error check no neighbors
   if (graphNeighbors.size() <= 1)
   {
-    BOLT_RED_DEBUG(indent, verbose, "checkRemoveCloseVertices: no neighbors found for sparse vertex " << v1);
+    BOLT_RED_DEBUG(indent, vRemoveClose_, "checkRemoveCloseVertices: no neighbors found for sparse vertex " << v1);
     return false;
   }
 
   SparseVertex v2 = graphNeighbors[1];
-  double sparseDeltaFractionCheck = 0.25; // TODO: determine better value for this
+  double sparseDeltaFractionCheck = 0.25;  // TODO: determine better value for this
 
   // Error check: Do not remove itself
   if (v1 == v2)
   {
-    BOLT_RED_DEBUG(indent, verbose, "checkRemoveCloseVertices: error occured, cannot remove self: " << v1);
-    visual_->waitForUserFeedback();
-    return false;
+    BOLT_RED_DEBUG(indent, vRemoveClose_, "checkRemoveCloseVertices: error occured, cannot remove self: " << v1);
+    exit(-1);
   }
 
   // Check if nearest neighbor is within distance threshold
   if (distanceFunction(v1, v2) > sparseDelta_ * sparseDeltaFractionCheck)
   {
-    BOLT_DEBUG(indent, verbose, "Distance " << distanceFunction(v1, v2) << " is greater than max " << sparseDelta_ * sparseDeltaFractionCheck);
-    //visual_->waitForUserFeedback();
+    // BOLT_DEBUG(indent, vRemoveClose_, "Distance " << distanceFunction(v1, v2) << " is greater than max "
+    //<< sparseDelta_ * sparseDeltaFractionCheck);
     return false;
   }
 
   // Check if nearest neighbor is collision free
-  if (!si_->checkMotion(getSparseState(v1), getSparseState(v2)))
+  if (!si_->checkMotion(getVertexState(v1), getVertexState(v2)))
   {
-    BOLT_RED_DEBUG(indent, verbose, "checkRemoveCloseVertices: not collision free v1=" << v1 << ", v2=" << v2);
-    //visual_->waitForUserFeedback();
+    BOLT_RED_DEBUG(indent, vRemoveClose_, "checkRemoveCloseVertices: not collision free v1=" << v1 << ", v2=" << v2);
     return false;
   }
 
-  BOLT_DEBUG(indent+2, verbose, "TESTING IF ABLE TO REPLACE " << v2 << " with " << v1);
+  BOLT_DEBUG(indent, vRemoveClose_, "Found visible nearby node, testing if able to replace " << v2 << " with " << v1);
 
   visual_->viz6DeleteAllMarkers();
-  visual_->viz6State(getSparseState(v1), tools::LARGE, tools::GREEN, 0);
-  visual_->viz6State(getSparseState(v2), tools::LARGE, tools::RED, 0); // RED = to be removed
+  visual_->viz6State(getVertexState(v1), tools::LARGE, tools::GREEN, 0);
+  visual_->viz6State(getVertexState(v2), tools::LARGE, tools::RED, 0);  // RED = to be removed
   visual_->viz6Trigger();
 
   // Nearest neighbor is good candidate, next check if all of its connected neighbors can be connected to new vertex
   foreach (SparseEdge edge, boost::out_edges(v2, g_))
   {
     SparseVertex v3 = boost::target(edge, g_);
-    BOLT_DEBUG(indent+4, verbose, "checking edge v1= " << v1 << " to v3=" << v3);
+    BOLT_DEBUG(indent + 2, vRemoveClose_, "checking edge v1= " << v1 << " to v3=" << v3);
 
     // Check if distance is within sparseDelta
-    if (si_->distance(getSparseState(v1), getSparseState(v3)) > sparseDelta_)
+    if (si_->distance(getVertexState(v1), getVertexState(v3)) > sparseDelta_)
     {
-      BOLT_DEBUG(indent+4, verbose, "checkRemoveCloseVertices: distance too far for previous neighbor " << v3);
-      visual_->waitForUserFeedback();
+      BOLT_DEBUG(indent + 2, vRemoveClose_, "checkRemoveCloseVertices: distance too far from previous neighbor " << v3);
       return false;
     }
 
     // Check if collision free path to connected vertex
-    if (!si_->checkMotion(getSparseState(v1), getSparseState(v3)))
+    if (!si_->checkMotion(getVertexState(v1), getVertexState(v3)))
     {
-      BOLT_RED_DEBUG(indent+4, verbose, "checkRemoveCloseVertices: not collision free path from new vertex to potential neighbor " << v3);
+      BOLT_RED_DEBUG(indent + 2, vRemoveClose_,
+                     "checkRemoveCloseVertices: not collision free path from new vertex to potential neighbor " << v3);
       return false;
     }
   }
 
-  visual_->waitForUserFeedback();
+  BOLT_DEBUG(indent, vRemoveClose_, "Found qualified node to replace");
+  //visual_->waitForUserFeedback("found qualified node to replace with nearby");
 
   // Remove all interface data for old state
-  abandonLists(getSparseStateNonConst(v2));
+  abandonLists(getVertexStateNonConst(v2));
 
   // Connect new vertex to old vertex's connected neighbors
   foreach (SparseEdge edge, boost::out_edges(v2, g_))
   {
     SparseVertex v3 = boost::target(edge, g_);
-    BOLT_DEBUG(indent+4,1,"connecting v1= " << v1 << " to v3=" << v3);
-    addEdge(v1, v3, tools::eORANGE, indent + 4);
+    BOLT_DEBUG(indent + 2, 1, "Connecting v1= " << v1 << " to v3=" << v3);
+    addEdge(v1, v3, eINTERFACE, indent + 4);
   }
 
   // Delete old vertex
   removeVertex(v2);
-  BOLT_CYAN_DEBUG(indent + 2, verbose, "REMOVING VERTEX " << v2 << " which was replaced with " << v1 << " with state " << getSparseState(v1));
+  BOLT_CYAN_DEBUG(indent, vRemoveClose_, "REMOVING VERTEX " << v2 << " which was replaced with " << v1 << " with "
+                                                                                                          "state ");
 
   // Statistics
   numVerticesMoved_++;
 
-  //BOLT_DEBUG(indent, verbose,  "before showing updated graph " << std::endl;
-  //visual_->waitForUserFeedback();
+  displayDatabase(true, indent + 4);
 
-             BOLT_DEBUG(indent, verbose,  "display sparse db ");
-  displaySparseDatabase();
-
-  visual_->waitForUserFeedback();
+  //visual_->waitForUserFeedback("removed vertex");
 
   return true;
 }
@@ -2772,8 +2720,7 @@ void SparseDB::addEdgeFromFile(BoltStorage::BoltEdgeData e)
 
   // Add edge
   // SparseEdge newE =
-  std::size_t visualColor = eGREEN; // TODO
-  addEdge(v1, v2, visualColor, indent + 2);
+  addEdge(v1, v2, eCONNECTIVITY /*TODO*/, indent + 2);
 }
 
 StateID SparseDB::addState(base::State *state)
@@ -2781,20 +2728,25 @@ StateID SparseDB::addState(base::State *state)
   return denseCache_->addState(state);
 }
 
-SparseVertex SparseDB::addVertex(base::State *state, const GuardType &type)
+SparseVertex SparseDB::addVertex(base::State *state, const GuardType &type, std::size_t indent)
 {
-  return addVertex(addState(state), type);
+  return addVertex(addState(state), type, indent);
 }
 
-SparseVertex SparseDB::addVertex(StateID stateID, const GuardType &type)
+SparseVertex SparseDB::addVertex(StateID stateID, const GuardType &type, std::size_t indent)
 {
   // Create vertex
   SparseVertex v = boost::add_vertex(g_);
+  BOLT_CYAN_DEBUG(indent, vAdd_, "addVertex(): v: " << v << ", stateID: " << stateID << " type " << type);
 
   // Add properties
   typeProperty_[v] = type;
   stateCacheProperty_[v] = stateID;
   vertexPopularity_[v] = MAX_POPULARITY_WEIGHT;  // 100 means the vertex is very unpopular
+
+  // Debug
+  // std::cout << "New Vertex: " << v << " - stateID: " << stateID << " state: ";
+  // debugState(getState(stateID));
 
   // Clear all nearby interface data whenever a new vertex is added
   if (useFourthCriteria_)
@@ -2828,28 +2780,7 @@ SparseVertex SparseDB::addVertex(StateID stateID, const GuardType &type)
   // Visualize
   if (visualizeSparsGraph_)
   {
-    tools::colors color;
-    if (type == COVERAGE)
-      color = tools::BLACK;
-    else if (type == CONNECTIVITY)
-      color = tools::ORANGE;
-    else if (type == INTERFACE)
-      color = tools::RED;
-    else if (type == QUALITY)
-      color = tools::BLUE;
-    else
-      OMPL_ERROR("Unknown type");
-
-    // if (type == COVERAGE)
-    if (visualizeDatabaseCoverage_)
-      visual_->viz2State(getSparseState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
-
-    if (type == QUALITY)
-      visual_->viz2State(getSparseState(v), tools::LARGE, color, 0);
-    else
-      visual_->viz2State(getSparseState(v), tools::MEDIUM, color, 0);
-
-    visual_->viz4State(getSparseState(v), tools::MEDIUM, color, 0);
+    visualizeVertex(v, type);
 
     if (visualizeSparsGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
@@ -2857,12 +2788,12 @@ SparseVertex SparseDB::addVertex(StateID stateID, const GuardType &type)
       usleep(visualizeSparsGraphSpeed_ * 1000000);
     }
 
-    if (visualizeOverlayNodes_)  // after initial spars graph is created, show additions not from grid
-    {
-      visual_->viz4State(getSparseState(v), tools::MEDIUM, color, sparseDelta_);
-      visual_->viz4Trigger();
-      usleep(0.001 * 1000000);
-    }
+    // if (visualizeOverlayNodes_)  // after initial spars graph is created, show additions not from grid
+    // {
+    //   visual_->viz4State(getVertexState(v), tools::MEDIUM, color, sparseDelta_);
+    //   visual_->viz4Trigger();
+    //   usleep(0.001 * 1000000);
+    // }
   }
 
   if (visualizeVoronoiDiagramAnimated_ || (visualizeVoronoiDiagram_ && useFourthCriteria_))
@@ -2871,32 +2802,74 @@ SparseVertex SparseDB::addVertex(StateID stateID, const GuardType &type)
   return v;
 }
 
+void SparseDB::visualizeVertex(SparseVertex v, const GuardType &type)
+{
+  tools::colors color;
+  tools::sizes size;
+
+  switch (type)
+  {
+    case COVERAGE:
+      color = tools::BLACK;
+      size = tools::LARGE;
+      break;
+    case CONNECTIVITY:
+      color = tools::ORANGE;
+      size = tools::LARGE;
+      break;
+    case INTERFACE:
+      color = tools::PINK;
+      size = tools::LARGE;
+      break;
+    case QUALITY:
+      color = tools::BLUE;
+      size = tools::LARGE;
+      break;
+    case START:
+    case GOAL:
+    case CARTESIAN:
+    default:
+      OMPL_ERROR("Unknown type");
+      exit(-1);
+  }
+
+  // Show visibility region around vertex
+  if (visualizeDatabaseCoverage_)
+    visual_->viz2State(getVertexState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
+
+  // Show vertex
+  visual_->viz2State(getVertexState(v), size, color, 0);
+}
+
 void SparseDB::removeVertex(SparseVertex v)
 {
-  std::cout << "Removing vertex " << v << std::endl;
-
   // Remove from nearest neighbor
   nn_->remove(v);
 
   // Debug
-  std::cout << std::endl;
-  std::cout << "-------------------------------------------------------" << std::endl;
-  std::cout << "-------------------------------------------------------" << std::endl;
-  NearestNeighborsGNAT<SparseVertex> *gnat = dynamic_cast<NearestNeighborsGNAT<SparseVertex>*>(nn_.get());
-  std::cout << "GNAT: " << *gnat << std::endl;
-  std::cout << std::endl;
+  // debugNN();
 
   // Delete state from denseDB
-  stateCacheProperty_[v] = 0; // TODO: does this actually mean delete?
+  stateCacheProperty_[v] = 0;  // 0 means delete
 
   // TODO: disjointSets is now inaccurate
-  //disjointSets_.remove_set(v);
+  // disjointSets_.remove_set(v);
 
   // Remove all edges to and from vertex
   boost::clear_vertex(v, g_);
 
   // Remove vertex
-  //boost::remove_vertex(v, g_);
+  // boost::remove_vertex(v, g_);
+}
+
+void SparseDB::debugNN()
+{
+  // Show contents of GNAT
+  std::cout << std::endl;
+  std::cout << "-------------------------------------------------------" << std::endl;
+  NearestNeighborsGNAT<SparseVertex> *gnat = dynamic_cast<NearestNeighborsGNAT<SparseVertex> *>(nn_.get());
+  std::cout << "GNAT: " << *gnat << std::endl;
+  std::cout << std::endl;
 }
 
 std::size_t SparseDB::getVizVertexType(const GuardType &type)
@@ -2921,18 +2894,23 @@ std::size_t SparseDB::getVizVertexType(const GuardType &type)
   return 5;
 }
 
-SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, std::size_t visualColor, std::size_t indent)
+SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent)
 {
+  BOLT_CYAN_DEBUG(indent, vAdd_, "addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
+
   assert(v1 <= getNumVertices());
   assert(v2 <= getNumVertices());
   assert(v1 != v2);
-  BOOST_ASSERT_MSG(getSparseState(v1) != getSparseState(v2), "States on both sides of an edge are the same");
+  BOOST_ASSERT_MSG(getVertexState(v1) != getVertexState(v2), "States on both sides of an edge are the same");
 
   // Create the new edge
   SparseEdge e = (boost::add_edge(v1, v2, g_)).first;
 
   // Weight properties
   edgeWeightProperty_[e] = distanceFunction(v1, v2);  // TODO: use this value with astar
+
+  // Reason edge was added to spanner
+  edgeTypeProperty_[e] = type;
 
   // Collision properties
   edgeCollisionStatePropertySparse_[e] = NOT_CHECKED;
@@ -2951,36 +2929,36 @@ SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, std::size_t visua
        100 - RED    - interface special
     */
 
-    double small = penetrationDistance_ + std::numeric_limits<double>::epsilon();
-    if (false) // Use alterative color scheme
-    {
-      if (edgeWeightProperty_[e] < nearestDiscretizedV_ + small)
-      {
-        visualColor = eYELLOW;
-      }
-      else if (edgeWeightProperty_[e] < discretization_ + small)
-      {
-        visualColor = eGREEN;
-      }
-      else
-      {
-        visualColor = eRED;
-      }
-    }
+    // double small = penetrationDistance_ + std::numeric_limits<double>::epsilon();
+    // if (false) // Use alterative color scheme
+    // {
+    //   if (edgeWeightProperty_[e] < nearestDiscretizedV_ + small)
+    //   {
+    //     visualColor = eYELLOW;
+    //   }
+    //   else if (edgeWeightProperty_[e] < discretization_ + small)
+    //   {
+    //     visualColor = eGREEN;
+    //   }
+    //   else
+    //   {
+    //     visualColor = eRED;
+    //   }
+    // }
 
-    visual_->viz2Edge(getSparseState(v1), getSparseState(v2), visualColor);
+    visual_->viz2Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
     if (visualizeSparsGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
       visual_->viz2Trigger();
       usleep(visualizeSparsGraphSpeed_ * 1000000);
     }
 
-    //if (visualColor == tools::eRED)
+    // if (visualColor == tools::eRED)
     {
       if (edgeWeightProperty_[e] > ignoreEdgesSmallerThan_)
       {
-        //std::cout << "Edge distance: " << edgeWeightProperty_[e] << std::endl;
-        visual_->viz4Edge(getSparseState(v1), getSparseState(v2), visualColor);
+        // std::cout << "Edge distance: " << edgeWeightProperty_[e] << std::endl;
+        visual_->viz4Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
         visual_->viz4Trigger();
         usleep(0.001 * 1000000);
       }
@@ -2990,24 +2968,50 @@ SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, std::size_t visua
   return e;
 }
 
-base::State *&SparseDB::getSparseStateNonConst(SparseVertex v)
+edgeColors SparseDB::convertEdgeTypeToColor(EdgeType edgeType)
 {
+  switch (edgeType)
+  {
+    case eCONNECTIVITY:
+      return eGREEN;
+      break;
+    case eINTERFACE:
+      return eYELLOW;
+      break;
+    case eQUALITY:
+      return eRED;
+      break;
+    case eCARTESIAN:
+      return eORANGE;
+      break;
+    default:
+      OMPL_ERROR("Unknown edge type");
+      exit(-1);
+  }
+  return eORANGE;  // dummy
+}
+
+base::State *&SparseDB::getVertexStateNonConst(SparseVertex v)
+{
+  BOOST_ASSERT_MSG(v >= queryVertices_.size(), "Attempted to request state of query vertex using wrong function");
   return denseCache_->getStateNonConst(stateCacheProperty_[v]);
 }
 
-const base::State *SparseDB::getSparseState(SparseVertex v) const
+const base::State *SparseDB::getVertexState(SparseVertex v) const
 {
+  BOOST_ASSERT_MSG(v >= queryVertices_.size(), "Attempted to request state of query vertex using wrong function");
   return denseCache_->getState(stateCacheProperty_[v]);
 }
 
-const base::State* SparseDB::getState(StateID stateID) const
+const base::State *SparseDB::getState(StateID stateID) const
 {
   return denseCache_->getState(stateID);
 }
 
-void SparseDB::displaySparseDatabase(bool showVertices)
+void SparseDB::displayDatabase(bool showVertices, std::size_t indent)
 {
-  OMPL_INFORM("Displaying Sparse database");
+  BOLT_CYAN_DEBUG(indent, true, "Displaying Sparse database");
+  indent += 2;
 
   // Error check
   if (getNumVertices() == 0 || getNumEdges() == 0)
@@ -3019,53 +3023,66 @@ void SparseDB::displaySparseDatabase(bool showVertices)
   // Clear previous visualization
   visual_->viz2DeleteAllMarkers();
 
+  const std::size_t MIN_FEEDBACK = 10000;
   if (visualizeDatabaseEdges_)
   {
     // Loop through each edge
-    std::size_t count = 0;
-    std::size_t debugFrequency = std::max(2, static_cast<int>(getNumEdges() / 10));
-    std::cout << "Displaying sparse edges: " << std::flush;
+    std::size_t count = 1;
+    std::size_t debugFrequency = MIN_FEEDBACK;  // std::max(2, static_cast<int>(getNumEdges() / 10));
+    if (getNumEdges() > MIN_FEEDBACK)
+      std::cout << "Displaying sparse edges: " << std::flush;
     foreach (SparseEdge e, boost::edges(g_))
     {
       // Add edge
       SparseVertex v1 = boost::source(e, g_);
       SparseVertex v2 = boost::target(e, g_);
 
-      // TODO(davetcoleman): currently the weight property is not normalized for 0-100 scale so not using for
-      // visualization
       // Visualize
-      visual_->viz2Edge(getSparseState(v1), getSparseState(v2), tools::eRED);  // edgeWeightProperty_[e]);
+      visual_->viz2Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(edgeTypeProperty_[e]));
 
-      // Prevent cache from getting too big
+      // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
       {
         std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumEdges()) * 100.0
                   << "% " << std::flush;
         visual_->viz2Trigger();
-        usleep(0.01*1000000);
+        usleep(0.01 * 1000000);
       }
 
       count++;
     }
-    std::cout << std::endl;
+    if (getNumEdges() > MIN_FEEDBACK)
+      std::cout << std::endl;
   }
 
   if (visualizeDatabaseVertices_)
   {
     // Loop through each vertex
-    std::size_t count = 0;
-    std::size_t debugFrequency = getNumVertices() / 10;
-    std::cout << "Displaying sparse vertices: " << std::flush;
+    std::size_t count = 1;
+    std::size_t debugFrequency = MIN_FEEDBACK;  // getNumVertices() / 10;
+    if (getNumVertices() > MIN_FEEDBACK)
+      std::cout << "Displaying sparse vertices: " << std::flush;
     foreach (SparseVertex v, boost::vertices(g_))
     {
-      // Check for null states
-      if (getSparseState(v))
+      // Skip query vertices
+      if (v < queryVertices_.size())
+        continue;
+
+      // Skip deleted vertices
+      if (stateCacheProperty_[v] == 0)
       {
-        visual_->viz2State(getSparseState(v), tools::MEDIUM, tools::BLUE, 1);
-        // visual_->viz2State(getSparseState(v), /*popularity0-100*/ 7, vertexPopularity_[v]);
+        //BOLT_DEBUG(indent, true, "Skipping/not visualizing deleted vertex: " << v);
+        continue;
       }
-      else if (v > queryVertices_.back())  // query vertex should always be null, actually
-        OMPL_WARN("Null sparse state found on vertex %u", v);
+
+      // Check for null states
+      if (!getVertexState(v))
+      {
+        BOLT_RED_DEBUG(indent, true, "Null vertex found: " << v);
+        continue;
+      }
+
+      visualizeVertex(v, typeProperty_[v]);
 
       // Prevent cache from getting too big
       if (count % debugFrequency == 0)
@@ -3073,17 +3090,17 @@ void SparseDB::displaySparseDatabase(bool showVertices)
         std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumVertices()) * 100.0
                   << "% " << std::flush;
         visual_->viz2Trigger();
-        usleep(0.01*1000000);
+        usleep(0.01 * 1000000);
       }
       count++;
     }
-    std::cout << std::endl;
+    if (getNumVertices() > MIN_FEEDBACK)
+      std::cout << std::endl;
   }
-  // else
 
   // Publish remaining edges
   visual_->viz2Trigger();
-  usleep(0.01*1000000);
+  usleep(0.01 * 1000000);
 }
 
 double SparseDB::distanceFunction(const SparseVertex a, const SparseVertex b) const
@@ -3091,18 +3108,18 @@ double SparseDB::distanceFunction(const SparseVertex a, const SparseVertex b) co
   // Special case: query vertices store their states elsewhere
   if (a < numThreads_)
   {
-    return si_->distance(queryState_[a], getSparseState(b));
+    return si_->distance(queryState_[a], getVertexState(b));
   }
   if (b < numThreads_)
   {
-    return si_->distance(getSparseState(a), queryState_[b]);
+    return si_->distance(getVertexState(a), queryState_[b]);
   }
 
   // Error check
-  assert(getSparseState(a) != NULL);
-  assert(getSparseState(b) != NULL);
+  assert(getVertexState(a) != NULL);
+  assert(getVertexState(b) != NULL);
 
-  return si_->distance(getSparseState(a), getSparseState(b));
+  return si_->distance(getVertexState(a), getVertexState(b));
 }
 
 double SparseDB::getSecondarySparseDelta()
@@ -3122,7 +3139,7 @@ void SparseDB::visualizeInterfaces(SparseVertex v, std::size_t indent)
   InterfaceHash &iData = interfaceDataProperty_[v];
 
   visual_->viz6DeleteAllMarkers();
-  visual_->viz6State(getSparseState(v), tools::LARGE, tools::RED, 0);
+  visual_->viz6State(getVertexState(v), tools::LARGE, tools::RED, 0);
 
   for (auto it = iData.begin(); it != iData.end(); ++it)
   {
@@ -3132,9 +3149,9 @@ void SparseDB::visualizeInterfaces(SparseVertex v, std::size_t indent)
     SparseVertex v1 = pair.first;
     SparseVertex v2 = pair.second;
 
-    visual_->viz6State(getSparseState(v1), tools::LARGE, tools::PURPLE, 0);
-    visual_->viz6State(getSparseState(v2), tools::LARGE, tools::PURPLE, 0);
-    // visual_->viz6Edge(getSparseState(v1), getSparseState(v2), tools::eGREEN);
+    visual_->viz6State(getVertexState(v1), tools::LARGE, tools::PURPLE, 0);
+    visual_->viz6State(getVertexState(v2), tools::LARGE, tools::PURPLE, 0);
+    // visual_->viz6Edge(getVertexState(v1), getVertexState(v2), tools::eGREEN);
 
     if (iData.hasInterface1())
     {
@@ -3144,7 +3161,7 @@ void SparseDB::visualizeInterfaces(SparseVertex v, std::size_t indent)
     }
     else
     {
-      visual_->viz6Edge(getSparseState(v1), getSparseState(v2), tools::eRED);
+      visual_->viz6Edge(getVertexState(v1), getVertexState(v2), tools::eRED);
     }
 
     if (iData.hasInterface2())
@@ -3155,7 +3172,7 @@ void SparseDB::visualizeInterfaces(SparseVertex v, std::size_t indent)
     }
     else
     {
-      visual_->viz6Edge(getSparseState(v1), getSparseState(v2), tools::eRED);
+      visual_->viz6Edge(getVertexState(v1), getVertexState(v2), tools::eRED);
     }
   }
 

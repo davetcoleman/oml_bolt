@@ -70,6 +70,9 @@ DenseCache::DenseCache(base::SpaceInformationPtr si, SparseDB *sparseDB, Visuali
   totalCollisionChecks_.resize(numThreads_, 0);
   totalCollisionChecksFromCache_.resize(numThreads_, 0);
 
+  // Add zeroth state - which indicates a deleted/NULL vertex
+  addState(si_->allocState());
+
   if (disableCache_)
     OMPL_WARN("dense cache disabled");
 }
@@ -78,17 +81,17 @@ bool DenseCache::save()
 {
   OMPL_INFORM("------------------------------------------------");
   OMPL_INFORM("Saving Dense Cache");
-  OMPL_INFORM("  Path:         %s", filePath_.c_str());
+  OMPL_INFORM("  Path:            %s", filePath_.c_str());
   OMPL_INFORM("  Edges:");
-  OMPL_INFORM("    Utilization:  %f %", getPercentCachedCollisionChecks());
-  OMPL_INFORM("    Cache Size:   %u (new: %u)", getEdgeCacheSize(), getEdgeCacheSize() - prevNumCachedEdges);
+  OMPL_INFORM("    Cache Size:    %u (new: %u)", getEdgeCacheSize(), getEdgeCacheSize() - prevNumCachedEdges_);
+  OMPL_INFORM("    Cached checks: %u (%f %)", getTotalCollisionChecksFromCache(), getPercentCachedCollisionChecks());
   OMPL_INFORM("  States:");
-  OMPL_INFORM("    Cache Size:   %u (new: %u)", getStateCacheSize(), getStateCacheSize() - prevNumCachedStates);
+  OMPL_INFORM("    Cache Size:    %u (new: %u)", getStateCacheSize(), getStateCacheSize() - prevNumCachedStates_);
   OMPL_INFORM("------------------------------------------------");
 
   // Save previous data
-  prevNumCachedEdges = getEdgeCacheSize();
-  prevNumCachedStates = getStateCacheSize();
+  prevNumCachedEdges_ = getEdgeCacheSize();
+  prevNumCachedStates_ = getStateCacheSize();
 
   std::ofstream out(filePath_, std::ios::binary);
 
@@ -135,7 +138,13 @@ bool DenseCache::load()
 
   if (!collisionCheckDenseCache_.empty())
   {
-    OMPL_ERROR("Collision check dense cache has %u edges and is not empty, unable to load.", collisionCheckDenseCache_.size());
+    OMPL_ERROR("Collision check cache has %u edges and is not empty, unable to load.", collisionCheckDenseCache_.size());
+    return false;
+  }
+
+  if (stateCache_.size() > 1)
+  {
+    OMPL_ERROR("State cache has %u states and is not empty, unable to load.", stateCache_.size());
     return false;
   }
 
@@ -144,9 +153,12 @@ bool DenseCache::load()
   // Error check
   if (!in.good())
   {
-    OMPL_INFORM("Failed to load dense cache: input stream is invalid (file not found)");
+    OMPL_INFORM("Failed to load dense cache: file not found.");
     return false;
   }
+
+  // Reset first state (id=0)
+  stateCache_.clear(); // remove the null state id=0, because this should have already been saved to file
 
   try
   {
@@ -199,17 +211,22 @@ bool DenseCache::load()
   OMPL_INFORM("------------------------------------------------------");
 
   // Save previous data
-  prevNumCachedEdges = getEdgeCacheSize();
-  prevNumCachedStates = getStateCacheSize();
+  prevNumCachedEdges_ = getEdgeCacheSize();
+  prevNumCachedStates_ = getStateCacheSize();
 
   return true;
 }
 
 void DenseCache::clear()
 {
-  OMPL_INFORM("Clearing dense cache");
+  OMPL_INFORM("Clearing caches");
+
   collisionCheckDenseCache_.clear();
+  stateCache_.clear();
   resetCounters();
+
+  // Add zeroth state - which indicates a deleted/NULL vertex
+  addState(si_->allocState());
 }
 
 void DenseCache::resetCounters()
@@ -231,6 +248,8 @@ void DenseCache::saveStates(boost::archive::binary_oarchive &oa)
   std::cout << "Saving states: " << std::flush;
   for (std::size_t stateID = 0; stateID < stateCache_.size(); ++stateID)
   {
+    assert(stateCache_[stateID] != NULL);
+
     // Convert to new structure
     StateSerialized stateData;
 

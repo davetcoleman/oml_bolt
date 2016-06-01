@@ -72,6 +72,11 @@ VertexDiscretizer::VertexDiscretizer(base::SpaceInformationPtr si, VisualizerPtr
     OMPL_WARN("Overriding number of threads for testing to 1");
     numThreads_ = 1;
   }
+
+  if (numThreads_ > 1 && visualizeGridGeneration_)
+  {
+    OMPL_WARN("Visualizing in non-thread-safe manner!");
+  }
 }
 
 bool VertexDiscretizer::generate()

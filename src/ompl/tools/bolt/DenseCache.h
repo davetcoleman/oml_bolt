@@ -192,8 +192,8 @@ private:
   std::size_t numThreads_;
 
   /** \brief Number of cached item at last load/save */
-  std::size_t prevNumCachedEdges;
-  std::size_t prevNumCachedStates;
+  std::size_t prevNumCachedEdges_;
+  std::size_t prevNumCachedStates_;
 
 };  // end of class DenseCache
 

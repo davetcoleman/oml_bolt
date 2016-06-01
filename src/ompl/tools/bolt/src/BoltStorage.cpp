@@ -125,7 +125,7 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
     vertexData.type_ = sparseDB_->typeProperty_[v];
 
     // Serializing the state contained in this vertex
-    space->serialize(&state[0], sparseDB_->getSparseStateNonConst(v));
+    space->serialize(&state[0], sparseDB_->getVertexStateNonConst(v));
     vertexData.stateSerialized_ = state;
 
     // Save to file
@@ -245,7 +245,7 @@ void BoltStorage::loadVertices(unsigned int numVertices, boost::archive::binary_
 
     // Add to Sparse graph
     GuardType type = static_cast<GuardType>(vertexData.type_);
-    sparseDB_->addVertex(state, type);
+    sparseDB_->addVertex(state, type, 0);
 
     // Feedback
     if ((i + 1) % feedbackFrequency == 0)

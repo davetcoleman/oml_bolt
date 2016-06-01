@@ -275,6 +275,9 @@ public:
 
   bool addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
 
+  bool smoothQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
+                         geometric::PathGeometric *path, std::size_t indent);
+
   /** \brief As described in paper */
   bool spannerTestOriginal(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
 
@@ -357,18 +360,21 @@ public:
   StateID addState(base::State *state);
 
   /** \brief Add vertices to graph */
-  SparseVertex addVertex(base::State *state, const GuardType &type);
-  SparseVertex addVertex(StateID stateID, const GuardType& type);
+  SparseVertex addVertex(base::State *state, const GuardType &type, std::size_t indent);
+  SparseVertex addVertex(StateID stateID, const GuardType& type, std::size_t indent);
 
   /** \brief Add edge to graph */
-  SparseEdge addEdge(SparseVertex v1, SparseVertex v2, std::size_t visualColor, std::size_t indent);
-
+  SparseEdge addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent);
+  edgeColors convertEdgeTypeToColor(EdgeType edgeType);
+  void visualizeVertex(SparseVertex v, const GuardType &type);
   void removeVertex(SparseVertex v);
+
+  void debugNN();
 
   std::size_t getVizVertexType(const GuardType& type);
 
   /** \brief Show in visualizer the sparse graph */
-  void displaySparseDatabase(bool showVertices = false);
+  void displayDatabase(bool showVertices = false, std::size_t indent = 0);
 
   DenseCachePtr getDenseCache()
   {
@@ -376,8 +382,8 @@ public:
   }
 
   /** \brief Shortcut function for getting the state of a vertex */
-  base::State*& getSparseStateNonConst(SparseVertex v);
-  const base::State* getSparseState(SparseVertex v) const;
+  base::State*& getVertexStateNonConst(SparseVertex v);
+  const base::State* getVertexState(SparseVertex v) const;
   const base::State* getState(StateID stateID) const;
 
   /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
@@ -428,6 +434,9 @@ public:
     return queryVertices_.size();
   }
 
+  double getSparseDelta() { return sparseDelta_; }
+  double getDenseDelta() { return denseDelta_; }
+
 protected:
 
   /** \brief Short name of this class */
@@ -459,6 +468,8 @@ protected:
 
   /** \brief Access to the weights of each Edge */
   boost::property_map<SparseGraph, boost::edge_weight_t>::type edgeWeightProperty_;
+
+  boost::property_map<SparseGraph, edge_type_t>::type edgeTypeProperty_;
 
   /** \brief Access to the collision checking state of each Edge */
   SparseEdgeCollisionStateMap edgeCollisionStatePropertySparse_;
@@ -578,12 +589,16 @@ public:
   double obstacleClearance_ = 1;
 
   /** \brief Change verbosity levels */
+  bool vAdd_ = false; // message when adding edges and vertices
   bool vCriteria_ = false;
   bool vQuality_ = false;
+  bool vRemoveClose_ = false;
 
   /** \brief Show the sparse graph being generated */
   bool visualizeSparsGraph_ = false;
-  bool visualizeQualityCriteria_ = true;
+  bool visualizeAttemptedStates_ = false;
+  bool visualizeQualityCriteria_ = false;
+  bool visualizeQualityPathSimp_ = false;
   double visualizeSparsGraphSpeed_ = 0.0;
   bool visualizeDatabaseVertices_ = true;
   bool visualizeDatabaseEdges_ = true;

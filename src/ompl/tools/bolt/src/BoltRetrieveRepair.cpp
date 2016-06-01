@@ -370,7 +370,7 @@ bool BoltRetrieveRepair::getPathOnGraph(const std::vector<SparseVertex> &candida
   // Try every combination of nearby start and goal pairs
   BOOST_FOREACH (SparseVertex start, candidateStarts)
   {
-    if (actualStart == sparseDB_->getSparseState(start))
+    if (actualStart == sparseDB_->getVertexState(start))
     {
       OMPL_ERROR("Comparing same start state");
       exit(-1);  // just curious if this ever happens, no need to actually exit
@@ -378,7 +378,7 @@ bool BoltRetrieveRepair::getPathOnGraph(const std::vector<SparseVertex> &candida
     }
 
     // Check if this start is visible from the actual start
-    if (!si_->checkMotion(actualStart, sparseDB_->getSparseState(start)))
+    if (!si_->checkMotion(actualStart, sparseDB_->getVertexState(start)))
     {
       if (verbose_)
       {
@@ -386,8 +386,8 @@ bool BoltRetrieveRepair::getPathOnGraph(const std::vector<SparseVertex> &candida
       }
       if (debug)
       {
-        visual_->viz4State(sparseDB_->getSparseState(start), tools::LARGE, tools::RED, 1);
-        visual_->viz4Edge(actualStart, sparseDB_->getSparseState(start), 100);
+        visual_->viz4State(sparseDB_->getVertexState(start), tools::LARGE, tools::RED, 1);
+        visual_->viz4Edge(actualStart, sparseDB_->getVertexState(start), 100);
         visual_->viz4Trigger();
         usleep(0.1 * 1000000);
       }
@@ -397,14 +397,14 @@ bool BoltRetrieveRepair::getPathOnGraph(const std::vector<SparseVertex> &candida
 
     BOOST_FOREACH (SparseVertex goal, candidateGoals)
     {
-      if (actualGoal == sparseDB_->getSparseState(goal))
+      if (actualGoal == sparseDB_->getVertexState(goal))
       {
         OMPL_ERROR("Comparing same goal state");
         continue;
       }
 
       if (verbose_)
-        OMPL_INFORM("    foreach_goal: Checking motion from  %d to %d", actualGoal, sparseDB_->getSparseState(goal));
+        OMPL_INFORM("    foreach_goal: Checking motion from  %d to %d", actualGoal, sparseDB_->getVertexState(goal));
 
       // Check if our planner is out of time
       if (ptc == true)
@@ -414,7 +414,7 @@ bool BoltRetrieveRepair::getPathOnGraph(const std::vector<SparseVertex> &candida
       }
 
       // Check if this goal is visible from the actual goal
-      if (!si_->checkMotion(actualGoal, sparseDB_->getSparseState(goal)))
+      if (!si_->checkMotion(actualGoal, sparseDB_->getVertexState(goal)))
       {
         if (verbose_)
         {
@@ -423,8 +423,8 @@ bool BoltRetrieveRepair::getPathOnGraph(const std::vector<SparseVertex> &candida
 
         if (debug)
         {
-          visual_->viz4State(sparseDB_->getSparseState(goal), tools::SMALL, tools::RED, 1);
-          visual_->viz4Edge(actualGoal, sparseDB_->getSparseState(goal), 100);
+          visual_->viz4State(sparseDB_->getVertexState(goal), tools::SMALL, tools::RED, 1);
+          visual_->viz4Edge(actualGoal, sparseDB_->getVertexState(goal), 100);
           visual_->viz4Trigger();
           usleep(0.1 * 1000000);
         }
@@ -498,8 +498,8 @@ bool BoltRetrieveRepair::lazyCollisionSearch(const SparseVertex &start, const Sp
   // Error check all states are non-nullptr
   assert(actualStart);
   assert(actualGoal);
-  assert(sparseDB_->getSparseState(start));
-  assert(sparseDB_->getSparseState(goal));
+  assert(sparseDB_->getVertexState(start));
+  assert(sparseDB_->getVertexState(goal));
 
   // Check that our states are on the same connected component
   // TODO: in the future the graph should always just be fully connected
@@ -515,15 +515,15 @@ bool BoltRetrieveRepair::lazyCollisionSearch(const SparseVertex &start, const Sp
   if (visualize)
   {
     OMPL_INFORM("viz start -----------------------------");
-    visual_->viz5State(sparseDB_->getSparseState(start), tools::VARIABLE_SIZE, tools::PURPLE, 1);
-    visual_->viz5Edge(actualStart, sparseDB_->getSparseState(start), 30);
+    visual_->viz5State(sparseDB_->getVertexState(start), tools::VARIABLE_SIZE, tools::PURPLE, 1);
+    visual_->viz5Edge(actualStart, sparseDB_->getVertexState(start), 30);
     visual_->viz5Trigger();
     usleep(5 * 1000000);
 
     // Visualize goal vertex
     OMPL_INFORM("viz goal ------------------------------");
-    visual_->viz5State(sparseDB_->getSparseState(goal), tools::VARIABLE_SIZE, tools::PURPLE, 1);
-    visual_->viz5Edge(actualGoal, sparseDB_->getSparseState(goal), 0);
+    visual_->viz5State(sparseDB_->getVertexState(goal), tools::VARIABLE_SIZE, tools::PURPLE, 1);
+    visual_->viz5Edge(actualGoal, sparseDB_->getVertexState(goal), 0);
     visual_->viz5Trigger();
     usleep(5 * 1000000);
   }
@@ -607,7 +607,7 @@ bool BoltRetrieveRepair::lazyCollisionCheck(std::vector<SparseVertex> &vertexPat
     if (sparseDB_->edgeCollisionStatePropertySparse_[thisEdge] == NOT_CHECKED)
     {
       // Check path between states
-      if (!si_->checkMotion(sparseDB_->getSparseState(fromVertex), sparseDB_->getSparseState(toVertex)))
+      if (!si_->checkMotion(sparseDB_->getVertexState(fromVertex), sparseDB_->getVertexState(toVertex)))
       {
         // Path between (from, to) states not valid, disable the edge
         OMPL_INFORM("  DISABLING EDGE from vertex %f to vertex %f", fromVertex, toVertex);
@@ -652,7 +652,7 @@ bool BoltRetrieveRepair::findGraphNeighbors(const base::State *state, std::vecto
   // Setup search by getting a non-const version of the focused state
   const std::size_t threadID = 0;
   base::State *stateCopy = si_->cloneState(state);
-  sparseDB_->getSparseStateNonConst(sparseDB_->queryVertices_[threadID]) = stateCopy;
+  sparseDB_->getVertexStateNonConst(sparseDB_->queryVertices_[threadID]) = stateCopy;
 
   // Search
   double find_nearest_k_neighbors;
@@ -663,7 +663,7 @@ bool BoltRetrieveRepair::findGraphNeighbors(const base::State *state, std::vecto
   sparseDB_->nn_->nearestK(sparseDB_->queryVertices_[threadID], find_nearest_k_neighbors, graphNeighborhood);
 
   // Reset
-  sparseDB_->getSparseStateNonConst(sparseDB_->queryVertices_[threadID]) = nullptr;
+  sparseDB_->getVertexStateNonConst(sparseDB_->queryVertices_[threadID]) = nullptr;
 
   // Filter neighbors based on level
   if (requiredLevel >= 0)
@@ -726,7 +726,7 @@ bool BoltRetrieveRepair::convertVertexPathToStatePath(std::vector<SparseVertex> 
   // og::PathGeometric *pathGeometric = new og::PathGeometric(si_);
 
   // Add original start if it is different than the first state
-  if (actualStart != sparseDB_->getSparseState(vertexPath.back()))
+  if (actualStart != sparseDB_->getVertexState(vertexPath.back()))
   {
     geometricSolution.append(actualStart);
   }
@@ -742,7 +742,7 @@ bool BoltRetrieveRepair::convertVertexPathToStatePath(std::vector<SparseVertex> 
   // Reverse the vertexPath and convert to state path
   for (std::size_t i = vertexPath.size(); i > 0; --i)
   {
-    geometricSolution.append(sparseDB_->getSparseState(vertexPath[i - 1]));
+    geometricSolution.append(sparseDB_->getVertexState(vertexPath[i - 1]));
 
     // Add the edge status
     if (i > 1)  // skip the last vertex (its reversed)
@@ -782,7 +782,7 @@ bool BoltRetrieveRepair::convertVertexPathToStatePath(std::vector<SparseVertex> 
   }
 
   // Add original goal if it is different than the last state
-  if (actualGoal != sparseDB_->getSparseState(vertexPath.front()))
+  if (actualGoal != sparseDB_->getVertexState(vertexPath.front()))
   {
     geometricSolution.append(actualGoal);
   }
@@ -817,7 +817,7 @@ bool BoltRetrieveRepair::canConnect(const base::State *randomState, const base::
   BOOST_FOREACH (SparseVertex nearState, candidateNeighbors)
   {
     const base::State *s1 = randomState;
-    const base::State *s2 = sparseDB_->getSparseState(nearState);
+    const base::State *s2 = sparseDB_->getVertexState(nearState);
 
     // Check if this nearState is visible from the random state
     if (!si_->checkMotion(s1, s2))
@@ -960,7 +960,7 @@ popularityBias,
       if (v1 != v2)
       {
         // std::cout << "Edge " << v1 << " to " << v2 << std::endl;
-        visual_->viz4Edge(sparseDB_->getSparseState(v1), sparseDB_->getSparseState(v2), 10);
+        visual_->viz4Edge(sparseDB_->getVertexState(v1), sparseDB_->getVertexState(v2), 10);
       }
     }
     visual_->viz4Trigger();

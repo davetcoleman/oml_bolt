@@ -162,7 +162,7 @@ public:
   bool verbose_ = false;
 
   /** \brief Various options for visualizing the algorithmns performance */
-  bool visualizeGridGeneration_ = true;
+  bool visualizeGridGeneration_ = false;
 
 };  // end of class VertexDiscretizer
 
