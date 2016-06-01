@@ -275,8 +275,8 @@ public:
 
   bool addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
 
-  bool smoothQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
-                         geometric::PathGeometric *path, std::size_t indent);
+  bool smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent);
+  bool smoothQualityPath(geometric::PathGeometric *path, std::size_t indent);
 
   /** \brief As described in paper */
   bool spannerTestOriginal(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
@@ -585,6 +585,11 @@ public:
   bool useDiscretizedSamples_;
   bool useRandomSamples_;
 
+  /** \brief Experimental feature that allows very closeby vertices to be merged with newly added ones */
+  bool useCheckRemoveCloseVertices_ = true;
+  bool useClearEdgesNearVertex_ = true;
+  bool useOriginalSmoother_ = false;
+
   /** \brief Clearance of obstacles in order to be considered "cl-robust" as described in paper */
   double obstacleClearance_ = 1;
 
@@ -600,6 +605,7 @@ public:
   /** \brief Show the sparse graph being generated */
   bool visualizeSparsGraph_ = false;
   bool visualizeAttemptedStates_ = false;
+  bool visualizeConnectivity_ = false;
   bool visualizeQualityCriteria_ = false;
   bool visualizeQualityPathSimp_ = false;
   double visualizeSparsGraphSpeed_ = 0.0;

@@ -185,15 +185,17 @@ private:
 
   std::vector<CachedEdge> keys_;
 
-  /** \brief Force all collision checks to be performed from scratch */
-  bool disableCache_ = false;
-
   /** \brief Available cores */
   std::size_t numThreads_;
 
   /** \brief Number of cached item at last load/save */
   std::size_t prevNumCachedEdges_;
   std::size_t prevNumCachedStates_;
+
+public:
+
+  /** \brief Force all collision checks to be performed from scratch */
+  bool disableCache_ = false;
 
 };  // end of class DenseCache
 
