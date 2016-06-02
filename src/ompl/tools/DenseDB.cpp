@@ -826,7 +826,7 @@ void DenseDB::initializeQueryState()
 
 void DenseDB::addVertexFromFile(BoltStorage::BoltVertexData v)
 {
-  GuardType type = static_cast<GuardType>(v.type_);
+  VertexType type = static_cast<VertexType>(v.type_);
   // DenseVertex vNew =
   addVertex(v.state_, type);
 }
@@ -974,7 +974,7 @@ void DenseDB::normalizeGraphEdgeWeights()
   }
 }
 
-otb::DenseVertex DenseDB::addVertex(base::State *state, const GuardType &type)
+otb::DenseVertex DenseDB::addVertex(base::State *state, const VertexType &type)
 {
   // Create vertex
   DenseVertex v = boost::add_vertex(g_);

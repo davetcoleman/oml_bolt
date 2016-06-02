@@ -76,7 +76,7 @@ static const double POPULARITY_WEIGHT_REDUCTION = 5;
 ////////////////////////////////////////////////////////////////////////////////////////
 
 /** \brief Enumeration which specifies the reason a guard is added to the spanner. */
-enum GuardType
+enum VertexType
 {
   START,
   GOAL,
@@ -84,7 +84,8 @@ enum GuardType
   CONNECTIVITY,
   INTERFACE,
   QUALITY,
-  CARTESIAN
+  CARTESIAN,
+  DISCRETIZED
 };
 enum EdgeType
 {
@@ -196,7 +197,7 @@ typedef //boost::property<vertex_state_t, base::State *,
         boost::property<vertex_state_cache_t, VertexIndexType, // State
         boost::property<boost::vertex_predecessor_t, VertexIndexType, // Disjoint Sets
         boost::property<boost::vertex_rank_t, VertexIndexType, // Disjoint Sets
-        boost::property<vertex_type_t, GuardType, // Sparse Type
+        boost::property<vertex_type_t, VertexType, // Sparse Type
         boost::property<vertex_popularity_t, double, // Popularity
         boost::property<vertex_interface_data_t, InterfaceHash // Sparse meta data
         > > > > > > SparseVertexProperties;
@@ -264,7 +265,7 @@ typedef boost::property<vertex_state_t, base::State *,
         boost::property<boost::vertex_rank_t, VertexIndexType,
         boost::property<vertex_sparse_rep_t, SparseVertex, // Currently unused
         boost::property<boost::vertex_rank_t, VertexIndexType,
-        boost::property<vertex_type_t, GuardType> > > > > > DenseVertexProperties;
+        boost::property<vertex_type_t, VertexType> > > > > > DenseVertexProperties;
 // clang-format on
 
 /** Wrapper for the double assigned to an edge as its weight property. */

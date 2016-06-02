@@ -347,7 +347,7 @@ public:
   void normalizeGraphEdgeWeights();
 
   /** \brief Helper for creating/loading graph vertices */
-  DenseVertex addVertex(base::State* state, const GuardType& type);
+  DenseVertex addVertex(base::State* state, const VertexType& type);
 
   /** \brief Helper for creating/loading graph edges */
   DenseEdge addEdge(const DenseVertex& v1, const DenseVertex& v2, const double weight,

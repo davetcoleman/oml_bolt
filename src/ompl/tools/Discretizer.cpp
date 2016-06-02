@@ -372,7 +372,7 @@ void Discretizer::recursiveDiscretization(std::size_t threadID, std::vector<doub
       }
 
       // Add vertex to graph
-      GuardType type = START;  // TODO(davetcoleman): type START is dummy
+      VertexType type = START;  // TODO(davetcoleman): type START is dummy
 
       // Allocate state before mutex
       base::State *newState = si->cloneState(candidateState);
@@ -828,7 +828,7 @@ void Discretizer::connectNewVertex(base::State *state, std::vector<DenseVertex> 
 {
   boost::unique_lock<boost::mutex> scoped_lock(vertexMutex_);
 
-  DenseVertex v1 = denseDB_->addVertex(state, COVERAGE);  // TODO GuardType is meaningless
+  DenseVertex v1 = denseDB_->addVertex(state, COVERAGE);  // TODO VertexType is meaningless
   denseDB_->setGraphUnsaved();
   eliminateDisjointSetsVerticesAdded_++;
   eliminateDisjointSetsVerticesAddedUnsaved_++;

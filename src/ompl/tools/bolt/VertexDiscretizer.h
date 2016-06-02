@@ -67,10 +67,14 @@ public:
    */
   VertexDiscretizer(base::SpaceInformationPtr si, VisualizerPtr visual);
 
+  ~VertexDiscretizer();
+
+  void freeMemory();
+
   /**
    * \brief Discretize the space into a simple grid
    */
-  bool generate();
+  bool generate(std::size_t indent);
 
   std::vector<base::State*>& getCandidateVertices()
   {
@@ -101,8 +105,6 @@ public:
     startingValueOffset_ = startingValueOffset;
   }
 
-  void displayVertices();
-
   /** \brief Set the minimum required distance of sample from nearest obstacle to be considered valid */
   void setMinimumObstacleClearance(double clearance)
   {
@@ -125,7 +127,7 @@ private:
   /**
    * \brief Generate a grid of vertices across the configuration space
    */
-  void generateVertices();
+  void generateVertices(std::size_t indent);
 
   void generateVerticesThread(std::size_t threadID, double startJointValue, double endJointValue,
                               base::SpaceInformationPtr si);

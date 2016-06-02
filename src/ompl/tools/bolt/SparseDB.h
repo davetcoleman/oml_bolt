@@ -249,7 +249,7 @@ public:
    * \param addReason - if function returns true, the reson the denseVertex was added to the sparse graph
    * \return true on success
    */
-  bool addStateToRoadmap(StateID candidateStateID, SparseVertex& newVertex, GuardType& addReason, std::size_t threadID, std::size_t indent);
+  bool addStateToRoadmap(StateID candidateStateID, SparseVertex& newVertex, VertexType& addReason, std::size_t threadID, std::size_t indent);
 
   /* ----------------------------------------------------------------------------------------*/
   /** \brief SPARS-related functions */
@@ -346,6 +346,7 @@ public:
 
   /** \brief After adding a new vertex, check if there is a really close nearby vertex that can be merged with this one */
   bool checkRemoveCloseVertices(SparseVertex v1, std::size_t indent = 0);
+  void visualizeRemoveCloseVertices(SparseVertex v1, SparseVertex v2);
 
   DenseVertex getInterfaceNeighbor(DenseVertex q, SparseVertex rep);
 
@@ -362,18 +363,18 @@ public:
   StateID addState(base::State *state);
 
   /** \brief Add vertices to graph */
-  SparseVertex addVertex(base::State *state, const GuardType &type, std::size_t indent);
-  SparseVertex addVertex(StateID stateID, const GuardType& type, std::size_t indent);
+  SparseVertex addVertex(base::State *state, const VertexType &type, std::size_t indent);
+  SparseVertex addVertex(StateID stateID, const VertexType& type, std::size_t indent);
 
   /** \brief Add edge to graph */
   SparseEdge addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent);
   edgeColors convertEdgeTypeToColor(EdgeType edgeType);
-  void visualizeVertex(SparseVertex v, const GuardType &type);
+  void visualizeVertex(SparseVertex v, const VertexType &type);
   void removeVertex(SparseVertex v);
 
   void debugNN();
 
-  std::size_t getVizVertexType(const GuardType& type);
+  //std::size_t getVizVertexType(const VertexType& type);
 
   /** \brief Show in visualizer the sparse graph */
   void displayDatabase(bool showVertices = false, std::size_t indent = 0);
@@ -481,7 +482,7 @@ protected:
   boost::property_map<SparseGraph, vertex_state_cache_t>::type stateCacheProperty_;
 
   /** \brief Access to the SPARS vertex type for the vertices */
-  boost::property_map<SparseGraph, vertex_type_t>::type typeProperty_;
+  boost::property_map<SparseGraph, vertex_type_t>::type vertexTypeProperty_;
 
   /** \brief Access to the interface pair information for the vertices */
   boost::property_map<SparseGraph, vertex_interface_data_t>::type interfaceDataProperty_;
@@ -528,9 +529,6 @@ protected:
   /** \brief Distance between nodes for 1st pass, the offset and reused again for 2nd pass */
   double discretization_;
 
-  /** \brief How overlapping two visibility regions should be to each other, where 0 is just barely touching */
-  double penetrationDistance_;
-
   /** \brief Distance to the nearest possible vertex in the grid, referred to as z */
   double nearestDiscretizedV_;
 
@@ -571,6 +569,9 @@ public:
 
   /** \brief The stretch factor in terms of graph spanners for SPARS to check against */
   double stretchFactor_ = 3.0;
+
+  /** \brief How overlapping two visibility regions should be to each other, where 0 is just barely touching */
+  double discretizePenetrationDist_ = 0.001;
 
   /** \brief Number of failed state insertion attempts before stopping the algorithm */
   std::size_t terminateAfterFailures_ = 1000;
