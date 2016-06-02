@@ -72,9 +72,14 @@ public:
   void freeMemory();
 
   /**
+   * \brief Discretize the space into a diagonal lattice
+   */
+  bool generateLattice(std::size_t indent);
+
+  /**
    * \brief Discretize the space into a simple grid
    */
-  bool generate(std::size_t indent);
+  bool generateGrid(std::size_t indent);
 
   std::vector<base::State*>& getCandidateVertices()
   {

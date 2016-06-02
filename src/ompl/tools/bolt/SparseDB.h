@@ -233,10 +233,20 @@ public:
 
   void addDiscretizedStates(std::size_t indent);
 
+  void errorCheckDuplicateStates(std::size_t indent);
+
   /** \brief Helper function for choosing the correct method for vertex insertion ordering */
   //void getVertexInsertionOrdering(std::list<WeightedVertex>& vertexInsertionOrder);
 
   void addRandomSamples(std::size_t indent);
+  void addSamplesFromCache(std::size_t indent);
+
+  /**
+   * \brief Add state to sparse graph
+   * \param stateID representing a pre-populate state
+   * \return true if sparse graph is still accepting states, false if the sparse graph has completed
+   */
+  bool addSample(StateID candidateStateID, std::size_t indent);
 
   // bool getPopularityOrder(std::list<WeightedVertex>& vertexInsertionOrder);
   // bool getDefaultOrder(std::list<WeightedVertex>& vertexInsertionOrder);
@@ -440,6 +450,11 @@ public:
 
   double getSparseDelta() { return sparseDelta_; }
   double getDenseDelta() { return denseDelta_; }
+
+  void setDiscretizedSamplesInsertion(bool discretizedSamplesInsertion)
+  {
+    discretizedSamplesInsertion_ = discretizedSamplesInsertion;
+  }
 
 protected:
 

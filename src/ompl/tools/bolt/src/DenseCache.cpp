@@ -70,6 +70,9 @@ DenseCache::DenseCache(base::SpaceInformationPtr si, SparseDB *sparseDB, Visuali
   totalCollisionChecks_.resize(numThreads_, 0);
   totalCollisionChecksFromCache_.resize(numThreads_, 0);
 
+  // Estimate the size of the state cache
+  stateCache_.reserve(10000);
+
   // Add zeroth state - which indicates a deleted/NULL vertex
   addState(si_->allocState());
 
@@ -100,6 +103,9 @@ void DenseCache::resetCounters()
 
 bool DenseCache::saveIfReady()
 {
+  if (!enableCacheSaving_)
+    return false;
+
   if (getNewEdgesCount() > saveEveryNEdges_)
   {
     return save();
@@ -112,6 +118,12 @@ bool DenseCache::save()
   if (disableCache_)
   {
     OMPL_INFORM("DenseCache disabled, not saving");
+    return false;
+  }
+
+  if (!enableCacheSaving_)
+  {
+    OMPL_INFORM("DenseCache saving disabled, not saving");
     return false;
   }
 
@@ -167,11 +179,15 @@ bool DenseCache::save()
 
 bool DenseCache::load()
 {
-  std::cout << std::endl;
-  OMPL_INFORM("------------------------------------------------");
   if (disableCache_)
   {
     OMPL_INFORM("DenseCache: disabled, not loading");
+    return false;
+  }
+
+  if (!enableCacheSaving_)
+  {
+    OMPL_INFORM("DenseCache loading disabled, not loading");
     return false;
   }
 
@@ -248,7 +264,6 @@ bool DenseCache::load()
 
   OMPL_INFORM("------------------------------------------------------");
   OMPL_INFORM("Loaded dense cache stats:");
-  OMPL_INFORM("  File Path:         %s", filePath_.c_str());
   OMPL_INFORM("  Edge Cache Size:   %u", getEdgeCacheSize());
   OMPL_INFORM("  State Cache Size:  %u", getStateCacheSize());
   OMPL_INFORM("  Loading time:      %f", duration);
@@ -294,12 +309,10 @@ void DenseCache::saveStates(boost::archive::binary_oarchive &oa)
 
 void DenseCache::loadStates(unsigned int numStates, boost::archive::binary_iarchive &ia)
 {
-  OMPL_INFORM("Loading %u states from file", numStates);
-
   const base::StateSpacePtr &space = si_->getStateSpace();
   std::size_t feedbackFrequency = numStates / 10;
 
-  std::cout << "          States loaded: ";
+  std::cout << "         States loaded: ";
   for (unsigned int i = 0; i < numStates; ++i)
   {
     // Copy in data from file
@@ -537,6 +550,16 @@ double DenseCache::getPercentCachedCollisionChecks()
     return 0;
 
   return static_cast<double>(getTotalCollisionChecksFromCache()) / totalCollisionChecks * 100.0;
+}
+
+void DenseCache::print()
+{
+  std::size_t indent = 0;
+  BOLT_DEBUG(indent, 1, "Contents of DenseCache States:");
+  for (base::State *state : stateCache_)
+  {
+    si_->printState(state, std::cout);
+  }
 }
 
 }  // namespace bolt

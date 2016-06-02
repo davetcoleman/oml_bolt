@@ -122,6 +122,8 @@ public:
   /** \brief Get stats */
   double getPercentCachedCollisionChecks();
 
+  void print();
+
 private:
 
   /* \brief Information stored at the beginning of the DenseCache archive */
@@ -201,6 +203,9 @@ public:
 
   /** \brief Force all collision checks to be performed from scratch */
   bool disableCache_ = false;
+
+  /** \brief Use cache but do not save or load from file */
+  bool enableCacheSaving_ = true;
 
   std::size_t saveEveryNEdges_ = 50000;
 };  // end of class DenseCache

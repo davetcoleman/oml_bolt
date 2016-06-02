@@ -182,10 +182,9 @@ void BoltStorage::saveEdges(boost::archive::binary_oarchive &oa)
 
 bool BoltStorage::load(const std::string& filePath)
 {
-  std::cout << std::endl;
   OMPL_INFORM("------------------------------------------------");
   OMPL_INFORM("BoltStorage: Loading Sparse Graph");
-  OMPL_INFORM("   Path:                   %s", filePath.c_str());
+  OMPL_INFORM("Path: %s", filePath.c_str());
 
   // Error checking
   if (sparseDB_->getNumEdges() > numQueryVertices_ ||
@@ -244,7 +243,6 @@ bool BoltStorage::load(std::istream &in)
       return false;
     }
 
-    // File seems ok... loading vertices and edges
     loadVertices(h.vertex_count, ia);
     loadEdges(h.edge_count, ia);
   }
@@ -307,6 +305,7 @@ void BoltStorage::loadEdges(unsigned int numEdges, boost::archive::binary_iarchi
     // Error check
     BOOST_ASSERT_MSG(v1 <= sparseDB_->getNumVertices(), "Vertex 1 out of range of possible vertices");
     BOOST_ASSERT_MSG(v2 <= sparseDB_->getNumVertices(), "Vertex 2 out of range of possible vertices");
+    BOOST_ASSERT_MSG(v1 != v2, "Vertices of an edge loaded from file are the same");
 
     // Add
     EdgeType type = static_cast<EdgeType>(edgeData.type_);

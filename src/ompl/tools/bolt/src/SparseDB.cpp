@@ -302,7 +302,7 @@ bool SparseDB::load()
 
   OMPL_INFORM("------------------------------------------------------");
   OMPL_INFORM("Loaded graph stats:");
-  OMPL_INFORM("   Total vertices:         %u", getNumVertices());
+  OMPL_INFORM("   Total vertices:         %u (including %u query vertices)", getNumVertices(), getNumQueryVertices());
   OMPL_INFORM("   Total edges:            %u", getNumEdges());
   OMPL_INFORM("   Average degree:         %f", averageDegree);
   OMPL_INFORM("   Connected Components:   %u", numSets);
@@ -312,6 +312,9 @@ bool SparseDB::load()
   // Disable
   OMPL_INFORM("Disabling discretized samples generation because we have loaded from file");
   useDiscretizedSamples_ = false;
+
+  // Nothing to save because was just loaded from file
+  graphUnsaved_ = false;
 
   return true;
 }
@@ -640,65 +643,56 @@ void SparseDB::addDiscretizedStates(std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, true, "addDiscretizedStates()");
   indent += 2;
-  bool verbose = true;
 
-  if (vertexDiscretizer_->getDiscretization() < std::numeric_limits<double>::epsilon())
+  // Generate discretization
+  vertexDiscretizer_->generateLattice(indent);
+
+  // this tells SPARS to always add the vertex, no matter what
+  setDiscretizedSamplesInsertion(true);
+
+  // Convert to proper format
+  std::vector<base::State *> &candidateVertices = vertexDiscretizer_->getCandidateVertices();
+  std::list<WeightedVertex> vertexInsertionOrder;
+
+  for (base::State *state : candidateVertices)
   {
-    OMPL_WARN("Discretization not set");
-    exit(-1);
+    if (false)
+      debugState(state);
+
+    // Move the ompl::base::State to the DenseCache, changing its ownership
+    StateID candidateStateID = denseCache_->addState(state);
+    vertexInsertionOrder.push_back(WeightedVertex(candidateStateID, 0));
   }
+  candidateVertices.clear();  // clear the vector because we've moved all its memory pointers to DenseCache
+  std::size_t sucessfulInsertions;
+  createSPARSInnerLoop(vertexInsertionOrder, sucessfulInsertions);
 
-  discretizedSamplesInsertion_ = true;  // this tells SPARS to always add the vertex, no matter what
-  ob::RealVectorBounds bounds = si_->getStateSpace()->getBounds();
-  const std::size_t jointID = 0;
-  const double range = bounds.high[jointID] - bounds.low[jointID];
-  const std::size_t jointIncrements = floor(range / vertexDiscretizer_->getDiscretization());
-  double leftOver = range - jointIncrements * vertexDiscretizer_->getDiscretization();
-  double startOffset = leftOver / 2;
+  setDiscretizedSamplesInsertion(false);
 
-  BOLT_DEBUG(indent, verbose, "------------------------------------------");
-  BOLT_DEBUG(indent, verbose, "Discretization:       " << vertexDiscretizer_->getDiscretization());
-  BOLT_DEBUG(indent, verbose, "High Bound:           " << bounds.high[jointID]);
-  BOLT_DEBUG(indent, verbose, "Low Bound:            " << bounds.low[jointID]);
-  BOLT_DEBUG(indent, verbose, "Range:                " << range);
-  BOLT_DEBUG(indent, verbose, "Joint Increments:     " << jointIncrements);
-  BOLT_DEBUG(indent, verbose, "Left Over:            " << leftOver);
-  BOLT_DEBUG(indent, verbose, "Start Offset:         " << startOffset);
-  BOLT_DEBUG(indent, verbose, "------------------------------------------");
+  // Make sure discretization doesn't have any bugs
+  if (superDebug_)
+    errorCheckDuplicateStates(indent);
+}
 
-  // Create two levels of grids
-  for (std::size_t i = 0; i < 2; ++i)
+void SparseDB::errorCheckDuplicateStates(std::size_t indent)
+{
+  BOLT_BLUE_DEBUG(indent, true, "errorCheckDuplicateStates() - part of super debug");
+  bool found = false;
+  // Error checking: check for any duplicate states
+  for (std::size_t i = 0; i < denseCache_->getStateCacheSize(); ++i)
   {
-    BOLT_DEBUG(indent, verbose, "Discretize iteration " << i);
-
-    // Set starting value offset
-    if (i == 0)
-      vertexDiscretizer_->setStartingValueOffset(startOffset);
-    else
-      vertexDiscretizer_->setStartingValueOffset(startOffset + vertexDiscretizer_->getDiscretization() / 2.0);
-
-    // Generate vertices
-    vertexDiscretizer_->generate(indent + 2);
-
-    // Convert to proper format TODO(davetcoleman): remove the need for this format?
-    std::vector<base::State *> &candidateVertices = vertexDiscretizer_->getCandidateVertices();
-
-    std::list<WeightedVertex> vertexInsertionOrder;
-    for (base::State *state : candidateVertices)
+    for (std::size_t j = i+1; j < denseCache_->getStateCacheSize(); ++j)
     {
-      // Move the ompl::base::State to the DenseCache, changing its ownership
-      StateID candidateStateID = denseCache_->addState(state);
-      vertexInsertionOrder.push_back(WeightedVertex(candidateStateID, 0));
+      if (si_->getStateSpace()->equalStates(getState(i), getState(j)))
+      {
+        BOLT_RED_DEBUG(indent + 2, 1, "Found equal state: " << i << ", " << j);
+        debugState(getState(i));
+        found = true;
+      }
     }
-    candidateVertices.clear();  // clear the vector because we've moved all its memory pointers to DenseCache
-    std::size_t sucessfulInsertions;
-    createSPARSInnerLoop(vertexInsertionOrder, sucessfulInsertions);
   }
-
-  discretizedSamplesInsertion_ = false;
-
-  BOLT_DEBUG(indent + 2, verbose, "Finished discretization");
-  BOLT_DEBUG(indent, verbose, "------------------------------------------\n");
+  if (found)
+    exit(-1);
 }
 
 /*
@@ -850,97 +844,110 @@ bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOr
 
 void SparseDB::addRandomSamples(std::size_t indent)
 {
-  BOLT_BLUE_DEBUG(indent, true, "addRandomSamples()");
+  BOLT_BLUE_DEBUG(indent, vCriteria_, "addRandomSamples() ==================================================");
   indent += 2;
 
   // Clear stats
   numRandSamplesAdded_ = 0;
 
-  // Add from file if available - remember where it was
-  std::size_t lastCachedStateIndex = denseCache_->getStateCacheSize();
-  std::size_t currentStateCacheID = 1;  // skip 0, because that is the "deleted" NULL state ID
-  bool usingCachedStates = true;        // allow to trigger user feedback
+  while (true)
+  {
+    base::State *candidateState = si_->allocState();
+    StateID candidateStateID = denseCache_->addState(candidateState);
+
+    // Sample randomly
+    if (!clearanceSampler_->sample(candidateState))
+    {
+      OMPL_ERROR("Unable to find valid sample");
+      exit(-1);  // this should never happen
+    }
+    // si_->getStateSpace()->setLevel(candidateState, 0);  // TODO no hardcode
+
+    // Debug
+    if (false)
+    {
+      BOLT_DEBUG(indent, vCriteria_, "Randomly sampled stateID: " << candidateStateID);
+      debugState(candidateState);
+    }
+
+    if (!addSample(candidateStateID, indent))
+      break;
+  } // end while
+}
+
+void SparseDB::addSamplesFromCache(std::size_t indent)
+{
+  BOLT_BLUE_DEBUG(indent, vCriteria_, "addRandomSamplesFromCache() ==================================================");
+  indent += 2;
+
+  if (denseCache_->getStateCacheSize() <= 1)
+  {
+    BOLT_YELLOW_DEBUG(indent, true, "Cache is empty, no states to add");
+    return;
+  }
 
   if (useDiscretizedSamples_)
   {
     BOLT_YELLOW_DEBUG(indent, true, "Not using cache for random samples because discretized samples is enabled.");
-    usingCachedStates = false;
+    return;
   }
 
-  while (true)
+  // Add from file if available - remember where it was
+  std::size_t lastCachedStateIndex = denseCache_->getStateCacheSize() - 1;
+  StateID candidateStateID = 1;  // skip 0, because that is the "deleted" NULL state ID
+
+  while (candidateStateID <= lastCachedStateIndex)
   {
-    StateID candidateStateID;
 
-    // Try from cache first
-    if (usingCachedStates && currentStateCacheID < lastCachedStateIndex)
-    {
-      // Add from cache
-      candidateStateID = currentStateCacheID;
-      BOLT_DEBUG(indent, vCriteria_, "Adding from CACHE: " << currentStateCacheID << " total " << lastCachedStateIndex
-                                                           << " stateID: " << candidateStateID);
 
-      currentStateCacheID++;
-    }
-    else  // Add new state
-    {
-      if (usingCachedStates)
-      {
-        usingCachedStates = false;
-        BOLT_YELLOW_DEBUG(indent, vCriteria_, "addRandomSamples: No longer using cached states - sampling new "
-                                              "ones");
-      }
+    if (!addSample(candidateStateID, indent))
+      break;
 
-      base::State *candidateState = si_->allocState();
-      candidateStateID = denseCache_->addState(candidateState);
-      BOLT_DEBUG(indent, vCriteria_, "NOT adding from cache, currentStateCacheID: "
-                                         << currentStateCacheID << " lastCachedStateIndex: " << lastCachedStateIndex
-                                         << " stateID: " << candidateStateID);
+    candidateStateID++;
+  } // end while
+}
 
-      // Sample randomly
-      if (!clearanceSampler_->sample(candidateState))
-      {
-        OMPL_ERROR("Unable to find valid sample");
-        exit(-1);  // this should never happen
-      }
-      // si_->getStateSpace()->setLevel(candidateState, 0);  // TODO no hardcode
-    }
+bool SparseDB::addSample(StateID candidateStateID, std::size_t indent)
+{
+  BOLT_BLUE_DEBUG(indent, vCriteria_, "addSample()");
+  indent += 2;
 
-    // Run SPARS checks
-    VertexType addReason;    // returns why the state was added
-    SparseVertex newVertex;  // the newly generated sparse vertex
-    const std::size_t threadID = 0;
-    if (addStateToRoadmap(candidateStateID, newVertex, addReason, threadID, indent + 2))
-    {
-      // if (numRandSamplesAdded_ % 10 == 0)
-      BOLT_DEBUG(indent, vCriteria_, "Added random sample with stateID "
-                                         << candidateStateID << ", total new states: " << ++numRandSamplesAdded_);
-    }
-    else if (numConsecutiveFailures_ % 500 == 0)
-    {
-      BOLT_DEBUG(indent, true, "Random sample failed, consecutive failures: " << numConsecutiveFailures_);
-    }
+  // Run SPARS checks
+  VertexType addReason;    // returns why the state was added
+  SparseVertex newVertex;  // the newly generated sparse vertex
+  const std::size_t threadID = 0;
+  if (addStateToRoadmap(candidateStateID, newVertex, addReason, threadID, indent))
+  {
+    // if (numRandSamplesAdded_ % 10 == 0)
+    BOLT_DEBUG(indent, vCriteria_, "Added random sample with stateID "
+               << candidateStateID << ", total new states: " << ++numRandSamplesAdded_);
+  }
+  else if (numConsecutiveFailures_ % 500 == 0)
+  {
+    BOLT_DEBUG(indent, true, "Random sample failed, consecutive failures: " << numConsecutiveFailures_);
+  }
 
-    // Check consecutive failures
-    if (numConsecutiveFailures_ >= fourthCriteriaAfterFailures_ && !useFourthCriteria_)
-    {
-      BOLT_YELLOW_DEBUG(indent, true, "Starting to check for 4th quality criteria because "
-                                          << numConsecutiveFailures_ << " consecutive failures have occured");
-      useFourthCriteria_ = true;
-      visualizeOverlayNodes_ = true;  // visualize all added nodes in a separate window
-      numConsecutiveFailures_ = 0;    // reset for new criteria
+  // Check consecutive failures
+  if (numConsecutiveFailures_ >= fourthCriteriaAfterFailures_ && !useFourthCriteria_)
+  {
+    BOLT_YELLOW_DEBUG(indent, true, "Starting to check for 4th quality criteria because "
+                      << numConsecutiveFailures_ << " consecutive failures have occured");
+    useFourthCriteria_ = true;
+    visualizeOverlayNodes_ = true;  // visualize all added nodes in a separate window
+    numConsecutiveFailures_ = 0;    // reset for new criteria
 
-      // Show it just once if it has not already been animated
-      if (!visualizeVoronoiDiagramAnimated_ && visualizeVoronoiDiagram_)
-        visual_->vizVoronoiDiagram();
-    }
+    // Show it just once if it has not already been animated
+    if (!visualizeVoronoiDiagramAnimated_ && visualizeVoronoiDiagram_)
+      visual_->vizVoronoiDiagram();
+  }
 
-    if (useFourthCriteria_ && numConsecutiveFailures_ > terminateAfterFailures_)
-    {
-      BOLT_YELLOW_DEBUG(indent, true, "SPARS creation finished because " << terminateAfterFailures_
-                                                                         << " consecutive insertion failures reached");
-      return;
-    }
-  }  // end while
+  if (useFourthCriteria_ && numConsecutiveFailures_ > terminateAfterFailures_)
+  {
+    BOLT_YELLOW_DEBUG(indent, true, "SPARS creation finished because " << terminateAfterFailures_
+                      << " consecutive insertion failures reached");
+    return false; // stop inserting states
+  }
+  return true; // continue going
 }
 
 /*
@@ -1282,22 +1289,20 @@ bool SparseDB::checkAddConnectivity(StateID candidateStateID, std::vector<Sparse
   for (std::set<SparseVertex>::const_iterator vertexIt = statesInDiffConnectedComponents.begin();
        vertexIt != statesInDiffConnectedComponents.end(); ++vertexIt)
   {
+    BOLT_DEBUG(indent + 4, vCriteria_, "Loop: Adding vertex " << *vertexIt);
+
     if (stateCacheProperty_[*vertexIt] == 0)
     {
-      BOLT_RED_DEBUG(indent + 4, vCriteria_, "Skipping because vertex " << *vertexIt << " was removed (state marked as "
-                                                                                        "0)");
-      // visual_->waitForUserFeedback("skipping because vertex was removed");
+      BOLT_DEBUG(indent + 4, vCriteria_, "Skipping because vertex " << *vertexIt << " was removed (state marked as 0)");
       continue;
     }
 
     // Do not add edge from self to self
     if (si_->getStateSpace()->equalStates(getVertexState(*vertexIt), getVertexState(newVertex)))
     {
-      std::cout << "Prevented same vertex from being added twice " << std::endl;
+      BOLT_RED_DEBUG(indent + 4, 1, "Prevented same vertex from being added twice ");
       continue;  // skip this pairing
     }
-
-    BOLT_DEBUG(indent + 4, vCriteria_, "Loop: Adding vertex " << *vertexIt);
 
     // New vertex should not be connected to anything - there's no edge between the two states
     if (hasEdge(newVertex, *vertexIt) == true)
@@ -1329,12 +1334,13 @@ bool SparseDB::checkAddInterface(StateID candidateStateID, std::vector<SparseVer
 {
   BOLT_BLUE_DEBUG(indent, vCriteria_, "checkAddInterface() Does this node's neighbor's need it to better connect "
                                       "them?");
+  indent += 2;
 
   // If there are less than two neighbors the interface property is not applicable, because requires
   // two closest visible neighbots
   if (visibleNeighborhood.size() < 2)
   {
-    BOLT_DEBUG(indent + 2, vCriteria_, "NOT adding node for interface (less than 2 visible neighbors)");
+    BOLT_DEBUG(indent, vCriteria_, "NOT adding node for interface (less than 2 visible neighbors)");
     return false;
   }
 
@@ -1348,24 +1354,39 @@ bool SparseDB::checkAddInterface(StateID candidateStateID, std::vector<SparseVer
       // If they can be directly connected
       if (denseCache_->checkMotionWithCacheVertex(visibleNeighborhood[0], visibleNeighborhood[1], threadID))
       {
-        BOLT_DEBUG(indent + 2, vCriteria_, "INTERFACE: directly connected nodes");
+        BOLT_DEBUG(indent, vCriteria_, "INTERFACE: directly connected nodes");
+
+        SparseVertex v1 = visibleNeighborhood[0];
+        SparseVertex v2 = visibleNeighborhood[1];
+        if (si_->getStateSpace()->equalStates(getVertexState(v1), getVertexState(v2)))
+        {
+          OMPL_ERROR("States are equal");
+          visualizeRemoveCloseVertices(v1, v2);
+
+          std::cout << "v1: " << v1 << " stateID1: " << getStateID(v1) << " state address: " << getVertexState(v1) << " state: ";
+          debugState(getVertexState(v1));
+          std::cout << "v2: " << v2 << " stateID2: " << getStateID(v2) << " state address: " << getVertexState(v2) << " state: ";
+          debugState(getVertexState(v2));
+
+          denseCache_->print();
+        }
 
         // Connect them
-        addEdge(visibleNeighborhood[0], visibleNeighborhood[1], eINTERFACE, indent + 4);
+        addEdge(visibleNeighborhood[0], visibleNeighborhood[1], eINTERFACE, indent + 2);
 
         // Also add the vertex if we are in a special mode where we know its desired
         if (discretizedSamplesInsertion_)
-          newVertex = addVertex(candidateStateID, DISCRETIZED, indent + 4);
+          newVertex = addVertex(candidateStateID, DISCRETIZED, indent + 2);
       }
       else  // They cannot be directly connected
       {
         // Add the new node to the graph, to bridge the interface
-        BOLT_DEBUG(indent + 2, vCriteria_, "Adding node for INTERFACE");
+        BOLT_DEBUG(indent, vCriteria_, "Adding node for INTERFACE");
 
-        newVertex = addVertex(candidateStateID, INTERFACE, indent + 4);
+        newVertex = addVertex(candidateStateID, INTERFACE, indent + 2);
 
         // Check if there are really close vertices nearby which should be merged
-        if (checkRemoveCloseVertices(newVertex, indent + 4))
+        if (checkRemoveCloseVertices(newVertex, indent + 2))
         {
           // New vertex replaced a nearby vertex, we can continue no further because graph has been re-indexed
           return true;
@@ -1377,7 +1398,7 @@ bool SparseDB::checkAddInterface(StateID candidateStateID, std::vector<SparseVer
           visual_->waitForUserFeedback("skipping edge 0");
         }
         else
-          addEdge(newVertex, visibleNeighborhood[0], eINTERFACE, indent + 4);
+          addEdge(newVertex, visibleNeighborhood[0], eINTERFACE, indent + 2);
 
         if (getVertexState(visibleNeighborhood[1]) == NULL)
         {
@@ -1385,9 +1406,9 @@ bool SparseDB::checkAddInterface(StateID candidateStateID, std::vector<SparseVer
           visual_->waitForUserFeedback("skipping edge 2");
         }
         else
-          addEdge(newVertex, visibleNeighborhood[1], eINTERFACE, indent + 4);
+          addEdge(newVertex, visibleNeighborhood[1], eINTERFACE, indent + 2);
 
-        BOLT_DEBUG(indent + 2, vCriteria_, "INTERFACE: connected two neighbors through new interface node");
+        BOLT_DEBUG(indent, vCriteria_, "INTERFACE: connected two neighbors through new interface node");
       }
 
       // Report success
@@ -1395,10 +1416,10 @@ bool SparseDB::checkAddInterface(StateID candidateStateID, std::vector<SparseVer
     }
     else
     {
-      BOLT_DEBUG(indent + 2, vCriteria_, "Two closest two neighbors already share an edge, not connecting them");
+      BOLT_DEBUG(indent, vCriteria_, "Two closest two neighbors already share an edge, not connecting them");
     }
   }
-  BOLT_DEBUG(indent + 2, vCriteria_, "NOT adding node for interface");
+  BOLT_DEBUG(indent, vCriteria_, "NOT adding node for interface");
   return false;
 }
 
@@ -2963,12 +2984,13 @@ SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, st
 
   if (superDebug_)  // Extra checks
   {
-    assert(v1 <= getNumVertices());
-    assert(v2 <= getNumVertices());
-    assert(v1 != v2);
-    assert(!hasEdge(v1, v2));
-    assert(hasEdge(v1, v2) == hasEdge(v2, v1));
+    BOOST_ASSERT_MSG(v1 <= getNumVertices(), "Vertex1 is larger than max vertex id");
+    BOOST_ASSERT_MSG(v2 <= getNumVertices(), "Vertex2 is larger than max vertex id");
+    BOOST_ASSERT_MSG(v1 != v2, "Vertices are the same");
+    BOOST_ASSERT_MSG(!hasEdge(v1, v2), "There already exists an edge between two vertices requested");
+    BOOST_ASSERT_MSG(hasEdge(v1, v2) == hasEdge(v2, v1), "There already exists an edge between two vertices requested, other direction");
     BOOST_ASSERT_MSG(getVertexState(v1) != getVertexState(v2), "States on both sides of an edge are the same");
+    BOOST_ASSERT_MSG(!si_->getStateSpace()->equalStates(getVertexState(v1), getVertexState(v2)), "Vertex IDs are different but states are the equal");
   }
 
   // Create the new edge
