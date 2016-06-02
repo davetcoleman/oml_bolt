@@ -318,6 +318,7 @@ bool Bolt::loadOrGenerate()
 
   if (!sparseDB_->load())  // load from file
   {
+    return false;
   }
 
   return true;

@@ -167,8 +167,12 @@ void BoltStorage::saveEdges(boost::archive::binary_oarchive &oa)
     // Note: we increment all vertex indexes by the number of queryVertices_ because [0,11] is in use
     edgeData.endpoints_.first = v1 - numQueryVertices_;
     edgeData.endpoints_.second = v2 - numQueryVertices_;
+
+    // Other properties
     edgeData.weight_ = sparseDB_->edgeWeightProperty_[e];
     edgeData.type_ = sparseDB_->edgeTypeProperty_[e];
+
+    // Copy to file
     oa << edgeData;
 
     // Feedback

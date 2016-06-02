@@ -546,6 +546,7 @@ void SparseDB::initializeQueryState()
   {
     // Add a fake vertex to the graph
     queryVertices_[threadID] = boost::add_vertex(g_);
+    stateCacheProperty_[queryVertices_[threadID]] = 0;  // set stateID to the zeroth stateID - NULL
   }
 }
 
@@ -559,6 +560,14 @@ void SparseDB::createSPARS()
 {
   std::size_t indent = 0;
   BOLT_BLUE_DEBUG(indent, true, "createSPARS()");
+  indent += 2;
+
+  // Error check
+  if (!useRandomSamples_ && !useDiscretizedSamples_)
+  {
+    OMPL_WARN("Unable to create SPARS because both random sampling and discretized sampling is disabled");
+    return;
+  }
 
   // Benchmark runtime
   time::point startTime = time::now();
@@ -578,19 +587,20 @@ void SparseDB::createSPARS()
   // Start the graph off with discretized states
   if (useDiscretizedSamples_)
   {
-    addDiscretizedStates(indent + 2);
+    addDiscretizedStates(indent);
   }
 
   // Finish the graph with random samples
   if (useRandomSamples_)
   {
-    addRandomSamples(indent + 2);
+    addRandomSamples(indent);
   }
 
-  if (!useRandomSamples_ && !useDiscretizedSamples_)
-  {
-    OMPL_WARN("Unable to create SPARS because both random sampling and discretized sampling is disabled");
-  }
+  if (!visualizeSparsGraph_)
+    displayDatabase(true, indent);
+
+  // Cleanup removed vertices
+  removeDeletedVertices(indent);
 
   // Profiler
   CALLGRIND_TOGGLE_COLLECT;
@@ -606,35 +616,35 @@ void SparseDB::createSPARS()
   std::size_t numSets = getDisjointSetsCount();
   std::pair<std::size_t, std::size_t> interfaceStats = getInterfaceStateStorageSize();
 
-  BOLT_DEBUG(0, 1, "-----------------------------------------");
-  BOLT_DEBUG(0, 1, "Created SPARS graph                      ");
-  BOLT_DEBUG(0, 1, "  Vertices:                  " << getNumVertices());
-  BOLT_DEBUG(0, 1, "  Edges:                     " << getNumEdges());
-  BOLT_DEBUG(0, 1, "  Generation time:           " << duration);
-  BOLT_DEBUG(0, 1, "  Total generations:         " << numGraphGenerations_);
-  BOLT_DEBUG(0, 1, "  Disjoint sets:             " << numSets);
-  BOLT_DEBUG(0, 1, "  DenseCache                 ");
-  BOLT_DEBUG(0, 1, "    Edge cache         ");
-  BOLT_DEBUG(0, 1, "      Size:                    " << denseCache_->getEdgeCacheSize());
-  BOLT_DEBUG(0, 1, "      Total checks:            " << denseCache_->getTotalCollisionChecks());
-  BOLT_DEBUG(0, 1, "      Cached checks:           " << denseCache_->getTotalCollisionChecksFromCache() << " ("
-                                                     << denseCache_->getPercentCachedCollisionChecks() << "%)");
-  BOLT_DEBUG(0, 1, "    State cache                ");
-  BOLT_DEBUG(0, 1, "      Size:                    " << denseCache_->getStateCacheSize());
-  BOLT_DEBUG(0, 1, "  Criteria additions:        ");
-  BOLT_DEBUG(0, 1, "    Coverage:                " << numSamplesAddedForCoverage_);
-  BOLT_DEBUG(0, 1, "    Connectivity:            " << numSamplesAddedForConnectivity_);
-  BOLT_DEBUG(0, 1, "    Interface:               " << numSamplesAddedForInterface_);
-  BOLT_DEBUG(0, 1, "    Quality:                 " << numSamplesAddedForQuality_);
-  BOLT_DEBUG(0, 1, "  Num random samples added:  " << numRandSamplesAdded_);
-  BOLT_DEBUG(0, 1, "  Num vertices moved:        " << numVerticesMoved_);
-  BOLT_DEBUG(0, 1, "  InterfaceData:             ");
-  BOLT_DEBUG(0, 1, "    States stored:           " << interfaceStats.first);
-  BOLT_DEBUG(0, 1, "    Missing interfaces:      " << interfaceStats.second);
-  BOLT_DEBUG(0, 1, "-----------------------------------------");
+  BOLT_DEBUG(indent, 1, "-----------------------------------------");
+  BOLT_DEBUG(indent, 1, "Created SPARS graph                      ");
+  BOLT_DEBUG(indent, 1, "  Vertices:                  " << getNumVertices());
+  BOLT_DEBUG(indent, 1, "  Edges:                     " << getNumEdges());
+  BOLT_DEBUG(indent, 1, "  Generation time:           " << duration);
+  BOLT_DEBUG(indent, 1, "  Total generations:         " << numGraphGenerations_);
+  BOLT_DEBUG(indent, 1, "  Disjoint sets:             " << numSets);
+  BOLT_DEBUG(indent, 1, "  DenseCache                 ");
+  BOLT_DEBUG(indent, 1, "    Edge cache         ");
+  BOLT_DEBUG(indent, 1, "      Size:                    " << denseCache_->getEdgeCacheSize());
+  BOLT_DEBUG(indent, 1, "      Total checks:            " << denseCache_->getTotalCollisionChecks());
+  BOLT_DEBUG(indent, 1, "      Cached checks:           " << denseCache_->getTotalCollisionChecksFromCache() << " ("
+                                                          << denseCache_->getPercentCachedCollisionChecks() << "%)");
+  BOLT_DEBUG(indent, 1, "    State cache                ");
+  BOLT_DEBUG(indent, 1, "      Size:                    " << denseCache_->getStateCacheSize());
+  BOLT_DEBUG(indent, 1, "  Criteria additions:        ");
+  BOLT_DEBUG(indent, 1, "    Coverage:                " << numSamplesAddedForCoverage_);
+  BOLT_DEBUG(indent, 1, "    Connectivity:            " << numSamplesAddedForConnectivity_);
+  BOLT_DEBUG(indent, 1, "    Interface:               " << numSamplesAddedForInterface_);
+  BOLT_DEBUG(indent, 1, "    Quality:                 " << numSamplesAddedForQuality_);
+  BOLT_DEBUG(indent, 1, "  Num random samples added:  " << numRandSamplesAdded_);
+  BOLT_DEBUG(indent, 1, "  Num vertices moved:        " << numVerticesMoved_);
+  BOLT_DEBUG(indent, 1, "  InterfaceData:             ");
+  BOLT_DEBUG(indent, 1, "    States stored:           " << interfaceStats.first);
+  BOLT_DEBUG(indent, 1, "    Missing interfaces:      " << interfaceStats.second);
+  BOLT_DEBUG(indent, 1, "-----------------------------------------");
 
   if (!visualizeSparsGraph_)
-    displayDatabase(true, indent + 2);
+    displayDatabase(true, indent);
 
   OMPL_INFORM("Finished creating sparse database");
 }
@@ -681,7 +691,7 @@ void SparseDB::errorCheckDuplicateStates(std::size_t indent)
   // Error checking: check for any duplicate states
   for (std::size_t i = 0; i < denseCache_->getStateCacheSize(); ++i)
   {
-    for (std::size_t j = i+1; j < denseCache_->getStateCacheSize(); ++j)
+    for (std::size_t j = i + 1; j < denseCache_->getStateCacheSize(); ++j)
     {
       if (si_->getStateSpace()->equalStates(getState(i), getState(j)))
       {
@@ -693,6 +703,70 @@ void SparseDB::errorCheckDuplicateStates(std::size_t indent)
   }
   if (found)
     exit(-1);
+}
+
+void SparseDB::removeDeletedVertices(std::size_t indent)
+{
+  bool verbose = true;
+  BOLT_BLUE_DEBUG(indent, verbose, "removeDeletedVertices()");
+  indent += 2;
+
+  // Remove all vertices that are set to 0
+  std::size_t numRemoved = 0;
+  // foreach (SparseVertex v, boost::vertices(g_))
+  typedef boost::graph_traits<SparseGraph>::vertex_iterator VertexIterator;
+  for (VertexIterator v = boost::vertices(g_).first; v != boost::vertices(g_).second; /* manual */)
+  {
+    if (*v < numThreads_)  // Skip the query vertices
+    {
+      v++;
+      continue;
+    }
+
+    if (getStateID(*v) == 0)
+    {
+      BOLT_DEBUG(indent + 2, verbose, "Removing SparseVertex " << *v << " stateID: " << getStateID(*v));
+
+      boost::remove_vertex(*v, g_);
+      numRemoved++;
+    }
+    else  // only proceed if no deletion happened
+    {
+      //BOLT_DEBUG(indent, verbose, "Checking SparseVertex " << *v << " stateID: " << getStateID(*v));
+      v++;
+    }
+  }
+  BOLT_DEBUG(indent, verbose, "Removed " << numRemoved << " vertices from graph that were abandoned");
+
+  if (numRemoved == 0)
+  {
+    BOLT_DEBUG(indent, verbose, "No verticies deleted, skipping resetting NN and disjointSets");
+    return;
+  }
+
+  // Reset the nearest neighbor tree
+  nn_->clear();
+
+  // Reset disjoint sets
+  disjointSets_ = DisjointSetType(boost::get(boost::vertex_rank, g_), boost::get(boost::vertex_predecessor, g_));
+
+  // Reinsert vertices into nearest neighbor
+  foreach (SparseVertex v, boost::vertices(g_))
+  {
+    if (v < numThreads_)  // Skip the query vertices
+      continue;
+
+    nn_->add(v);
+    disjointSets_.make_set(v);
+  }
+
+  // Reinsert edges into disjoint sets
+  foreach (SparseEdge e, boost::edges(g_))
+  {
+    SparseVertex v1 = boost::source(e, g_);
+    SparseVertex v2 = boost::target(e, g_);
+    disjointSets_.union_set(v1, v2);
+  }
 }
 
 /*
@@ -872,7 +946,7 @@ void SparseDB::addRandomSamples(std::size_t indent)
 
     if (!addSample(candidateStateID, indent))
       break;
-  } // end while
+  }  // end while
 }
 
 void SparseDB::addSamplesFromCache(std::size_t indent)
@@ -898,13 +972,11 @@ void SparseDB::addSamplesFromCache(std::size_t indent)
 
   while (candidateStateID <= lastCachedStateIndex)
   {
-
-
     if (!addSample(candidateStateID, indent))
       break;
 
     candidateStateID++;
-  } // end while
+  }  // end while
 }
 
 bool SparseDB::addSample(StateID candidateStateID, std::size_t indent)
@@ -920,9 +992,9 @@ bool SparseDB::addSample(StateID candidateStateID, std::size_t indent)
   {
     // if (numRandSamplesAdded_ % 10 == 0)
     BOLT_DEBUG(indent, vCriteria_, "Added random sample with stateID "
-               << candidateStateID << ", total new states: " << ++numRandSamplesAdded_);
+                                       << candidateStateID << ", total new states: " << ++numRandSamplesAdded_);
   }
-  else if (numConsecutiveFailures_ % 500 == 0)
+  else if (numConsecutiveFailures_ % 1000 == 0)
   {
     BOLT_DEBUG(indent, true, "Random sample failed, consecutive failures: " << numConsecutiveFailures_);
   }
@@ -931,7 +1003,7 @@ bool SparseDB::addSample(StateID candidateStateID, std::size_t indent)
   if (numConsecutiveFailures_ >= fourthCriteriaAfterFailures_ && !useFourthCriteria_)
   {
     BOLT_YELLOW_DEBUG(indent, true, "Starting to check for 4th quality criteria because "
-                      << numConsecutiveFailures_ << " consecutive failures have occured");
+                                        << numConsecutiveFailures_ << " consecutive failures have occured");
     useFourthCriteria_ = true;
     visualizeOverlayNodes_ = true;  // visualize all added nodes in a separate window
     numConsecutiveFailures_ = 0;    // reset for new criteria
@@ -944,10 +1016,10 @@ bool SparseDB::addSample(StateID candidateStateID, std::size_t indent)
   if (useFourthCriteria_ && numConsecutiveFailures_ > terminateAfterFailures_)
   {
     BOLT_YELLOW_DEBUG(indent, true, "SPARS creation finished because " << terminateAfterFailures_
-                      << " consecutive insertion failures reached");
-    return false; // stop inserting states
+                                                                       << " consecutive insertion failures reached");
+    return false;  // stop inserting states
   }
-  return true; // continue going
+  return true;  // continue going
 }
 
 /*
@@ -1156,21 +1228,21 @@ bool SparseDB::addStateToRoadmap(StateID candidateStateID, SparseVertex &newVert
   // Always add a node if no other nodes around it are visible (GUARD)
   if (checkAddCoverage(candidateStateID, visibleNeighborhood, newVertex, indent + 2))
   {
-    BOLT_DEBUG(indent + 2, vAddedReason_, "Graph updated for: COVERAGE");
+    BOLT_DEBUG(indent + 2, vAddedReason_, "Graph updated for: COVERAGE, stateID: " << candidateStateID);
 
     addReason = COVERAGE;
     stateAdded = true;
   }
   else if (checkAddConnectivity(candidateStateID, visibleNeighborhood, newVertex, indent + 6))
   {
-    BOLT_DEBUG(indent + 2, vAddedReason_, "Graph updated for: CONNECTIVITY");
+    BOLT_DEBUG(indent + 2, vAddedReason_, "Graph updated for: CONNECTIVITY, stateID: " << candidateStateID);
 
     addReason = CONNECTIVITY;
     stateAdded = true;
   }
   else if (checkAddInterface(candidateStateID, graphNeighborhood, visibleNeighborhood, newVertex, indent + 10))
   {
-    BOLT_DEBUG(indent + 2, vAddedReason_, "Graph updated for: INTERFACE");
+    BOLT_DEBUG(indent + 2, vAddedReason_, "Graph updated for: INTERFACE, stateID: " << candidateStateID);
 
     addReason = INTERFACE;
     stateAdded = true;
@@ -1178,14 +1250,14 @@ bool SparseDB::addStateToRoadmap(StateID candidateStateID, SparseVertex &newVert
   else if (useFourthCriteria_ &&
            checkAddQuality(candidateStateID, graphNeighborhood, visibleNeighborhood, workState, newVertex, indent + 14))
   {
-    BOLT_DEBUG(indent + 2, vAddedReason_, "Graph updated for: QUALITY");
+    BOLT_DEBUG(indent + 2, vAddedReason_, "Graph updated for: QUALITY, stateID: " << candidateStateID);
 
     addReason = QUALITY;
     stateAdded = true;
   }
   else if (discretizedSamplesInsertion_)
   {
-    BOLT_DEBUG(indent + 2, vAddedReason_, "Graph updated for: DISCRETIZED");
+    BOLT_DEBUG(indent + 2, vAddedReason_, "Graph updated for: DISCRETIZED, stateID: " << candidateStateID);
     newVertex = addVertex(candidateStateID, DISCRETIZED, indent + 2);
 
     addReason = DISCRETIZED;
@@ -1363,9 +1435,11 @@ bool SparseDB::checkAddInterface(StateID candidateStateID, std::vector<SparseVer
           OMPL_ERROR("States are equal");
           visualizeRemoveCloseVertices(v1, v2);
 
-          std::cout << "v1: " << v1 << " stateID1: " << getStateID(v1) << " state address: " << getVertexState(v1) << " state: ";
+          std::cout << "v1: " << v1 << " stateID1: " << getStateID(v1) << " state address: " << getVertexState(v1)
+                    << " state: ";
           debugState(getVertexState(v1));
-          std::cout << "v2: " << v2 << " stateID2: " << getStateID(v2) << " state address: " << getVertexState(v2) << " state: ";
+          std::cout << "v2: " << v2 << " stateID2: " << getStateID(v2) << " state address: " << getVertexState(v2)
+                    << " state: ";
           debugState(getVertexState(v2));
 
           denseCache_->print();
@@ -1763,7 +1837,7 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
   if (states.size() < 3)
   {
     BOLT_RED_DEBUG(indent + 2, true, "Somehow path was shrunk to less than three vertices: " << states.size());
-    visual_->waitForUserFeedback("path shrunk to two");
+    // visual_->waitForUserFeedback("path shrunk to two");
     delete path;
     return false;
   }
@@ -2758,10 +2832,12 @@ void SparseDB::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
   {
     const SparseVertex v1 = iterator->first;
     const std::size_t freq = iterator->second.size();
-    // std::cout << "Parent vertex: " << v1 << " StateID: " << getStateID(v1) << " Frequency: " << freq << std::endl;
-    // debugState(getVertexState(v1));
 
-    BOOST_ASSERT_MSG(freq > 0, "Frequnecy must be at least 1");
+    std::cout << std::endl;
+    std::cout << "Parent vertex: " << v1 << " StateID: " << getStateID(v1) << " Frequency: " << freq << std::endl;
+    debugState(getVertexState(v1));
+
+    BOOST_ASSERT_MSG(freq > 0, "Frequency must be at least 1");
 
     if (freq == maxDisjointSetSize)  // any subgraph that is smaller than the full graph
       continue;                      // the main disjoint set is not considered a disjoint set
@@ -2769,10 +2845,10 @@ void SparseDB::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
     // Visualize sets of size one
     if (freq == 1)
     {
-      // visual_->viz5State(getVertexState(v1), tools::ROBOT, tools::RED, 0);
-      visual_->viz5State(getVertexState(v1), tools::MEDIUM, tools::RED, 0);
+      visual_->viz5State(getVertexState(v1), tools::LARGE, tools::RED, 0);
       visual_->viz5Trigger();
       visual_->waitForUserFeedback("showing disjoint set");
+      continue;
     }
 
     // Visualize large disjoint sets (greater than one)
@@ -2804,9 +2880,11 @@ void SparseDB::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
           visual_->viz4State(getVertexState(*v2), tools::SMALL, tools::RED, 0);
 
           usleep(0.1 * 1000000);
-        }
-      }
-    }
+        }  // if
+      }    // for
+
+      visual_->waitForUserFeedback("showing large disjoint set");
+    }  // if
   }
 }
 
@@ -2988,9 +3066,11 @@ SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, st
     BOOST_ASSERT_MSG(v2 <= getNumVertices(), "Vertex2 is larger than max vertex id");
     BOOST_ASSERT_MSG(v1 != v2, "Vertices are the same");
     BOOST_ASSERT_MSG(!hasEdge(v1, v2), "There already exists an edge between two vertices requested");
-    BOOST_ASSERT_MSG(hasEdge(v1, v2) == hasEdge(v2, v1), "There already exists an edge between two vertices requested, other direction");
+    BOOST_ASSERT_MSG(hasEdge(v1, v2) == hasEdge(v2, v1), "There already exists an edge between two vertices requested, "
+                                                         "other direction");
     BOOST_ASSERT_MSG(getVertexState(v1) != getVertexState(v2), "States on both sides of an edge are the same");
-    BOOST_ASSERT_MSG(!si_->getStateSpace()->equalStates(getVertexState(v1), getVertexState(v2)), "Vertex IDs are different but states are the equal");
+    BOOST_ASSERT_MSG(!si_->getStateSpace()->equalStates(getVertexState(v1), getVertexState(v2)),
+                     "Vertex IDs are different but states are the equal");
   }
 
   // Create the new edge
@@ -3090,7 +3170,7 @@ const StateID SparseDB::getStateID(SparseVertex v) const
 
 void SparseDB::displayDatabase(bool showVertices, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, true, "Displaying Sparse database");
+  BOLT_CYAN_DEBUG(indent, vCriteria_, "Displaying Sparse database");
   indent += 2;
 
   // Error check

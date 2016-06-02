@@ -82,6 +82,9 @@ OMPL_CLASS_FORWARD(SparseDB);
 
 typedef std::map<SparseVertex, std::vector<SparseVertex> > DisjointSetsParentKey;
 
+typedef boost::my_disjoint_sets<boost::property_map<SparseGraph, boost::vertex_rank_t>::type,
+                                boost::property_map<SparseGraph, boost::vertex_predecessor_t>::type> DisjointSetType;
+
 ////////////////////////////////////////////////////////////////////////////////////////
 /**
  * Vertex visitor to check if A* search is finished.
@@ -234,6 +237,9 @@ public:
   void addDiscretizedStates(std::size_t indent);
 
   void errorCheckDuplicateStates(std::size_t indent);
+
+  /** \brief Cleanup graph because we leave deleted vertices in graph during construction */
+  void removeDeletedVertices(std::size_t indent);
 
   /** \brief Helper function for choosing the correct method for vertex insertion ordering */
   //void getVertexInsertionOrdering(std::list<WeightedVertex>& vertexInsertionOrder);
@@ -506,8 +512,7 @@ protected:
   boost::property_map<SparseGraph, vertex_popularity_t>::type vertexPopularity_;
 
   /** \brief Data structure that maintains the connected components */
-  boost::my_disjoint_sets<boost::property_map<SparseGraph, boost::vertex_rank_t>::type,
-                          boost::property_map<SparseGraph, boost::vertex_predecessor_t>::type> disjointSets_;
+  DisjointSetType disjointSets_;
 
   /** \brief A path simplifier used to simplify dense paths added to S */
   geometric::PathSimplifierPtr pathSimplifier_;

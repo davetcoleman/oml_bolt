@@ -71,7 +71,7 @@ DenseCache::DenseCache(base::SpaceInformationPtr si, SparseDB *sparseDB, Visuali
   totalCollisionChecksFromCache_.resize(numThreads_, 0);
 
   // Estimate the size of the state cache
-  stateCache_.reserve(10000);
+  stateCache_.reserve(30000); // based on experiments in 2D
 
   // Add zeroth state - which indicates a deleted/NULL vertex
   addState(si_->allocState());
