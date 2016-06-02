@@ -44,6 +44,7 @@
 // Boost
 #include <boost/foreach.hpp>
 #include <boost/thread.hpp>
+#include <boost/filesystem.hpp>
 
 #define foreach BOOST_FOREACH
 
@@ -58,9 +59,17 @@ BoltStorage::BoltStorage(const base::SpaceInformationPtr &si, SparseDB *sparseDB
   numQueryVertices_ = boost::thread::hardware_concurrency();
 }
 
-void BoltStorage::save(const char *filename)
+void BoltStorage::save(const std::string& filePath)
 {
-  std::ofstream out(filename, std::ios::binary);
+  std::ofstream out(filePath.c_str(), std::ios::binary);
+
+  OMPL_INFORM("------------------------------------------------");
+  OMPL_INFORM("Saving Sparse Graph");
+  OMPL_INFORM("  Path:            %s", filePath.c_str());
+  OMPL_INFORM("  Edges:           %u", sparseDB_->getNumEdges());
+  OMPL_INFORM("  Vertices:        %u", sparseDB_->getNumVertices());
+  OMPL_INFORM("------------------------------------------------");
+
   save(out);
   out.close();
 }
@@ -80,17 +89,12 @@ void BoltStorage::save(std::ostream &out)
     // Writing the header
     Header h;
     h.marker = OMPL_PLANNER_DATA_ARCHIVE_MARKER;
-    // Note: we increment all vertex indexes by 1 because the queryVertex_ is vertex id 0
     h.vertex_count = sparseDB_->getNumVertices() - numQueryVertices_;
     h.edge_count = sparseDB_->getNumEdges();
-    //OMPL_INFORM("Computing state space signuture");
     si_->getStateSpace()->computeSignature(h.signature);
-    //OMPL_INFORM("Writing header");
     oa << h;
 
-    //OMPL_INFORM("Saving vertices");
     saveVertices(oa);
-    //OMPL_INFORM("Saving edges");
     saveEdges(oa);
   }
   catch (boost::archive::archive_exception &ae)
@@ -106,7 +110,7 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
   std::vector<unsigned char> state(space->getSerializationLength());
   std::size_t feedbackFrequency = sparseDB_->getNumVertices() / 10;
 
-  std::cout << "Saving vertices: " << std::flush;
+  std::cout << "         Saving vertices: " << std::flush;
   std::size_t count = 0;
   std::size_t errorCheckNumQueryVertices = 0;
   foreach (const SparseVertex v, boost::vertices(sparseDB_->g_))
@@ -117,6 +121,10 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
       errorCheckNumQueryVertices++;
       continue;
     }
+
+    // Debug
+    //std::cout << "v: " << v << " stateID: " << sparseDB_->getStateID(v) << " state: ";
+    //si_->printState(sparseDB_->getVertexStateNonConst(v), std::cout);
 
     // Convert to new structure
     BoltVertexData vertexData;
@@ -145,10 +153,10 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
 
 void BoltStorage::saveEdges(boost::archive::binary_oarchive &oa)
 {
-  std::size_t feedbackFrequency = sparseDB_->getNumEdges() / 10;
+  std::size_t feedbackFrequency = std::max(10.0, sparseDB_->getNumEdges() / 10.0);
 
-  std::cout << "Saving edges: " << std::flush;
-  std::size_t count = 0;
+  std::cout << "         Saving edges: " << std::flush;
+  std::size_t count = 1;
   foreach (const SparseEdge e, boost::edges(sparseDB_->g_))
   {
     const SparseVertex v1 = boost::source(e, sparseDB_->g_);
@@ -156,14 +164,15 @@ void BoltStorage::saveEdges(boost::archive::binary_oarchive &oa)
 
     // Convert to new structure
     BoltEdgeData edgeData;
-    // Note: we increment all vertex indexes by 1 because the queryVertex_ is vertex id 0
+    // Note: we increment all vertex indexes by the number of queryVertices_ because [0,11] is in use
     edgeData.endpoints_.first = v1 - numQueryVertices_;
     edgeData.endpoints_.second = v2 - numQueryVertices_;
     edgeData.weight_ = sparseDB_->edgeWeightProperty_[e];
+    edgeData.type_ = sparseDB_->edgeTypeProperty_[e];
     oa << edgeData;
 
     // Feedback
-    if ((++count + 1) % feedbackFrequency == 0)
+    if ((++count) % feedbackFrequency == 0)
       std::cout << std::fixed << std::setprecision(0) << (count / double(sparseDB_->getNumEdges())) * 100.0 << "% "
                 << std::flush;
 
@@ -171,22 +180,46 @@ void BoltStorage::saveEdges(boost::archive::binary_oarchive &oa)
   std::cout << std::endl;
 }
 
-void BoltStorage::load(const char *filename)
+bool BoltStorage::load(const std::string& filePath)
 {
-  std::ifstream in(filename, std::ios::binary);
-  load(in);
+  std::cout << std::endl;
+  OMPL_INFORM("------------------------------------------------");
+  OMPL_INFORM("BoltStorage: Loading Sparse Graph");
+  OMPL_INFORM("   Path:                   %s", filePath.c_str());
+
+  // Error checking
+  if (sparseDB_->getNumEdges() > numQueryVertices_ ||
+      sparseDB_->getNumVertices() > numQueryVertices_)  // the search verticie may already be there
+  {
+    OMPL_INFORM("Database is not empty, unable to load from file");
+    return false;
+  }
+  if (filePath.empty())
+  {
+    OMPL_ERROR("Empty filename passed to save function");
+    return false;
+  }
+  if (!boost::filesystem::exists(filePath))
+  {
+    OMPL_INFORM("Database file does not exist: %s.", filePath.c_str());
+    return false;
+  }
+
+  std::ifstream in(filePath.c_str(), std::ios::binary);
+  bool result = load(in);
   in.close();
+
+  return result;
 }
 
-void BoltStorage::load(std::istream &in)
+bool BoltStorage::load(std::istream &in)
 {
   if (!in.good())
   {
     OMPL_ERROR("Failed to load BoltData: input stream is invalid");
-    return;
+    return false;
   }
 
-  // Loading the planner data:
   try
   {
     boost::archive::binary_iarchive ia(in);
@@ -199,7 +232,7 @@ void BoltStorage::load(std::istream &in)
     if (h.marker != OMPL_PLANNER_DATA_ARCHIVE_MARKER)
     {
       OMPL_ERROR("Failed to load BoltData: BoltData archive marker not found");
-      return;
+      return false;
     }
 
     // Verify that the state space is the same
@@ -208,7 +241,7 @@ void BoltStorage::load(std::istream &in)
     if (h.signature != sig)
     {
       OMPL_ERROR("Failed to load BoltData: StateSpace signature mismatch");
-      return;
+      return false;
     }
 
     // File seems ok... loading vertices and edges
@@ -219,16 +252,18 @@ void BoltStorage::load(std::istream &in)
   {
     OMPL_ERROR("Failed to load BoltData: %s", ae.what());
   }
+
+  return true;
 }
 
 void BoltStorage::loadVertices(unsigned int numVertices, boost::archive::binary_iarchive &ia)
 {
-  OMPL_INFORM("Loading %u verticies from file", numVertices);
+  OMPL_INFORM("Loading %u vertices from file", numVertices);
 
   const base::StateSpacePtr &space = si_->getStateSpace();
   std::size_t feedbackFrequency = numVertices / 10;
 
-  std::cout << "Vertices loaded: ";
+  std::cout << "         Vertices loaded: ";
   for (unsigned int i = 0; i < numVertices; ++i)
   {
     // Copy in data from file
@@ -257,20 +292,26 @@ void BoltStorage::loadVertices(unsigned int numVertices, boost::archive::binary_
 void BoltStorage::loadEdges(unsigned int numEdges, boost::archive::binary_iarchive &ia)
 {
   OMPL_INFORM("Loading %u edges from file", numEdges);
-  std::size_t feedbackFrequency = numEdges / 10;
+  std::size_t feedbackFrequency = std::max(10.0, numEdges / 10.0);
 
-  std::cout << "Edges loaded: ";
+  std::cout << "         Edges loaded: ";
   for (unsigned int i = 0; i < numEdges; ++i)
   {
     BoltEdgeData edgeData;
     ia >> edgeData;
 
-    // Note: we increment all vertex indexes by the number of query verticies
-    edgeData.endpoints_.first += numQueryVertices_;
-    edgeData.endpoints_.second += numQueryVertices_;
+    // Note: we increment all vertex indexes by the number of query vertices
+    const SparseVertex v1 = edgeData.endpoints_.first += numQueryVertices_;
+    const SparseVertex v2 = edgeData.endpoints_.second += numQueryVertices_;
 
-    // pd.addEdge(edgeData.endpoints_.first, edgeData.endpoints_.second, *edgeData.e_, Cost(edgeData.weight_));
-    sparseDB_->addEdgeFromFile(edgeData);
+    // Error check
+    BOOST_ASSERT_MSG(v1 <= sparseDB_->getNumVertices(), "Vertex 1 out of range of possible vertices");
+    BOOST_ASSERT_MSG(v2 <= sparseDB_->getNumVertices(), "Vertex 2 out of range of possible vertices");
+
+    // Add
+    EdgeType type = static_cast<EdgeType>(edgeData.type_);
+    std::size_t indent = 2;
+    sparseDB_->addEdge(v1, v2, type, indent);
 
     // We deserialized the edge object pointer, and we own it.
     // Since addEdge copies the object, it is safe to free here.

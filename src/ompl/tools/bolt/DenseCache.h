@@ -72,17 +72,20 @@ public:
   /** \brief Constructor */
   DenseCache(base::SpaceInformationPtr si, SparseDB *sparseDB, VisualizerPtr visual);
 
-  /** \brief Save cache to file */
-  bool save();
-
-  /** \brief Load cache from file */
-  bool load();
-
   /** \brief Clear the edge cache completely */
   void clear();
 
   /** \brief Reset the counters */
   void resetCounters();
+
+  /** \brief Save at an interval to the new edges that have been added */
+  bool saveIfReady();
+
+  /** \brief Save cache to file */
+  bool save();
+
+  /** \brief Load cache from file */
+  bool load();
 
   void saveStates(boost::archive::binary_oarchive &oa);
   void loadStates(unsigned int numStates, boost::archive::binary_iarchive &ia);
@@ -108,7 +111,9 @@ public:
   void setFilePath(const std::string &filePath);
 
   std::size_t getStateCacheSize();
+  std::size_t getNewStatesCount();
   std::size_t getEdgeCacheSize();
+  std::size_t getNewEdgesCount();
 
   std::size_t getTotalCollisionChecksFromCache();
 
@@ -189,14 +194,15 @@ private:
   std::size_t numThreads_;
 
   /** \brief Number of cached item at last load/save */
-  std::size_t prevNumCachedEdges_;
-  std::size_t prevNumCachedStates_;
+  std::size_t prevNumCachedEdges_ = 0;
+  std::size_t prevNumCachedStates_ = 0;
 
 public:
 
   /** \brief Force all collision checks to be performed from scratch */
   bool disableCache_ = false;
 
+  std::size_t saveEveryNEdges_ = 50000;
 };  // end of class DenseCache
 
 }  // namespace bolt

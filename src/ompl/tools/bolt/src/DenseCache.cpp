@@ -74,19 +74,55 @@ DenseCache::DenseCache(base::SpaceInformationPtr si, SparseDB *sparseDB, Visuali
   addState(si_->allocState());
 
   if (disableCache_)
-    OMPL_WARN("dense cache disabled");
+    OMPL_WARN("Dense cache disabled");
+}
+
+void DenseCache::clear()
+{
+  OMPL_INFORM("Clearing caches");
+
+  collisionCheckDenseCache_.clear();
+  stateCache_.clear();
+  resetCounters();
+
+  // Add zeroth state - which indicates a deleted/NULL vertex
+  addState(si_->allocState());
+}
+
+void DenseCache::resetCounters()
+{
+  for (std::size_t i = 0; i < totalCollisionChecksFromCache_.size(); ++i)
+  {
+    totalCollisionChecks_[i] = 0;
+    totalCollisionChecksFromCache_[i] = 0;
+  }
+}
+
+bool DenseCache::saveIfReady()
+{
+  if (getNewEdgesCount() > saveEveryNEdges_)
+  {
+    return save();
+  }
+  return false;
 }
 
 bool DenseCache::save()
 {
+  if (disableCache_)
+  {
+    OMPL_INFORM("DenseCache disabled, not saving");
+    return false;
+  }
+
   OMPL_INFORM("------------------------------------------------");
   OMPL_INFORM("Saving Dense Cache");
   OMPL_INFORM("  Path:            %s", filePath_.c_str());
   OMPL_INFORM("  Edges:");
-  OMPL_INFORM("    Cache Size:    %u (new: %u)", getEdgeCacheSize(), getEdgeCacheSize() - prevNumCachedEdges_);
+  OMPL_INFORM("    Cache Size:    %u (new: %u)", getEdgeCacheSize(), getNewEdgesCount());
   OMPL_INFORM("    Cached checks: %u (%f %)", getTotalCollisionChecksFromCache(), getPercentCachedCollisionChecks());
   OMPL_INFORM("  States:");
-  OMPL_INFORM("    Cache Size:    %u (new: %u)", getStateCacheSize(), getStateCacheSize() - prevNumCachedStates_);
+  OMPL_INFORM("    Cache Size:    %u (new: %u)", getStateCacheSize(), getNewStatesCount());
   OMPL_INFORM("------------------------------------------------");
 
   // Save previous data
@@ -97,7 +133,7 @@ bool DenseCache::save()
 
   if (!out.good())
   {
-    OMPL_ERROR("Failed to save dense cache: output stream is invalid");
+    OMPL_ERROR("Failed to save dense cache: file is invalid");
     return false;
   }
 
@@ -131,7 +167,15 @@ bool DenseCache::save()
 
 bool DenseCache::load()
 {
-  OMPL_INFORM("Loading dense cache from %s", filePath_.c_str());
+  std::cout << std::endl;
+  OMPL_INFORM("------------------------------------------------");
+  if (disableCache_)
+  {
+    OMPL_INFORM("DenseCache: disabled, not loading");
+    return false;
+  }
+
+  OMPL_INFORM("DenseCache: Loading from %s", filePath_.c_str());
 
   // Benchmark runtime
   time::point startTime = time::now();
@@ -217,27 +261,6 @@ bool DenseCache::load()
   return true;
 }
 
-void DenseCache::clear()
-{
-  OMPL_INFORM("Clearing caches");
-
-  collisionCheckDenseCache_.clear();
-  stateCache_.clear();
-  resetCounters();
-
-  // Add zeroth state - which indicates a deleted/NULL vertex
-  addState(si_->allocState());
-}
-
-void DenseCache::resetCounters()
-{
-  for (std::size_t i = 0; i < totalCollisionChecksFromCache_.size(); ++i)
-  {
-    totalCollisionChecks_[i] = 0;
-    totalCollisionChecksFromCache_[i] = 0;
-  }
-}
-
 void DenseCache::saveStates(boost::archive::binary_oarchive &oa)
 {
   const base::StateSpacePtr &space = si_->getStateSpace();
@@ -276,7 +299,7 @@ void DenseCache::loadStates(unsigned int numStates, boost::archive::binary_iarch
   const base::StateSpacePtr &space = si_->getStateSpace();
   std::size_t feedbackFrequency = numStates / 10;
 
-  std::cout << "States loaded: ";
+  std::cout << "          States loaded: ";
   for (unsigned int i = 0; i < numStates; ++i)
   {
     // Copy in data from file
@@ -301,7 +324,12 @@ StateID DenseCache::addState(base::State *state)
 {
   // TODO: thread safety?
   stateCache_.push_back(state);
-  return stateCache_.size() - 1;
+  StateID id = stateCache_.size() - 1;
+
+  // Check if it is time for a save
+  saveIfReady();
+
+  return id;
 }
 
 const base::State* DenseCache::getState(StateID stateID) const
@@ -467,9 +495,19 @@ std::size_t DenseCache::getStateCacheSize()
   return stateCache_.size();
 }
 
+std::size_t DenseCache::getNewStatesCount()
+{
+  return getStateCacheSize() - prevNumCachedStates_;
+}
+
 std::size_t DenseCache::getEdgeCacheSize()
 {
   return collisionCheckDenseCache_.size();
+}
+
+std::size_t DenseCache::getNewEdgesCount()
+{
+  return getEdgeCacheSize() - prevNumCachedEdges_;
 }
 
 std::size_t DenseCache::getTotalCollisionChecksFromCache()

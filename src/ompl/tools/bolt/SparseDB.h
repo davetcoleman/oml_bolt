@@ -80,6 +80,8 @@ namespace bolt
 OMPL_CLASS_FORWARD(SparseDB);
 /// @endcond
 
+typedef std::map<SparseVertex, std::vector<SparseVertex> > DisjointSetsParentKey;
+
 ////////////////////////////////////////////////////////////////////////////////////////
 /**
  * Vertex visitor to check if A* search is finished.
@@ -182,7 +184,6 @@ public:
   double astarHeuristic(const SparseVertex a, const SparseVertex b) const;
 
   /** \brief Print info to screen */
-  void debugVertex(const ompl::base::PlannerDataVertex& vertex);
   void debugState(const ompl::base::State* state);
 
   /** \brief Retrieve the computed roadmap. */
@@ -350,12 +351,13 @@ public:
 
   std::size_t getDisjointSetsCount(bool verbose = false);
 
+  void getDisjointSets(DisjointSetsParentKey &disjointSets);
+  void printDisjointSets(DisjointSetsParentKey &disjointSets);
+  void visualizeDisjointSets(DisjointSetsParentKey &disjointSets);
+
   std::size_t checkConnectedComponents();
 
   bool sameComponent(SparseVertex v1, SparseVertex v2);
-
-  //void addVertexFromFile(BoltStorage::BoltVertexData v);
-  void addEdgeFromFile(BoltStorage::BoltEdgeData e);
 
   StateID addState(base::State *state);
 
@@ -385,6 +387,7 @@ public:
   base::State*& getVertexStateNonConst(SparseVertex v);
   const base::State* getVertexState(SparseVertex v) const;
   const base::State* getState(StateID stateID) const;
+  const StateID getStateID(SparseVertex v) const;
 
   /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
   double distanceFunction(const SparseVertex a, const SparseVertex b) const;
@@ -598,9 +601,10 @@ public:
   bool vCriteria_ = false;
   bool vQuality_ = false;
   bool vRemoveClose_ = false;
+  bool vAddedReason_ = false; // print why each vertex or edge was added
 
   /** \brief Run with extra safety checks */
-  bool superDebug_ = false;
+  bool superDebug_ = true;
 
   /** \brief Show the sparse graph being generated */
   bool visualizeSparsGraph_ = false;
@@ -608,6 +612,7 @@ public:
   bool visualizeConnectivity_ = false;
   bool visualizeQualityCriteria_ = false;
   bool visualizeQualityPathSimp_ = false;
+  bool visualizeRemoveCloseVertices_ = false;
   double visualizeSparsGraphSpeed_ = 0.0;
   bool visualizeDatabaseVertices_ = true;
   bool visualizeDatabaseEdges_ = true;

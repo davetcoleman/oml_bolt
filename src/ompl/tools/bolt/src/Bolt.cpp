@@ -318,11 +318,7 @@ bool Bolt::loadOrGenerate()
 
   if (!sparseDB_->load())  // load from file
   {
-    OMPL_INFORM("No database loaded from file - generating new grid");
-
-    //denseDB_->generateGrid();
   }
-  sparseDB_->saveIfChanged();
 
   return true;
 }

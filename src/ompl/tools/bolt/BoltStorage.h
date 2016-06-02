@@ -128,16 +128,18 @@ public:
     {
       ar &endpoints_;
       ar &weight_;
+      ar &type_;
     }
 
     std::pair<unsigned int, unsigned int> endpoints_;
     double weight_;
+    int type_;
   };
 
   /** \brief Constructor */
   BoltStorage(const base::SpaceInformationPtr &si, SparseDB *sparseDB);
 
-  void save(const char *filename);
+  void save(const std::string& filePath);
 
   void save(std::ostream &out);
 
@@ -147,9 +149,9 @@ public:
   /// \brief Serialize and store all edges in \e pd to the binary archive.
   void saveEdges(boost::archive::binary_oarchive &oa);
 
-  void load(const char *filename);
+  bool load(const std::string& filePath);
 
-  void load(std::istream &in);
+  bool load(std::istream &in);
 
   /// \brief Read \e numVertices from the binary input \e ia and store them as BoltStorage
   void loadVertices(unsigned int numVertices, boost::archive::binary_iarchive &ia);

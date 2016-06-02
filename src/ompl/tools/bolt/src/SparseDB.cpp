@@ -45,7 +45,6 @@
 #include <ompl/base/DiscreteMotionValidator.h>
 
 // Boost
-#include <boost/filesystem.hpp>
 #include <boost/graph/incremental_components.hpp>
 #include <boost/foreach.hpp>
 #include <boost/unordered_set.hpp>
@@ -289,49 +288,20 @@ bool SparseDB::load()
   // Load collision cache
   denseCache_->load();
 
-  std::cout << "NOT LOADING SPARS DB, just cache " << std::endl;
-  return true;
-
-  OMPL_ERROR("SparseDB: load()");
-
-  // Error checking
-  if (getNumEdges() > queryVertices_.size() ||
-      getNumVertices() > queryVertices_.size())  // the search verticie may already be there
-  {
-    OMPL_INFORM("Database is not empty, unable to load from file");
-    return true;
-  }
-  if (filePath_.empty())
-  {
-    OMPL_ERROR("Empty filename passed to save function");
-    return false;
-  }
-  if (!boost::filesystem::exists(filePath_))
-  {
-    OMPL_INFORM("Database file does not exist: %s.", filePath_.c_str());
-    return false;
-  }
-
   // Benchmark
   time::point start = time::now();
 
-  // Load
-  OMPL_INFORM("Loading database from file: %s", filePath_.c_str());
-
   BoltStorage storage_(si_, this);
-  storage_.load(filePath_.c_str());
+  if (!storage_.load(filePath_.c_str()))
+    return false;
 
   // Benchmark
   double duration = time::seconds(time::now() - start);
 
-  // Visualize
-  // visual_->viz1Trigger();
-  // usleep(0.1 * 1000000);
-
   // Error check
   if (!getNumVertices() || !getNumEdges())
   {
-    OMPL_ERROR("Corrupted planner data loaded, skipping building graph");
+    OMPL_ERROR("Corrupted sparse graph loaded");
     return false;
   }
 
@@ -343,12 +313,16 @@ bool SparseDB::load()
 
   OMPL_INFORM("------------------------------------------------------");
   OMPL_INFORM("Loaded graph stats:");
-  OMPL_INFORM("   Total valid vertices:   %u", getNumVertices());
-  OMPL_INFORM("   Total valid edges:      %u", getNumEdges());
+  OMPL_INFORM("   Total vertices:         %u", getNumVertices());
+  OMPL_INFORM("   Total edges:            %u", getNumEdges());
   OMPL_INFORM("   Average degree:         %f", averageDegree);
   OMPL_INFORM("   Connected Components:   %u", numSets);
   OMPL_INFORM("   Loading time:           %f", duration);
   OMPL_INFORM("------------------------------------------------------");
+
+  // Disable
+  OMPL_INFORM("Disabling discretized samples generation because we have loaded from file");
+  useDiscretizedSamples_ = false;
 
   return true;
 }
@@ -382,8 +356,6 @@ bool SparseDB::save()
     OMPL_ERROR("Empty filename passed to save function");
     return false;
   }
-
-  OMPL_INFORM("Saving with %d vertices and %d edges to: %s", getNumVertices(), getNumEdges(), filePath_.c_str());
 
   // Benchmark
   time::point start = time::now();
@@ -490,7 +462,7 @@ bool SparseDB::astarSearch(const SparseVertex start, const SparseVertex goal, st
   if (visualizeAstar_)
   {
     BOLT_DEBUG(indent + 2, vCriteria_, "Show all predecessors");
-    for (std::size_t i = 1; i < getNumVertices(); ++i)  // skip vertex 0 b/c that is the search vertex
+    for (std::size_t i = numThreads_; i < getNumVertices(); ++i)  // skip vertex 0-11 because those are query vertices
     {
       const SparseVertex v1 = i;
       const SparseVertex v2 = vertexPredecessors[v1];
@@ -561,11 +533,6 @@ double SparseDB::astarHeuristic(const SparseVertex a, const SparseVertex b) cons
   return dist;
 }
 
-void SparseDB::debugVertex(const ompl::base::PlannerDataVertex &vertex)
-{
-  debugState(vertex.getState());
-}
-
 void SparseDB::debugState(const ompl::base::State *state)
 {
   si_->printState(state, std::cout);
@@ -599,6 +566,7 @@ void SparseDB::clearEdgeCollisionStates()
 void SparseDB::createSPARS()
 {
   std::size_t indent = 0;
+  BOLT_BLUE_DEBUG(indent, true, "createSPARS()");
 
   // Benchmark runtime
   time::point startTime = time::now();
@@ -618,13 +586,13 @@ void SparseDB::createSPARS()
   // Start the graph off with discretized states
   if (useDiscretizedSamples_)
   {
-    addDiscretizedStates(indent);
+    addDiscretizedStates(indent + 2);
   }
 
   // Finish the graph with random samples
   if (useRandomSamples_)
   {
-    addRandomSamples(indent);
+    addRandomSamples(indent + 2);
   }
 
   // Profiler
@@ -669,7 +637,7 @@ void SparseDB::createSPARS()
   BOLT_DEBUG(0, 1, "-----------------------------------------");
 
   if (!visualizeSparsGraph_)
-    displayDatabase(true, indent);
+    displayDatabase(true, indent + 2);
 
   // Save collision cache
   denseCache_->save();
@@ -685,21 +653,14 @@ void SparseDB::addDiscretizedStates(std::size_t indent)
   ob::RealVectorBounds bounds = si_->getStateSpace()->getBounds();
   const std::size_t jointID = 0;
   const double range = bounds.high[jointID] - bounds.low[jointID];
-  std::cout << "range: " << range << std::endl;
   const std::size_t jointIncrements = floor(range / vertexDiscretizer_->getDiscretization());
-  std::cout << "jointIncrements: " << jointIncrements << std::endl;
   double leftOver = range - jointIncrements * vertexDiscretizer_->getDiscretization();
-  std::cout << "leftOver: " << leftOver << std::endl;
   double startOffset = leftOver / 2;
-  std::cout << "startOffset: " << startOffset << std::endl;
-
-  //  double percentVisibilityRegionEdgeOverlap = 0.5;
-  // double startOffset = sparseDelta_ * percentVisibilityRegionEdgeOverlap;
 
   // Create two levels of grids
   for (std::size_t i = 0; i < 2; ++i)
   {
-    OMPL_INFORM("Generating grid iteration %u", i);
+    BOLT_DEBUG(indent+2, true, "Discretize iteration " << i);
 
     // Set starting value offset
     if (i == 0)
@@ -707,7 +668,7 @@ void SparseDB::addDiscretizedStates(std::size_t indent)
     else
       vertexDiscretizer_->setStartingValueOffset(startOffset + vertexDiscretizer_->getDiscretization() / 2.0);
 
-    // Generate verticies
+    // Generate vertices
     vertexDiscretizer_->generate();
 
     // Convert to proper format TODO(davetcoleman): remove the need for this format?
@@ -724,10 +685,11 @@ void SparseDB::addDiscretizedStates(std::size_t indent)
     candidateVertices.clear();  // clear the vector because we've moved all its memory pointers to DenseDB
     std::size_t sucessfulInsertions;
     createSPARSInnerLoop(vertexInsertionOrder, sucessfulInsertions);
-    std::cout << "sucessfulInsertions: " << sucessfulInsertions << std::endl;
   }
 
   discretizedSamplesInsertion_ = false;
+
+  BOLT_DEBUG(indent+2, true, "Finished discretization \n");
 }
 
 /*
@@ -760,7 +722,7 @@ void SparseDB::createSPARSOuterLoop()
   // Error check order creation
   assert(vertexInsertionOrder.size() == getNumVertices() - queryVertices_.size());
 
-  // Attempt to insert the verticies multiple times until no more succesful insertions occur
+  // Attempt to insert the vertices multiple times until no more succesful insertions occur
   secondSparseInsertionAttempt_ = false;
   std::size_t loopAttempt = 0;
   std::size_t sucessfulInsertions = 1;  // start with one so that while loop works
@@ -789,7 +751,7 @@ void SparseDB::createSPARSOuterLoop()
       visual_->viz2Trigger();
 
     std::cout << "Succeeded in inserting " << sucessfulInsertions << " vertices on the " << loopAttempt
-              << " loop, remaining uninserted verticies: " << vertexInsertionOrder.size()
+              << " loop, remaining uninserted vertices: " << vertexInsertionOrder.size()
               << " loop runtime: " << duration << " sec" << std::endl;
     loopAttempt++;
 
@@ -890,32 +852,6 @@ bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOr
   return true;
 }
 
-/*
-void SparseDB::getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInsertionOrder)
-{
-  if (sparseCreationInsertionOrder_ == 0)
-  {
-    OMPL_INFORM("Creating sparse graph using popularity ordering");
-    getPopularityOrder(vertexInsertionOrder);  // Create SPARs graph in order of popularity
-  }
-  else if (sparseCreationInsertionOrder_ == 1)
-  {
-    OMPL_WARN("Creating sparse graph using default ordering");
-    getDefaultOrder(vertexInsertionOrder);
-  }
-  else if (sparseCreationInsertionOrder_ == 2)
-  {
-    OMPL_WARN("Creating sparse graph using random ordering");
-    getRandomOrder(vertexInsertionOrder);
-  }
-  else
-  {
-    OMPL_ERROR("Unknown insertion order method");
-    exit(-1);
-  }
-}
-*/
-
 void SparseDB::addRandomSamples(std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vCriteria_, "addRandomSamples()");
@@ -947,9 +883,7 @@ void SparseDB::addRandomSamples(std::size_t indent)
       if (usingCachedStates)
       {
         usingCachedStates = false;
-        // BOLT_YELLOW_DEBUG(indent + 2, vCriteria_ || true, "addRandomSamples: No longer using cached states - sampling
-        // new ones");
-        // visual_->waitForUserFeedback();
+        BOLT_YELLOW_DEBUG(indent + 2, vCriteria_, "addRandomSamples: No longer using cached states - sampling new ones");
       }
 
       base::State *candidateState = si_->allocState();
@@ -1008,6 +942,30 @@ void SparseDB::addRandomSamples(std::size_t indent)
 }
 
 /*
+void SparseDB::getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInsertionOrder)
+{
+  if (sparseCreationInsertionOrder_ == 0)
+  {
+    OMPL_INFORM("Creating sparse graph using popularity ordering");
+    getPopularityOrder(vertexInsertionOrder);  // Create SPARs graph in order of popularity
+  }
+  else if (sparseCreationInsertionOrder_ == 1)
+  {
+    OMPL_WARN("Creating sparse graph using default ordering");
+    getDefaultOrder(vertexInsertionOrder);
+  }
+  else if (sparseCreationInsertionOrder_ == 2)
+  {
+    OMPL_WARN("Creating sparse graph using random ordering");
+    getRandomOrder(vertexInsertionOrder);
+  }
+  else
+  {
+    OMPL_ERROR("Unknown insertion order method");
+    exit(-1);
+  }
+}
+
 bool SparseDB::getPopularityOrder(std::list<WeightedVertex> &vertexInsertionOrder)
 {
   bool verbose = false;
@@ -1022,7 +980,7 @@ bool SparseDB::getPopularityOrder(std::list<WeightedVertex> &vertexInsertionOrde
     visual_->viz3DeleteAllMarkers();
   }
 
-  // Sort the verticies by popularity in a queue
+  // Sort the vertices by popularity in a queue
   std::priority_queue<WeightedVertex, std::vector<WeightedVertex>, CompareWeightedVertex> pqueue;
 
   // Loop through each popular edge in the dense graph
@@ -1189,21 +1147,21 @@ bool SparseDB::addStateToRoadmap(StateID candidateStateID, SparseVertex &newVert
   // Always add a node if no other nodes around it are visible (GUARD)
   if (checkAddCoverage(candidateStateID, visibleNeighborhood, newVertex, indent + 2))
   {
-    BOLT_DEBUG(indent + 2, vCriteria_ || 1, "Graph updated for: COVERAGE");
+    BOLT_DEBUG(indent + 2, vAddedReason_, "Graph updated for: COVERAGE");
 
     addReason = COVERAGE;
     stateAdded = true;
   }
   else if (checkAddConnectivity(candidateStateID, visibleNeighborhood, newVertex, indent + 6))
   {
-    BOLT_DEBUG(indent + 2, vCriteria_ || 1, "Graph updated for: CONNECTIVITY");
+    BOLT_DEBUG(indent + 2, vAddedReason_, "Graph updated for: CONNECTIVITY");
 
     addReason = CONNECTIVITY;
     stateAdded = true;
   }
   else if (checkAddInterface(candidateStateID, graphNeighborhood, visibleNeighborhood, newVertex, indent + 10))
   {
-    BOLT_DEBUG(indent + 2, vCriteria_ || 1, "Graph updated for: INTERFACE");
+    BOLT_DEBUG(indent + 2, vAddedReason_, "Graph updated for: INTERFACE");
 
     addReason = INTERFACE;
     stateAdded = true;
@@ -1211,7 +1169,7 @@ bool SparseDB::addStateToRoadmap(StateID candidateStateID, SparseVertex &newVert
   else if (useFourthCriteria_ &&
            checkAddQuality(candidateStateID, graphNeighborhood, visibleNeighborhood, workState, newVertex, indent + 14))
   {
-    BOLT_DEBUG(indent + 2, vCriteria_ || 1, "Graph updated for: QUALITY");
+    BOLT_DEBUG(indent + 2, vAddedReason_, "Graph updated for: QUALITY");
 
     addReason = QUALITY;
     stateAdded = true;
@@ -1772,7 +1730,7 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
 
   if (states.size() < 3)
   {
-    BOLT_RED_DEBUG(indent + 2, true, "Somehow path was shrunk to less than three verticies: " << states.size());
+    BOLT_RED_DEBUG(indent + 2, true, "Somehow path was shrunk to less than three vertices: " << states.size());
     visual_->waitForUserFeedback("path shrunk to two");
     delete path;
     return false;
@@ -1943,7 +1901,6 @@ bool SparseDB::smoothQualityPath(geometric::PathGeometric *path, std::size_t ind
     visual_->viz1DeleteAllMarkers();
     visual_->viz1Path(path, 1, tools::GREEN);
     visual_->viz1Trigger();
-    // usleep(0.001 * 1000000);
     visual_->waitForUserFeedback("finished quality path");
   }
 
@@ -2037,7 +1994,7 @@ bool SparseDB::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVertex vp
     if (!astarSearch(vp, vpp, vertexPath, pathLength, indent + 6))
     {
       BOLT_RED_DEBUG(indent + 6, vQuality_, "No path found");
-      usleep(4 * 1000000);
+      visual_->waitForUserFeedback("No path found");
     }
     else
     {
@@ -2193,8 +2150,11 @@ void SparseDB::findCloseRepresentatives(base::State *workState, const StateID ca
       break;
     }  // for each attempt
 
-    visual_->viz3Trigger();
-    usleep(0.001 * 1000000);
+    if (visualizeQualityCriteria_ && visualizeSampler)
+    {
+      visual_->viz3Trigger();
+      usleep(0.001 * 1000000);
+    }
 
     if (!foundValidSample)
     {
@@ -2330,7 +2290,7 @@ double SparseDB::maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vp
     }
   }
   else
-    BOLT_YELLOW_DEBUG(indent, vQuality_, "Disabled nearby verticies in maxSpannerPath");
+    BOLT_YELLOW_DEBUG(indent, vQuality_, "Disabled nearby vertices in maxSpannerPath");
 
   // vpp is always qualified because of its previous checks
   qualifiedVertices.push_back(vpp);
@@ -2501,7 +2461,10 @@ void SparseDB::clearEdgesNearVertex(SparseVertex vertex)
   }
 
   std::size_t indent = 0;
-  displayDatabase(true, indent);
+
+  // Only display database if enabled
+  if (visualizeSparsGraph_ && visualizeSparsGraphSpeed_ > std::numeric_limits<double>::epsilon())
+    displayDatabase(true, indent);
 }
 
 void SparseDB::findGraphNeighbors(StateID candidateStateID, std::vector<SparseVertex> &graphNeighborhood,
@@ -2595,10 +2558,14 @@ bool SparseDB::checkRemoveCloseVertices(SparseVertex v1, std::size_t indent)
 
   BOLT_DEBUG(indent, vRemoveClose_, "Found visible nearby node, testing if able to replace " << v2 << " with " << v1);
 
-  visual_->viz6DeleteAllMarkers();
-  visual_->viz6State(getVertexState(v1), tools::LARGE, tools::GREEN, 0);
-  visual_->viz6State(getVertexState(v2), tools::LARGE, tools::RED, 0);  // RED = to be removed
-  visual_->viz6Trigger();
+  if (visualizeRemoveCloseVertices_)
+  {
+    visual_->viz6DeleteAllMarkers();
+    visual_->viz6State(getVertexState(v1), tools::LARGE, tools::GREEN, 0);
+    visual_->viz6State(getVertexState(v2), tools::LARGE, tools::RED, 0);  // RED = to be removed
+    visual_->viz6Trigger();
+    usleep(0.001*1000000);
+  }
 
   // Nearest neighbor is good candidate, next check if all of its connected neighbors can be connected to new vertex
   foreach (SparseEdge edge, boost::out_edges(v2, g_))
@@ -2632,7 +2599,7 @@ bool SparseDB::checkRemoveCloseVertices(SparseVertex v1, std::size_t indent)
   foreach (SparseEdge edge, boost::out_edges(v2, g_))
   {
     SparseVertex v3 = boost::target(edge, g_);
-    BOLT_DEBUG(indent + 2, 1, "Connecting v1= " << v1 << " to v3=" << v3);
+    BOLT_DEBUG(indent + 2, vRemoveClose_, "Connecting v1= " << v1 << " to v3=" << v3);
     addEdge(v1, v3, eINTERFACE, indent + 4);
   }
 
@@ -2644,9 +2611,9 @@ bool SparseDB::checkRemoveCloseVertices(SparseVertex v1, std::size_t indent)
   // Statistics
   numVerticesMoved_++;
 
-  displayDatabase(true, indent + 4);
-
-  // visual_->waitForUserFeedback("removed vertex");
+  // Only display database if enabled
+  if (visualizeSparsGraph_ && visualizeSparsGraphSpeed_ > std::numeric_limits<double>::epsilon())
+    displayDatabase(true, indent + 4);
 
   return true;
 }
@@ -2671,6 +2638,117 @@ std::size_t SparseDB::getDisjointSetsCount(bool verbose)
   return numSets;
 }
 
+void SparseDB::getDisjointSets(DisjointSetsParentKey &disjointSets)
+{
+  OMPL_INFORM("Get disjoint sets...");
+  disjointSets.clear();
+
+  // Flatten the parents tree so that the parent of every element is its representative.
+  disjointSets_.compress_sets(boost::vertices(g_).first, boost::vertices(g_).second);
+
+  // Count size of each disjoint set and group its containing vertices
+  typedef boost::graph_traits<SparseGraph>::vertex_iterator VertexIterator;
+  for (VertexIterator v = boost::vertices(g_).first; v != boost::vertices(g_).second; ++v)
+  {
+    // Do not count the search vertex within the sets
+    if (*v <= queryVertices_.back())
+      continue;
+
+    disjointSets[boost::get(boost::get(boost::vertex_predecessor, g_), *v)].push_back(*v);
+  }
+}
+
+void SparseDB::printDisjointSets(DisjointSetsParentKey &disjointSets)
+{
+  for (DisjointSetsParentKey::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
+       iterator++)
+  {
+    const SparseVertex v = iterator->first;
+    const std::size_t freq = iterator->second.size();
+    std::cout << "Parent: " << v << " frequency " << freq << std::endl;
+  }
+}
+
+void SparseDB::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
+{
+  OMPL_INFORM("Visualizing disjoint sets");
+
+  // Find the disjoint set that is the 'main' large one
+  std::size_t maxDisjointSetSize = 0;
+  SparseVertex maxDisjointSetParent;
+  for (DisjointSetsParentKey::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
+       iterator++)
+  {
+    const SparseVertex v = iterator->first;
+    const std::size_t freq = iterator->second.size();
+
+    if (freq > maxDisjointSetSize)
+    {
+      maxDisjointSetSize = freq;
+      maxDisjointSetParent = v;
+    }
+  }
+  OMPL_INFORM("The largest disjoint set is of size %u and parent vertex %u",
+              maxDisjointSetSize, maxDisjointSetParent);
+
+  // Display size of disjoint sets and visualize small ones
+  for (DisjointSetsParentKey::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
+       iterator++)
+  {
+    const SparseVertex v1 = iterator->first;
+    const std::size_t freq = iterator->second.size();
+    //std::cout << "Parent vertex: " << v1 << " StateID: " << getStateID(v1) << " Frequency: " << freq << std::endl;
+    //debugState(getVertexState(v1));
+
+    BOOST_ASSERT_MSG(freq > 0, "Frequnecy must be at least 1");
+
+    if (freq == maxDisjointSetSize)  // any subgraph that is smaller than the full graph
+      continue;                      // the main disjoint set is not considered a disjoint set
+
+    // Visualize sets of size one
+    if (freq == 1)
+    {
+      //visual_->viz5State(getVertexState(v1), tools::ROBOT, tools::RED, 0);
+      visual_->viz5State(getVertexState(v1), tools::MEDIUM, tools::RED, 0);
+      visual_->viz5Trigger();
+      visual_->waitForUserFeedback("showing disjoint set");
+    }
+
+    // Visualize large disjoint sets (greater than one)
+    if (freq > 1 && freq < 1000)
+    {
+      // Clear markers
+      visual_->viz4DeleteAllMarkers();
+
+      // Visualize this subgraph that is disconnected
+      // Loop through every every vertex and check if its part of this group
+      typedef boost::graph_traits<SparseGraph>::vertex_iterator VertexIterator;
+      for (VertexIterator v2 = boost::vertices(g_).first; v2 != boost::vertices(g_).second; ++v2)
+      {
+        if (boost::get(boost::get(boost::vertex_predecessor, g_), *v2) == v1)
+        {
+          visual_->viz4State(getVertexState(*v2), tools::LARGE, tools::RED, 0);
+
+          // Show state's edges
+          foreach (SparseEdge edge, boost::out_edges(*v2, g_))
+          {
+            SparseVertex e_v1 = boost::source(edge, g_);
+            SparseVertex e_v2 = boost::target(edge, g_);
+            visual_->viz4Edge(getVertexState(e_v1), getVertexState(e_v2), edgeWeightProperty_[edge]);
+          }
+          visual_->viz4Trigger();
+
+          // Show this robot state
+          //visual_->viz4State(getVertexState(*v2), tools::ROBOT, tools::DEFAULT, 0);
+          visual_->viz4State(getVertexState(*v2), tools::SMALL, tools::RED, 0);
+
+          usleep(0.1 * 1000000);
+        }
+      }
+    }
+  }
+}
+
 std::size_t SparseDB::checkConnectedComponents()
 {
   // Check how many disjoint sets are in the sparse graph (should be none)
@@ -2686,22 +2764,6 @@ std::size_t SparseDB::checkConnectedComponents()
 bool SparseDB::sameComponent(SparseVertex v1, SparseVertex v2)
 {
   return boost::same_component(v1, v2, disjointSets_);
-}
-
-void SparseDB::addEdgeFromFile(BoltStorage::BoltEdgeData e)
-{
-  std::size_t indent = 0;
-
-  const SparseVertex v1 = e.endpoints_.first;
-  const SparseVertex v2 = e.endpoints_.second;
-
-  // Error check
-  BOOST_ASSERT_MSG(v1 <= getNumVertices(), "Vertex 1 out of range of possible verticies");
-  BOOST_ASSERT_MSG(v2 <= getNumVertices(), "Vertex 2 out of range of possible verticies");
-
-  // Add edge
-  // SparseEdge newE =
-  addEdge(v1, v2, eCONNECTIVITY /*TODO*/, indent + 2);
 }
 
 StateID SparseDB::addState(base::State *state)
@@ -2768,17 +2830,13 @@ SparseVertex SparseDB::addVertex(StateID stateID, const GuardType &type, std::si
       visual_->viz2Trigger();
       usleep(visualizeSparsGraphSpeed_ * 1000000);
     }
-
-    // if (visualizeOverlayNodes_)  // after initial spars graph is created, show additions not from grid
-    // {
-    //   visual_->viz4State(getVertexState(v), tools::MEDIUM, color, sparseDelta_);
-    //   visual_->viz4Trigger();
-    //   usleep(0.001 * 1000000);
-    // }
   }
 
   if (visualizeVoronoiDiagramAnimated_ || (visualizeVoronoiDiagram_ && useFourthCriteria_))
     visual_->vizVoronoiDiagram();
+
+  // Enable saving
+  graphUnsaved_ = true;
 
   return v;
 }
@@ -2914,14 +2972,27 @@ SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, st
       usleep(visualizeSparsGraphSpeed_ * 1000000);
     }
 
-    if (edgeWeightProperty_[e] > ignoreEdgesSmallerThan_)
+    // Show only the largest edges
+    if (false && edgeWeightProperty_[e] > ignoreEdgesSmallerThan_)
     {
       // std::cout << "Edge distance: " << edgeWeightProperty_[e] << std::endl;
       visual_->viz4Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
       visual_->viz4Trigger();
       usleep(0.001 * 1000000);
     }
+
+    // Show each added edge for a blip
+    if (false)
+    {
+      visual_->viz4DeleteAllMarkers();
+      visual_->viz4Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(eCONNECTIVITY));
+      visual_->viz4Trigger();
+      usleep(0.001 * 1000000);
+    }
   }
+
+  // Enable saving
+  graphUnsaved_ = true;
 
   return e;
 }
@@ -2964,6 +3035,11 @@ const base::State *SparseDB::getVertexState(SparseVertex v) const
 const base::State *SparseDB::getState(StateID stateID) const
 {
   return denseCache_->getState(stateID);
+}
+
+const StateID SparseDB::getStateID(SparseVertex v) const
+{
+  return stateCacheProperty_[v];
 }
 
 void SparseDB::displayDatabase(bool showVertices, std::size_t indent)
@@ -3058,7 +3134,7 @@ void SparseDB::displayDatabase(bool showVertices, std::size_t indent)
 
   // Publish remaining edges
   visual_->viz2Trigger();
-  usleep(0.01 * 1000000);
+  usleep(0.001 * 1000000);
 }
 
 double SparseDB::distanceFunction(const SparseVertex a, const SparseVertex b) const
@@ -3135,7 +3211,7 @@ void SparseDB::visualizeInterfaces(SparseVertex v, std::size_t indent)
   }
 
   visual_->viz6Trigger();
-  usleep(0.1 * 1000000);
+  usleep(0.01 * 1000000);
 }
 
 void SparseDB::visualizeAllInterfaces(std::size_t indent)
@@ -3167,7 +3243,7 @@ void SparseDB::visualizeAllInterfaces(std::size_t indent)
     }
   }
   visual_->viz6Trigger();
-  usleep(0.1 * 1000000);
+  usleep(0.01 * 1000000);
 }
 
 std::pair<std::size_t, std::size_t> SparseDB::getInterfaceStateStorageSize()

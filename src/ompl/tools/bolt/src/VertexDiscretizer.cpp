@@ -44,7 +44,6 @@
 // Boost
 #include <boost/foreach.hpp>
 #include <boost/thread.hpp>
-//#include <boost/math/constants/constants.hpp>
 
 // Profiling
 #include <valgrind/callgrind.h>
@@ -141,6 +140,19 @@ void VertexDiscretizer::generateVertices()
   const double range = bounds.high[jointID] - bounds.low[jointID] - startingValueOffset_;
   const std::size_t jointIncrements = ceil(range / discretization_);
 
+  assert(jointIncrements >= 1);
+
+  // Check that we have enough jointIncrements for all the threads
+  if (jointIncrements < numThreads_)
+  {
+    OMPL_INFORM("There are fewer joint_0 increments (%u) at current discretization (%f) than available threads (%u), "
+              "underutilizing threading",
+              jointIncrements, discretization_, numThreads_);
+    OMPL_INFORM("Optimal discretization: %f", range / double(numThreads_));
+    numThreads_ = jointIncrements;
+  }
+  std::size_t jointIncrementsPerThread = jointIncrements / numThreads_;
+
   std::cout << "-------------------------------------------------------" << std::endl;
   std::cout << std::fixed << std::setprecision(4);
   std::cout << "Discretization Setup: " << std::endl;
@@ -150,19 +162,6 @@ void VertexDiscretizer::generateVertices()
   std::cout << "  J0 High:                " << bounds.high[jointID] << std::endl;
   std::cout << "  J0 Range:               " << range << std::endl;
   std::cout << "  J0 Increments:          " << jointIncrements << std::endl;
-  assert(jointIncrements >= 1);
-
-  // Check that we have enough jointIncrements for all the threads
-  if (jointIncrements < numThreads_)
-  {
-    OMPL_WARN("There are fewer joint_0 increments (%u) at current discretization (%f) than available threads (%u), "
-              "underutilizing threading",
-              jointIncrements, discretization_, numThreads_);
-    OMPL_INFORM("Optimal discretization: %f", range / double(numThreads_));
-    numThreads_ = jointIncrements;
-  }
-  std::size_t jointIncrementsPerThread = jointIncrements / numThreads_;
-
   std::cout << "  J0 IncrementsPerThread: " << jointIncrementsPerThread << std::endl;
   std::cout << "  Total states:           " << pow(jointIncrements, dim) << std::endl;
   std::cout << "  Num Threads:            " << numThreads_ << std::endl;
