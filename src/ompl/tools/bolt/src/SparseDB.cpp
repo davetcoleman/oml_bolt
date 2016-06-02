@@ -540,7 +540,7 @@ void SparseDB::initializeQueryState()
 
   // Create a query state for each possible thread
   queryVertices_.resize(numThreads_);
-  queryState_.resize(numThreads_);
+  queryStates_.resize(numThreads_);
 
   for (std::size_t threadID = 0; threadID < numThreads_; ++threadID)
   {
@@ -812,7 +812,7 @@ void SparseDB::createSPARSOuterLoop()
 
     // Visualize
     if (visualizeSparsGraph_)
-      visual_->viz2Trigger();
+      visual_->viz1Trigger();
 
     std::cout << "Succeeded in inserting " << sucessfulInsertions << " vertices on the " << loopAttempt
               << " loop, remaining uninserted vertices: " << vertexInsertionOrder.size()
@@ -845,7 +845,7 @@ void SparseDB::createSPARSOuterLoop()
   }
   else if (visualizeSparsGraphSpeed_ < std::numeric_limits<double>::epsilon())
   {
-    visual_->viz2Trigger();
+    visual_->viz1Trigger();
     usleep(0.001 * 1000000);
   }
 }
@@ -874,7 +874,7 @@ bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOr
                 << " Cache usage: " << denseCache_->getPercentCachedCollisionChecks() << "%" << std::endl;
       std::cout << ANSI_COLOR_RESET;
       if (visualizeSparsGraph_)
-        visual_->viz2Trigger();
+        visual_->viz1Trigger();
     }
 
     // Run SPARS checks
@@ -890,7 +890,7 @@ bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOr
       // Visualize the failed vertex as a small red dot
       if (visualizeSparsGraph_ && false)
       {
-        visual_->viz2State(denseCache_->getState(vertexIt->stateID_), tools::SMALL, tools::RED, 0);
+        visual_->viz1State(denseCache_->getState(vertexIt->stateID_), tools::SMALL, tools::RED, 0);
       }
       vertexIt++;  // increment since we didn't remove anything from the list
     }
@@ -1208,9 +1208,9 @@ bool SparseDB::addStateToRoadmap(StateID candidateStateID, SparseVertex &newVert
 
   if (visualizeAttemptedStates_)
   {
-    visual_->viz1DeleteAllMarkers();
-    visual_->viz1State(getState(candidateStateID), tools::LARGE, tools::GREEN, 0);
-    visual_->viz1Trigger();
+    visual_->viz2DeleteAllMarkers();
+    visual_->viz2State(getState(candidateStateID), tools::LARGE, tools::GREEN, 0);
+    visual_->viz2Trigger();
     usleep(0.001 * 1000000);
   }
 
@@ -1330,9 +1330,9 @@ bool SparseDB::checkAddConnectivity(StateID candidateStateID, std::vector<Sparse
 
         if (visualizeConnectivity_)
         {
-          visual_->viz1State(getVertexState(visibleNeighborhood[i]), tools::MEDIUM, tools::BLUE, 0);
-          visual_->viz1State(getVertexState(visibleNeighborhood[j]), tools::MEDIUM, tools::BLUE, 0);
-          visual_->viz1Trigger();
+          visual_->viz2State(getVertexState(visibleNeighborhood[i]), tools::MEDIUM, tools::BLUE, 0);
+          visual_->viz2State(getVertexState(visibleNeighborhood[j]), tools::MEDIUM, tools::BLUE, 0);
+          visual_->viz2Trigger();
           usleep(0.001 * 1000000);
         }
 
@@ -1854,9 +1854,9 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
 
       if (visualizeQualityPathSimp_)
       {
-        visual_->viz1DeleteAllMarkers();
-        visual_->viz1Path(path, 1, tools::RED);
-        visual_->viz1Trigger();
+        visual_->viz2DeleteAllMarkers();
+        visual_->viz2Path(path, 1, tools::RED);
+        visual_->viz2Trigger();
         usleep(0.001 * 1000000);
 
         visual_->waitForUserFeedback("Add path state is too similar to v");
@@ -1928,9 +1928,9 @@ bool SparseDB::smoothQualityPathOriginal(geometric::PathGeometric *path, std::si
   // Visualize path
   if (visualizeQualityPathSimp_)
   {
-    visual_->viz1DeleteAllMarkers();
-    visual_->viz1Path(path, 1, tools::BLUE);
-    visual_->viz1Trigger();
+    visual_->viz2DeleteAllMarkers();
+    visual_->viz2Path(path, 1, tools::BLUE);
+    visual_->viz2Trigger();
     usleep(0.001 * 1000000);
   }
 
@@ -1960,9 +1960,9 @@ bool SparseDB::smoothQualityPath(geometric::PathGeometric *path, std::size_t ind
   // Visualize path
   if (visualizeQualityPathSimp_)
   {
-    visual_->viz1DeleteAllMarkers();
-    visual_->viz1Path(path, 1, tools::BLUE);
-    visual_->viz1Trigger();
+    visual_->viz2DeleteAllMarkers();
+    visual_->viz2Path(path, 1, tools::BLUE);
+    visual_->viz2Trigger();
     usleep(0.001 * 1000000);
   }
 
@@ -1982,9 +1982,9 @@ bool SparseDB::smoothQualityPath(geometric::PathGeometric *path, std::size_t ind
 
     if (visualizeQualityPathSimp_)
     {
-      visual_->viz1DeleteAllMarkers();
-      visual_->viz1Path(path, 1, tools::ORANGE);
-      visual_->viz1Trigger();
+      visual_->viz2DeleteAllMarkers();
+      visual_->viz2Path(path, 1, tools::ORANGE);
+      visual_->viz2Trigger();
       usleep(0.1 * 1000000);
       // visual_->waitForUserFeedback("optimizing path");
     }
@@ -1993,9 +1993,9 @@ bool SparseDB::smoothQualityPath(geometric::PathGeometric *path, std::size_t ind
 
     if (visualizeQualityPathSimp_)
     {
-      visual_->viz1DeleteAllMarkers();
-      visual_->viz1Path(path, 1, tools::BLUE);
-      visual_->viz1Trigger();
+      visual_->viz2DeleteAllMarkers();
+      visual_->viz2Path(path, 1, tools::BLUE);
+      visual_->viz2Trigger();
       usleep(0.1 * 1000000);
       // visual_->waitForUserFeedback("optimizing path");
     }
@@ -2007,9 +2007,9 @@ bool SparseDB::smoothQualityPath(geometric::PathGeometric *path, std::size_t ind
 
   if (visualizeQualityPathSimp_)
   {
-    visual_->viz1DeleteAllMarkers();
-    visual_->viz1Path(path, 1, tools::GREEN);
-    visual_->viz1Trigger();
+    visual_->viz2DeleteAllMarkers();
+    visual_->viz2Path(path, 1, tools::GREEN);
+    visual_->viz2Trigger();
     visual_->waitForUserFeedback("finished quality path");
   }
 
@@ -2176,9 +2176,9 @@ SparseVertex SparseDB::findGraphRepresentative(base::State *state, std::size_t i
   const std::size_t threadID = 0;
 
   // Search
-  queryState_[threadID] = state;
+  queryStates_[threadID] = state;
   nn_->nearestR(queryVertices_[threadID], sparseDelta_, graphNeighbors);
-  queryState_[threadID] = nullptr;
+  queryStates_[threadID] = nullptr;
 
   BOLT_DEBUG(indent + 2, vQuality_, "Found " << graphNeighbors.size() << " nearest neighbors (graph rep) within "
                                                                          "SparseDelta " << sparseDelta_);
@@ -2535,9 +2535,9 @@ void SparseDB::abandonLists(base::State *state)
   const std::size_t threadID = 0;
 
   // Search
-  queryState_[threadID] = state;
+  queryStates_[threadID] = state;
   nn_->nearestR(queryVertices_[threadID], sparseDelta_, graphNeighbors);
-  queryState_[threadID] = nullptr;
+  queryStates_[threadID] = nullptr;
 
   // For each of the vertices
   std::size_t deletions = 0;
@@ -2586,9 +2586,9 @@ void SparseDB::findGraphNeighbors(StateID candidateStateID, std::vector<SparseVe
   const bool verbose = false;
 
   // Search
-  queryState_[threadID] = denseCache_->getStateNonConst(candidateStateID);
+  queryStates_[threadID] = denseCache_->getStateNonConst(candidateStateID);
   nn_->nearestR(queryVertices_[threadID], sparseDelta_, graphNeighborhood);
-  queryState_[threadID] = nullptr;
+  queryStates_[threadID] = nullptr;
 
   // Now that we got the neighbors from the NN, we must remove any we can't see
   for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
@@ -2796,12 +2796,13 @@ void SparseDB::getDisjointSets(DisjointSetsParentKey &disjointSets)
 
 void SparseDB::printDisjointSets(DisjointSetsParentKey &disjointSets)
 {
+  OMPL_INFORM("Print disjoint sets");
   for (DisjointSetsParentKey::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
        iterator++)
   {
     const SparseVertex v = iterator->first;
     const std::size_t freq = iterator->second.size();
-    std::cout << "Parent: " << v << " frequency " << freq << std::endl;
+    std::cout << "  Parent: " << v << " frequency " << freq << std::endl;
   }
 }
 
@@ -2833,9 +2834,9 @@ void SparseDB::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
     const SparseVertex v1 = iterator->first;
     const std::size_t freq = iterator->second.size();
 
-    std::cout << std::endl;
-    std::cout << "Parent vertex: " << v1 << " StateID: " << getStateID(v1) << " Frequency: " << freq << std::endl;
-    debugState(getVertexState(v1));
+    // std::cout << std::endl;
+    // std::cout << "Parent vertex: " << v1 << " StateID: " << getStateID(v1) << " Frequency: " << freq << std::endl;
+    // debugState(getVertexState(v1));
 
     BOOST_ASSERT_MSG(freq > 0, "Frequency must be at least 1");
 
@@ -2968,7 +2969,7 @@ SparseVertex SparseDB::addVertex(StateID stateID, const VertexType &type, std::s
 
     if (visualizeSparsGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
-      visual_->viz2Trigger();
+      visual_->viz1Trigger();
       usleep(visualizeSparsGraphSpeed_ * 1000000);
     }
   }
@@ -3019,10 +3020,10 @@ void SparseDB::visualizeVertex(SparseVertex v, const VertexType &type)
 
   // Show visibility region around vertex
   if (visualizeDatabaseCoverage_)
-    visual_->viz2State(getVertexState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
+    visual_->viz1State(getVertexState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
 
   // Show vertex
-  visual_->viz2State(getVertexState(v), size, color, 0);
+  visual_->viz1State(getVertexState(v), size, color, 0);
 }
 
 void SparseDB::removeVertex(SparseVertex v)
@@ -3091,10 +3092,10 @@ SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, st
   // Visualize
   if (visualizeSparsGraph_)
   {
-    visual_->viz2Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
+    visual_->viz1Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
     if (visualizeSparsGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
-      visual_->viz2Trigger();
+      visual_->viz1Trigger();
       usleep(visualizeSparsGraphSpeed_ * 1000000);
     }
 
@@ -3146,6 +3147,11 @@ edgeColors SparseDB::convertEdgeTypeToColor(EdgeType edgeType)
   return eORANGE;  // dummy
 }
 
+base::State *&SparseDB::getQueryStateNonConst(SparseVertex v)
+{
+  return queryStates_[v];
+}
+
 base::State *&SparseDB::getVertexStateNonConst(SparseVertex v)
 {
   BOOST_ASSERT_MSG(v >= queryVertices_.size(), "Attempted to request state of query vertex using wrong function");
@@ -3181,7 +3187,7 @@ void SparseDB::displayDatabase(bool showVertices, std::size_t indent)
   }
 
   // Clear previous visualization
-  visual_->viz2DeleteAllMarkers();
+  visual_->viz1DeleteAllMarkers();
 
   const std::size_t MIN_FEEDBACK = 10000;
   if (visualizeDatabaseEdges_)
@@ -3198,14 +3204,14 @@ void SparseDB::displayDatabase(bool showVertices, std::size_t indent)
       SparseVertex v2 = boost::target(e, g_);
 
       // Visualize
-      visual_->viz2Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(edgeTypeProperty_[e]));
+      visual_->viz1Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(edgeTypeProperty_[e]));
 
       // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
       {
         std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumEdges()) * 100.0
                   << "% " << std::flush;
-        visual_->viz2Trigger();
+        visual_->viz1Trigger();
         usleep(0.01 * 1000000);
       }
 
@@ -3249,7 +3255,7 @@ void SparseDB::displayDatabase(bool showVertices, std::size_t indent)
       {
         std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumVertices()) * 100.0
                   << "% " << std::flush;
-        visual_->viz2Trigger();
+        visual_->viz1Trigger();
         usleep(0.01 * 1000000);
       }
       count++;
@@ -3259,7 +3265,7 @@ void SparseDB::displayDatabase(bool showVertices, std::size_t indent)
   }
 
   // Publish remaining edges
-  visual_->viz2Trigger();
+  visual_->viz1Trigger();
   usleep(0.001 * 1000000);
 }
 
@@ -3268,11 +3274,11 @@ double SparseDB::distanceFunction(const SparseVertex a, const SparseVertex b) co
   // Special case: query vertices store their states elsewhere
   if (a < numThreads_)
   {
-    return si_->distance(queryState_[a], getVertexState(b));
+    return si_->distance(queryStates_[a], getVertexState(b));
   }
   if (b < numThreads_)
   {
-    return si_->distance(getVertexState(a), queryState_[b]);
+    return si_->distance(getVertexState(a), queryStates_[b]);
   }
 
   // Error check
@@ -3411,9 +3417,9 @@ SparseVertex SparseDB::getSparseRepresentative(base::State *state)
   const std::size_t numNeighbors = 1;
 
   // Search
-  queryState_[threadID] = state;
+  queryStates_[threadID] = state;
   nn_->nearestK(queryVertices_[threadID], numNeighbors, graphNeighbors);
-  queryState_[threadID] = nullptr;
+  queryStates_[threadID] = nullptr;
 
   if (graphNeighbors.empty())
   {

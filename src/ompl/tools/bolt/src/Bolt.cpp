@@ -160,16 +160,16 @@ void Bolt::visualize()
     }
   }
 
-  OMPL_WARN("Disabled viz path solution base");
-  // const ompl::base::PathPtr pathSolutionBase = pdef_->getSolutionPath();
+  const ompl::base::PathPtr pathSolutionBase = pdef_->getSolutionPath();
+  geometric::PathGeometric *solutionPath = static_cast<geometric::PathGeometric*>(pathSolutionBase.get());
 
-  // // Show smoothed & interpolated path
-  // visual_->viz6Path(pathSolutionBase, /*style*/ 1, tools::BLUE);
-  // visual_->viz6Trigger();
+  // Show smoothed & interpolated path
+  visual_->viz6Path(solutionPath, /*style*/ 1, tools::BLUE);
+  visual_->viz6Trigger();
 
-  // // Show robot animated if not 2D
-  // if (si_->getStateSpace()->getDimension() > 3)
-  //   visual_->viz6Path(pathSolutionBase, /*style*/ 3, tools::DEFAULT);
+  // Show robot animated if not 2D
+  if (si_->getStateSpace()->getDimension() > 3)
+    visual_->viz6Path(solutionPath, /*style*/ 3, tools::DEFAULT);
 }
 
 void Bolt::logResults()
@@ -320,6 +320,7 @@ bool Bolt::loadOrGenerate()
   {
     return false;
   }
+  sparseDB_->displayDatabase();
 
   return true;
 }
@@ -395,7 +396,7 @@ SparseDBPtr Bolt::getSparseDB()
 bool Bolt::doPostProcessing()
 {
   OMPL_INFORM("Performing post-processing for %i queued solution paths", queuedSolutionPaths_.size());
-  OMPL_ERROR("TODO");
+  OMPL_INFORM("TODO post-processing");
 
   /*
   // Benchmark runtime

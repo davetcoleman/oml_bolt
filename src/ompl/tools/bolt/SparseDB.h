@@ -400,6 +400,9 @@ public:
     return denseCache_;
   }
 
+  /** \brief Get the state of a vertex used for querying - i.e. vertices 0-11 for 12 thread system */
+  base::State *&getQueryStateNonConst(SparseVertex v);
+
   /** \brief Shortcut function for getting the state of a vertex */
   base::State*& getVertexStateNonConst(SparseVertex v);
   const base::State* getVertexState(SparseVertex v) const;
@@ -489,7 +492,7 @@ protected:
 
   /** \brief Vertices for performing nearest neighbor queries on multiple threads */
   std::vector<SparseVertex> queryVertices_;
-  std::vector<base::State*> queryState_;
+  std::vector<base::State*> queryStates_;
 
   /** \brief Access to the weights of each Edge */
   boost::property_map<SparseGraph, boost::edge_weight_t>::type edgeWeightProperty_;

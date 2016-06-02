@@ -652,7 +652,7 @@ bool BoltRetrieveRepair::findGraphNeighbors(const base::State *state, std::vecto
   // Setup search by getting a non-const version of the focused state
   const std::size_t threadID = 0;
   base::State *stateCopy = si_->cloneState(state);
-  sparseDB_->getVertexStateNonConst(sparseDB_->queryVertices_[threadID]) = stateCopy;
+  sparseDB_->getQueryStateNonConst(sparseDB_->queryVertices_[threadID]) = stateCopy;
 
   // Search
   double find_nearest_k_neighbors;
@@ -663,7 +663,7 @@ bool BoltRetrieveRepair::findGraphNeighbors(const base::State *state, std::vecto
   sparseDB_->nn_->nearestK(sparseDB_->queryVertices_[threadID], find_nearest_k_neighbors, graphNeighborhood);
 
   // Reset
-  sparseDB_->getVertexStateNonConst(sparseDB_->queryVertices_[threadID]) = nullptr;
+  sparseDB_->getQueryStateNonConst(sparseDB_->queryVertices_[threadID]) = nullptr;
 
   // Filter neighbors based on level
   if (requiredLevel >= 0)
