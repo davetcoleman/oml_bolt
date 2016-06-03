@@ -93,13 +93,6 @@ public:
    */
   bool addSample(StateID candidateStateID, std::size_t indent);
 
-  /** \brief Helper function for choosing the correct method for vertex insertion ordering */
-  // void getVertexInsertionOrdering(std::list<WeightedVertex>& vertexInsertionOrder);
-
-  // bool getPopularityOrder(std::list<WeightedVertex>& vertexInsertionOrder);
-  // bool getDefaultOrder(std::list<WeightedVertex>& vertexInsertionOrder);
-  // bool getRandomOrder(std::list<WeightedVertex>& vertexInsertionOrder);
-
   /**
    * \brief Run various checks/criteria to determine if to keep TaskVertex in sparse graph
    * \param denseVertex - the original vertex to consider

@@ -150,6 +150,12 @@ void SparseGraph::clearStatistics()
   numSamplesAddedForQuality_ = 0;
 }
 
+bool SparseGraph::isEmpty() const
+{
+  assert(!(getNumVertices() < getNumQueryVertices()));
+  return (getNumVertices() == getNumQueryVertices() && getNumEdges() == 0);
+}
+
 bool SparseGraph::load()
 {
   // Load collision cache
@@ -640,7 +646,6 @@ std::size_t SparseGraph::getDisjointSetsCount(bool verbose)
 
 void SparseGraph::getDisjointSets(DisjointSetsParentKey &disjointSets)
 {
-  OMPL_INFORM("Get disjoint sets...");
   disjointSets.clear();
 
   // Flatten the parents tree so that the parent of every element is its representative.

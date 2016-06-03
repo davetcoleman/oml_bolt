@@ -174,12 +174,6 @@ public:
     return boost::num_edges(g_);
   }
 
-  /** \brief Determine if no nodes or edges have been added to the graph except query vertices */
-  unsigned int isEmpty() const
-  {
-    return (getNumVertices() <= getNumQueryVertices() && getNumEdges() == 0);
-  }
-
   /** \brief Free all the memory allocated by the database */
   void freeMemory();
 
@@ -188,14 +182,8 @@ public:
 
   void clearStatistics();
 
-  /**
-   * \brief Check if anything has been loaded into DB
-   * \return true if has no nodes
-   */
-  bool isEmpty()
-  {
-    return !getNumVertices();
-  }
+  /** \brief Determine if no nodes or edges have been added to the graph except query vertices */
+  bool isEmpty() const;
 
   /** \brief Check that the query vertex is initialized (used for internal nearest neighbor searches) */
   void initializeQueryState();

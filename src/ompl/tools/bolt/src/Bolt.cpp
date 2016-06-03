@@ -100,8 +100,9 @@ void Bolt::setup(void)
     if (!boltPlanner_->isSetup())
       boltPlanner_->setup();
 
-    // Setup database
+    // Setup SPARS
     sparseGraph_->setup();
+    sparseCriteria_->setup();
 
     // Set the configured flag
     configured_ = true;
@@ -351,10 +352,15 @@ void Bolt::printResultsInfo(std::ostream &out) const
 
 bool Bolt::loadOrGenerate()
 {
+  std::size_t indent = 0;
+
   // Load from file or generate new grid
   if (!sparseGraph_->isEmpty())
   {
-    OMPL_INFORM("Database already loaded");
+    BOLT_YELLOW_DEBUG(indent, 1, "Database already loaded, vertices: " << sparseGraph_->getNumVertices()
+                      << ", edges: " << sparseGraph_->getNumEdges()
+                      << ", queryV: " << sparseGraph_->getNumQueryVertices());
+
     return true;
   }
 
