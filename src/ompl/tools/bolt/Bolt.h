@@ -192,7 +192,7 @@ protected:
   BoltRetrieveRepairPtr boltPlanner_;
 
   /** \brief A shared object between all the planners for saving and loading previous experience */
-  SparseGraphPtr sparseDB_;
+  SparseGraphPtr sparseGraph_;
 
   /** \brief Accumulated experiences to be later added to experience database */
   std::vector<geometric::PathGeometric> queuedSolutionPaths_;

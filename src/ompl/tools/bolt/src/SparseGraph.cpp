@@ -1065,7 +1065,7 @@ bool SparseGraph::getPopularityOrder(std::list<WeightedVertex> &vertexInsertionO
   std::priority_queue<WeightedVertex, std::vector<WeightedVertex>, CompareWeightedVertex> pqueue;
 
   // Loop through each popular edge in the dense graph
-  foreach (PlanningVertex v, boost::vertices(g_))
+  foreach (TaskVertex v, boost::vertices(g_))
   {
     // Do not process the search vertex, it is null
     if (v <= queryVertices_.back())
@@ -1074,7 +1074,7 @@ bool SparseGraph::getPopularityOrder(std::list<WeightedVertex> &vertexInsertionO
     if (verbose)
       std::cout << "Vertex: " << v << std::endl;
     double popularity = 0;
-    foreach (PlanningVertex edge, boost::out_edges(v, g_))
+    foreach (TaskVertex edge, boost::out_edges(v, g_))
     {
       if (verbose)
         std::cout << "  Edge: " << edge << std::endl;
@@ -1130,7 +1130,7 @@ bool SparseGraph::getDefaultOrder(std::list<WeightedVertex> &vertexInsertionOrde
   double largestWeight = -1 * std::numeric_limits<double>::infinity();
 
   // Loop through each popular edge in the dense graph
-  foreach (PlanningVertex v, boost::vertices(g_))
+  foreach (TaskVertex v, boost::vertices(g_))
   {
     // Do not process the search vertex, it is null
     if (v <= queryVertices_.back())
@@ -1140,7 +1140,7 @@ bool SparseGraph::getDefaultOrder(std::list<WeightedVertex> &vertexInsertionOrde
       std::cout << "Vertex: " << v << std::endl;
     double popularity = 0;
 
-    foreach (PlanningVertex edge, boost::out_edges(v, g_))
+    foreach (TaskVertex edge, boost::out_edges(v, g_))
     {
       if (verbose)
         std::cout << "  Edge: " << edge << std::endl;

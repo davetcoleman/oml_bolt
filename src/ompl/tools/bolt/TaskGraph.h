@@ -33,29 +33,24 @@
  *********************************************************************/
 
 /* Author: Dave Coleman <dave@dav.ee>
-   Desc:   Experience database for storing and reusing past path plans
+   Desc:   Dynamic graph for storing copies of a sparse graph along with cartesian task dimensions
 */
 
-#ifndef OMPL_TOOLS_BOLT_DENSEDB_
-#define OMPL_TOOLS_BOLT_DENSEDB_
+#ifndef OMPL_TOOLS_BOLT_PLANNING_GRAPH_
+#define OMPL_TOOLS_BOLT_PLANNING_GRAPH_
 
 // OMPL
 #include <ompl/base/StateSpace.h>
 #include <ompl/geometric/PathGeometric.h>
-#include <ompl/base/Planner.h>
-//#include <ompl/base/PlannerData.h>
-//#include <ompl/base/PlannerDataStorage.h>
 #include <ompl/datastructures/NearestNeighbors.h>
 #include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/SparseGraph.h>
 #include <ompl/tools/bolt/BoltGraph.h>
 
 // Boost
-#include <boost/function.hpp>
-#include <boost/thread.hpp>
+//#include <boost/function.hpp>
+//#include <boost/thread.hpp>
 
-// this package
-#include <ompl/tools/bolt/BoltStorage.h>
 #include <ompl/tools/bolt/DenseCache.h>
 
 namespace ompl
@@ -65,24 +60,24 @@ namespace tools
 namespace bolt
 {
 /**
-   @anchor DenseDB
+   @anchor TaskGraph
    @par Short description
    Database for storing and retrieving past plans
 */
 
 /// @cond IGNORE
-OMPL_CLASS_FORWARD(DenseDB);
+OMPL_CLASS_FORWARD(TaskGraph);
 OMPL_CLASS_FORWARD(SparseGraph);
 OMPL_CLASS_FORWARD(Discretizer);
 /// @endcond
 
-typedef std::map<PlanningVertex, std::vector<PlanningVertex> > DisjointSetsParentKey;
+typedef std::map<TaskVertex, std::vector<TaskVertex> > DisjointSetsParentKey;
 
-/** \class ompl::tools::bolt::DenseDBPtr
-    \brief A boost shared pointer wrapper for ompl::tools::bolt::DenseDB */
+/** \class ompl::tools::bolt::TaskGraphPtr
+    \brief A boost shared pointer wrapper for ompl::tools::bolt::TaskGraph */
 
 /** \brief Save and load entire paths from file */
-class DenseDB
+class TaskGraph
 {
   friend class BoltRetrieveRepair;
   friend class SparseGraph;
@@ -96,17 +91,17 @@ public:
   //  * Used to artifically supress edges during A* search.
   //  * \implements ReadablePropertyMapConcept
   //  */
-  // class PlanningVertexWeightMap
+  // class TaskEdgeWeightMap
   // {
   // private:
-  //   const DenseGraph& g_;  // Graph used
-  //   const PlanningVertexCollisionStateMap& collisionStates_;
+  //   const TaskAdjList& g_;  // Graph used
+  //   const TaskVertexCollisionStateMap& collisionStates_;
   //   const double popularityBias_;
   //   const bool popularityBiasEnabled_;
 
   // public:
   //   /** Map key type. */
-  //   typedef PlanningVertex key_type;
+  //   typedef TaskVertex key_type;
   //   /** Map value type. */
   //   typedef double value_type;
   //   /** Map auxiliary value type. */
@@ -118,7 +113,7 @@ public:
   //    * Construct map for certain constraints.
   //    * \param graph         Graph to use
   //    */
-  //   PlanningVertexWeightMap(const DenseGraph& graph, const PlanningVertexCollisionStateMap& collisionStates,
+  //   TaskEdgeWeightMap(const TaskAdjList& graph, const TaskVertexCollisionStateMap& collisionStates,
   //                 const double& popularityBias, const bool popularityBiasEnabled);
 
   //   /**
@@ -126,7 +121,7 @@ public:
   //    * \param e the edge
   //    * \return infinity if \a e lies in a forbidden neighborhood; actual weight of \a e otherwise
   //    */
-  //   double get(PlanningVertex e) const;
+  //   double get(TaskEdge e) const;
   // };
 
   ////////////////////////////////////////////////////////////////////////////////////////
@@ -138,22 +133,22 @@ public:
   class CustomAstarVisitor : public boost::default_astar_visitor
   {
   private:
-    PlanningVertex goal_;  // Goal Vertex of the search
-    DenseDB* parent_;
+    TaskVertex goal_;  // Goal Vertex of the search
+    TaskGraph* parent_;
 
   public:
     /**
      * Construct a visitor for a given search.
      * \param goal  goal vertex of the search
      */
-    CustomAstarVisitor(PlanningVertex goal, DenseDB* parent);
+    CustomAstarVisitor(TaskVertex goal, TaskGraph* parent);
 
     /**
      * \brief Invoked when a vertex is first discovered and is added to the OPEN list.
      * \param v current Vertex
      * \param g graph we are searching on
      */
-    void discover_vertex(PlanningVertex v, const DenseGraph& g) const;
+    void discover_vertex(TaskVertex v, const TaskAdjList& g) const;
 
     /**
      * \brief Check if we have arrived at the goal.
@@ -164,20 +159,20 @@ public:
      * \param g graph we are searching on
      * \throw foundGoalException if \a u is the goal
      */
-    void examine_vertex(PlanningVertex v, const DenseGraph& g) const;
+    void examine_vertex(TaskVertex v, const TaskAdjList& g) const;
   };
 
   ////////////////////////////////////////////////////////////////////////////////////////
-  // DenseDB MEMBER FUNCTIONS
+  // TaskGraph MEMBER FUNCTIONS
   ////////////////////////////////////////////////////////////////////////////////////////
 
   /** \brief Constructor needs the state space used for planning.
    *  \param space - state space
    */
-  DenseDB(base::SpaceInformationPtr si, VisualizerPtr visual);
+  TaskGraph(base::SpaceInformationPtr si, VisualizerPtr visual);
 
   /** \brief Deconstructor */
-  virtual ~DenseDB(void);
+  virtual ~TaskGraph(void);
 
   /** \brief Initialize database */
   bool setup();
@@ -209,9 +204,6 @@ public:
    */
   bool save();
 
-  /** \brief Create grid */
-  bool generateGrid();
-
   /**
    * \brief Add a new solution path to our database. Des not actually save to file so
    *        experience will be lost if save() is not called
@@ -222,11 +214,11 @@ public:
 
   /** \brief Helper function for postProcessPath */
   bool postProcessPathWithNeighbors(geometric::PathGeometric& solutionPath,
-                                    const std::vector<PlanningVertex>& visibleNeighborhood, bool recurseVerbose,
-                                    std::vector<PlanningVertex>& roadmapPath);
+                                    const std::vector<TaskVertex>& visibleNeighborhood, bool recurseVerbose,
+                                    std::vector<TaskVertex>& roadmapPath);
 
   /** \brief Update edge weights of dense graph based on this a newly created path */
-  bool updateEdgeWeights(const std::vector<PlanningVertex>& roadmapPath);
+  bool updateEdgeWeights(const std::vector<TaskVertex>& roadmapPath);
 
   /**
    * \brief Call itself recursively for each point in the trajectory, looking for vertices on the graph to connect to
@@ -238,8 +230,8 @@ public:
    * \param verbose - whether to show lots of debug output to console
    * \return true on success
    */
-  bool recurseSnapWaypoints(ompl::geometric::PathGeometric& inputPath, std::vector<PlanningVertex>& roadmapPath,
-                            std::size_t currVertexIndex, const PlanningVertex& prevGraphVertex, bool& allValid,
+  bool recurseSnapWaypoints(ompl::geometric::PathGeometric& inputPath, std::vector<TaskVertex>& roadmapPath,
+                            std::size_t currVertexIndex, const TaskVertex& prevGraphVertex, bool& allValid,
                             bool verbose);
 
   /** \brief Given two milestones from the same connected component, construct a path connecting them and set it as
@@ -249,9 +241,9 @@ public:
    *  \param vertexPath
    *  \return true if candidate solution found
    */
-  bool astarSearch(const PlanningVertex start, const PlanningVertex goal, std::vector<PlanningVertex>& vertexPath);
+  bool astarSearch(const TaskVertex start, const TaskVertex goal, std::vector<TaskVertex>& vertexPath);
 
-  void computeDensePath(const PlanningVertex start, const PlanningVertex goal, DensePath& path);
+  void computeDensePath(const TaskVertex start, const TaskVertex goal, DensePath& path);
 
   /**
    * \brief Get a vector of all the planner datas in the database
@@ -285,7 +277,7 @@ public:
   }
 
   /** \brief Retrieve the computed roadmap. */
-  const DenseGraph& getRoadmap() const
+  const TaskAdjList& getRoadmap() const
   {
     return g_;
   }
@@ -319,13 +311,13 @@ public:
   void freeMemory();
 
   /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
-  double distanceFunction(const PlanningVertex a, const PlanningVertex b) const;
+  double distanceFunction(const TaskVertex a, const TaskVertex b) const;
 
   /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
-  double distanceFunction2(const PlanningVertex a, const PlanningVertex b) const;
+  double distanceFunction2(const TaskVertex a, const TaskVertex b) const;
 
   /** \brief Helper for getting the task level value from a state */
-  std::size_t getTaskLevel(const PlanningVertex& v) const;
+  std::size_t getTaskLevel(const TaskVertex& v) const;
   std::size_t getTaskLevel(const base::State* state) const;
 
   /** \brief Check that the query vertex is initialized (used for internal nearest neighbor searches) */
@@ -347,10 +339,10 @@ public:
   void normalizeGraphEdgeWeights();
 
   /** \brief Helper for creating/loading graph vertices */
-  PlanningVertex addVertex(base::State* state, const VertexType& type);
+  TaskVertex addVertex(base::State* state, const VertexType& type);
 
   /** \brief Helper for creating/loading graph edges */
-  PlanningVertex addEdge(const PlanningVertex& v1, const PlanningVertex& v2, const double weight,
+  TaskEdge addEdge(const TaskVertex& v1, const TaskVertex& v2, const double weight,
                     const EdgeCollisionState collisionState = NOT_CHECKED);
 
   /** \brief Get whether to bias search using popularity of edges */
@@ -374,7 +366,7 @@ public:
   /** \brief Remove parts of graph that were intended to be temporary */
   void cleanupTemporaryVerticies();
 
-  void removeVertex(PlanningVertex v);
+  void removeVertex(TaskVertex v);
 
   /**
    * \brief Get neighbors within radius
@@ -384,28 +376,28 @@ public:
    * \param searchRadius - how far to search
    * \param countIndent - debugging tool
    */
-  void findGraphNeighbors(base::State* state, std::vector<PlanningVertex>& graphNeighborhood,
-                          std::vector<PlanningVertex>& visibleNeighborhood, double searchRadius, std::size_t threadID, std::size_t coutIndent);
+  void findGraphNeighbors(base::State* state, std::vector<TaskVertex>& graphNeighborhood,
+                          std::vector<TaskVertex>& visibleNeighborhood, double searchRadius, std::size_t threadID, std::size_t coutIndent);
 
-  void findGraphNeighbors(const PlanningVertex& denseV, std::vector<PlanningVertex>& graphNeighborhood,
-                          std::vector<PlanningVertex>& visibleNeighborhood, double searchRadius, std::size_t coutIndent);
+  void findGraphNeighbors(const TaskVertex& denseV, std::vector<TaskVertex>& graphNeighborhood,
+                          std::vector<TaskVertex>& visibleNeighborhood, double searchRadius, std::size_t coutIndent);
 
   /** \brief Shortcut for visualizing an edge */
-  void viz1Edge(PlanningVertex& e);
+  void viz1Edge(TaskEdge& e);
 
   /** \brief Check that all states are the correct type */
   void checkStateType();
 
   /** \brief Getter for using task planning flag */
-  const bool& getUseTaskPlanning() const
+  const bool& getUseTaskTask() const
   {
-    return useTaskPlanning_;
+    return useTaskTask_;
   }
 
   /** \brief Setter for using task planning flag */
-  void setUseTaskPlanning(const bool& useTaskPlanning)
+  void setUseTaskTask(const bool& useTaskTask)
   {
-    useTaskPlanning_ = useTaskPlanning;
+    useTaskTask_ = useTaskTask;
   }
 
   /** \brief Get class for managing various visualization features */
@@ -417,7 +409,7 @@ public:
   /** \brief Get class that contains the sparse DB */
   SparseGraphPtr getSparseGraph()
   {
-    return sparseDB_;
+    return sparseGraph_;
   }
 
   /**
@@ -426,21 +418,17 @@ public:
    * \param denseV - a newly created vertex that needs to be connected to the dense graph
    *                 the vertex should cover a currently un-visible region of the configuration space
    */
-  void connectNewVertex(PlanningVertex denseV);
+  void connectNewVertex(TaskVertex denseV);
 
   /** \brief Helper for counting the number of disjoint sets in the sparse graph */
   std::size_t getDisjointSetsCount(bool verbose = false);
 
   std::size_t checkConnectedComponents();
 
-  bool sameComponent(const PlanningVertex& v1, const PlanningVertex& v2);
+  bool sameComponent(const TaskVertex& v1, const TaskVertex& v2);
 
   void removeInvalidVertices();
 
-  DiscretizerPtr getDiscretizer()
-  {
-    return discretizer_;
-  }
 
   /** \brief Get all the different conencted components in the graph, and print to console or visualize */
   void getDisjointSets(DisjointSetsParentKey &disjointSets);
@@ -460,52 +448,49 @@ protected:
   VisualizerPtr visual_;
 
   /** \brief Class to store lighter version of graph */
-  SparseGraphPtr sparseDB_;
+  SparseGraphPtr sparseGraph_;
 
   /** \brief Sampler user for generating valid samples in the state space */
   base::ValidStateSamplerPtr sampler_;  // TODO(davetcoleman): remove this unused sampler
 
   /** \brief Nearest neighbors data structure */
-  std::shared_ptr<NearestNeighbors<PlanningVertex> > nn_;
+  std::shared_ptr<NearestNeighbors<TaskVertex> > nn_;
 
   /** \brief Connectivity graph */
-  DenseGraph g_;
+  TaskAdjList g_;
 
   /** \brief Vertices for performing nearest neighbor queries on multiple threads */
-  std::vector<PlanningVertex> queryVertices_;
+  std::vector<TaskVertex> queryVertices_;
 
   /** \brief Access to the weights of each Edge */
-  boost::property_map<DenseGraph, boost::edge_weight_t>::type edgeWeightProperty_;
+  boost::property_map<TaskAdjList, boost::edge_weight_t>::type edgeWeightProperty_;
 
   /** \brief Access to the collision checking state of each Edge */
-  PlanningVertexCollisionStateMap edgeCollisionStateProperty_;
+  TaskEdgeCollisionStateMap edgeCollisionStateProperty_;
 
   /** \brief Access to the internal base::state at each Vertex */
-  boost::property_map<DenseGraph, vertex_state_t>::type stateProperty_;
+  boost::property_map<TaskAdjList, vertex_state_t>::type stateProperty_;
 
   /** \brief Access to the SPARS vertex type for the vertices */
-  boost::property_map<DenseGraph, vertex_type_t>::type typeProperty_;
+  boost::property_map<TaskAdjList, vertex_type_t>::type typeProperty_;
 
   /** \brief Access to the representatives of the Dense vertices */
-  boost::property_map<DenseGraph, vertex_sparse_rep_t>::type representativesProperty_;
+  boost::property_map<TaskAdjList, vertex_sparse_rep_t>::type representativesProperty_;
 
   /** \brief Data structure that maintains the connected components */
-  boost::disjoint_sets<boost::property_map<DenseGraph, boost::vertex_rank_t>::type,
-                       boost::property_map<DenseGraph, boost::vertex_predecessor_t>::type> disjointSets_;
+  boost::disjoint_sets<boost::property_map<TaskAdjList, boost::vertex_rank_t>::type,
+                       boost::property_map<TaskAdjList, boost::vertex_predecessor_t>::type> disjointSets_;
 
   /** \brief Class for storing collision check data of edges */
   DenseCachePtr denseCache_;
-
-  /** \brief Tool for gridding state space */
-  DiscretizerPtr discretizer_;
 
   /** \brief Track where to load/save datastructures */
   std::string filePath_;
 
   /** \brief Track vertex for later removal if temporary */
-  std::vector<PlanningVertex> tempVerticies_;
-  PlanningVertex startConnectorVertex_;
-  PlanningVertex endConnectorVertex_;
+  std::vector<TaskVertex> tempVerticies_;
+  TaskVertex startConnectorVertex_;
+  TaskVertex endConnectorVertex_;
   double distanceAcrossCartesian_ = 0.0;
 
   bool graphUnsaved_ = false;
@@ -522,7 +507,7 @@ public:
   double popularityBias_ = 0.0;
 
   /** \brief Are we task planning i.e. for hybrid cartesian paths? */
-  bool useTaskPlanning_ = false;
+  bool useTaskTask_ = false;
 
   /** \brief Option to enable debugging output */
   bool verbose_ = false;
@@ -545,10 +530,10 @@ public:
   /** \brief Keep the average cost of the graph at this level */
   double desiredAverageCost_ = 90;
 
-};  // end of class DenseDB
+};  // end of class TaskGraph
 
 }  // namespace bolt
 }  // namespace tools
 }  // namespace ompl
 
-#endif
+#endif // OMPL_TOOLS_BOLT_PLANNING_GRAPH_

@@ -70,7 +70,7 @@ class DenseCache
 {
 public:
   /** \brief Constructor */
-  DenseCache(base::SpaceInformationPtr si, SparseGraph *sparseDB, VisualizerPtr visual);
+  DenseCache(base::SpaceInformationPtr si, SparseGraph *sparseGraph, VisualizerPtr visual);
 
   /** \brief Clear the edge cache completely */
   void clear();
@@ -169,7 +169,7 @@ private:
   base::SpaceInformationPtr si_;
 
   /** \brief The database of motions to search through */
-  SparseGraph *sparseDB_;
+  SparseGraph *sparseGraph_;
 
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;

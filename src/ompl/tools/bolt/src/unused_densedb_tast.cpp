@@ -1,12 +1,12 @@
   /** \brief Compute the heuristic distance between the current node and the next goal */
-  double distanceFunctionTasks(const PlanningVertex a, const PlanningVertex b) const;
+  double distanceFunctionTasks(const TaskVertex a, const TaskVertex b) const;
 
   /** \brief Clone the graph to have second and third layers for task planning then free space planning */
   void generateTaskSpace();
 
   /** \brief Get k number of neighbors near a state at a certain level that have valid motions */
   void getNeighborsAtLevel(const base::State* origState, const std::size_t level, const std::size_t kNeighbors,
-                           std::vector<PlanningVertex>& neighbors);
+                           std::vector<TaskVertex>& neighbors);
 
   /** \brief Error checking function to ensure solution has correct task path/level changes */
   bool checkTaskPathSolution(geometric::PathGeometric& path, base::State* start, base::State* goal);
@@ -19,17 +19,17 @@
    * cartesian path
    * \return true on success
    */
-  bool connectStateToNeighborsAtLevel(const PlanningVertex& fromVertex, const std::size_t level,
-                                      PlanningVertex& minConnectorVertex);
+  bool connectStateToNeighborsAtLevel(const TaskVertex& fromVertex, const std::size_t level,
+                                      TaskVertex& minConnectorVertex);
 
   /** \brief Testing code for integrating Decartes */
   bool addCartPath(std::vector<base::State*> path);
 
 
-double DenseDB::distanceFunctionTasks(const PlanningVertex a, const PlanningVertex b) const
+double DenseDB::distanceFunctionTasks(const TaskVertex a, const TaskVertex b) const
 {
   // Do not use task distance if that mode is not enabled
-  if (!useTaskPlanning_)
+  if (!useTaskTask_)
     return distanceFunction(a, b);
 
   const bool verbose = false;
@@ -139,10 +139,10 @@ double DenseDB::distanceFunctionTasks(const PlanningVertex a, const PlanningVert
 void DenseDB::generateTaskSpace()
 {
   OMPL_INFORM("Generating task space");
-  std::vector<PlanningVertex> vertexToNewVertex(getNumVertices());
+  std::vector<TaskVertex> vertexToNewVertex(getNumVertices());
 
   OMPL_INFORM("Adding task space vertices");
-  foreach (PlanningVertex v, boost::vertices(g_))
+  foreach (TaskVertex v, boost::vertices(g_))
   {
     // The first vertex (id=0) should have a nullptr state because it is used for searching
     if (!stateProperty_[v])
@@ -157,7 +157,7 @@ void DenseDB::generateTaskSpace()
     si_->getStateSpace()->setLevel(newState, level);
 
     // Add the state back
-    PlanningVertex vNew = addVertex(newState, START);
+    TaskVertex vNew = addVertex(newState, START);
 
     // Map old vertex to new vertex
     vertexToNewVertex[v] = vNew;
@@ -174,9 +174,9 @@ void DenseDB::generateTaskSpace()
   OMPL_INFORM("Adding task space edges");
 
   // Cache all current edges before adding new ones
-  std::vector<PlanningVertex> edges(getNumEdges());
+  std::vector<TaskVertex> edges(getNumEdges());
   std::size_t edgeID = 0;
-  foreach (const PlanningVertex e, boost::edges(g_))
+  foreach (const TaskVertex e, boost::edges(g_))
   {
     edges[edgeID++] = e;
   }
@@ -184,15 +184,15 @@ void DenseDB::generateTaskSpace()
   // Copy every edge
   for (std::size_t i = 0; i < edges.size(); ++i)
   {
-    const PlanningVertex &e = edges[i];
+    const TaskVertex &e = edges[i];
 
-    const PlanningVertex v1 = boost::source(e, g_);
-    const PlanningVertex v2 = boost::target(e, g_);
+    const TaskVertex v1 = boost::source(e, g_);
+    const TaskVertex v2 = boost::target(e, g_);
 
     // std::cout << "v1: " << v1 << " v2: " << v2 << std::endl;
     // std::cout << "v1': " << vertexToNewVertex[v1] << " v2': " << vertexToNewVertex[v2] << std::endl;
 
-    PlanningVertex newE = addEdge(vertexToNewVertex[v1], vertexToNewVertex[v2], edgeWeightProperty_[e]);
+    TaskVertex newE = addEdge(vertexToNewVertex[v1], vertexToNewVertex[v2], edgeWeightProperty_[e]);
 
     // if (visualizeGridGeneration_)  // Visualize
     {
@@ -212,7 +212,7 @@ void DenseDB::generateTaskSpace()
 }
 
 void DenseDB::getNeighborsAtLevel(const base::State *origState, const std::size_t level, const std::size_t kNeighbors,
-                                  std::vector<PlanningVertex> &neighbors)
+                                  std::vector<TaskVertex> &neighbors)
 {
   // Clone the state and change its level
   base::State *searchState = si_->cloneState(origState);
@@ -227,7 +227,7 @@ void DenseDB::getNeighborsAtLevel(const base::State *origState, const std::size_
   // Run various checks
   for (std::size_t i = 0; i < neighbors.size(); ++i)
   {
-    const PlanningVertex &nearVertex = neighbors[i];
+    const TaskVertex &nearVertex = neighbors[i];
 
     // Make sure state is on correct level
     if (getTaskLevel(nearVertex) != level)
@@ -318,11 +318,11 @@ bool DenseDB::checkTaskPathSolution(og::PathGeometric &path, ob::State *start, o
   return error;
 }
 
-bool DenseDB::connectStateToNeighborsAtLevel(const PlanningVertex &fromVertex, const std::size_t level,
-                                             PlanningVertex &minConnectorVertex)
+bool DenseDB::connectStateToNeighborsAtLevel(const TaskVertex &fromVertex, const std::size_t level,
+                                             TaskVertex &minConnectorVertex)
 {
   // Get nearby states to goal
-  std::vector<PlanningVertex> neighbors;
+  std::vector<TaskVertex> neighbors;
   const std::size_t kNeighbors = 20;
   getNeighborsAtLevel(stateProperty_[fromVertex], level, kNeighbors, neighbors);
 
@@ -343,7 +343,7 @@ bool DenseDB::connectStateToNeighborsAtLevel(const PlanningVertex &fromVertex, c
   double minConnectorCost = std::numeric_limits<double>::infinity();
 
   // Loop through each neighbor
-  foreach (PlanningVertex v, neighbors)
+  foreach (TaskVertex v, neighbors)
   {
     // Add edge from nearby graph vertex to cart path goal
     double connectorCost = distanceFunction(fromVertex, v);
@@ -385,8 +385,8 @@ bool DenseDB::addCartPath(std::vector<base::State *> path)
   // TODO: check for validity
 
   // Create verticies for the extremas
-  PlanningVertex startVertex = addVertex(path.front(), CARTESIAN);
-  PlanningVertex goalVertex = addVertex(path.back(), CARTESIAN);
+  TaskVertex startVertex = addVertex(path.front(), CARTESIAN);
+  TaskVertex goalVertex = addVertex(path.back(), CARTESIAN);
 
   // Record min cost for cost-to-go heurstic distance function later
   distanceAcrossCartesian_ = distanceFunction(startVertex, goalVertex);
@@ -410,8 +410,8 @@ bool DenseDB::addCartPath(std::vector<base::State *> path)
   }
 
   // Add cartesian path to mid level graph --------------------
-  PlanningVertex v1 = startVertex;
-  PlanningVertex v2;
+  TaskVertex v1 = startVertex;
+  TaskVertex v2;
   for (std::size_t i = 1; i < path.size(); ++i)
   {
     // Check if we are on the goal vertex

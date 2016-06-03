@@ -137,7 +137,7 @@ public:
   };
 
   /** \brief Constructor */
-  BoltStorage(const base::SpaceInformationPtr &si, SparseGraph *sparseDB);
+  BoltStorage(const base::SpaceInformationPtr &si, SparseGraph *sparseGraph);
 
   void save(const std::string& filePath);
 
@@ -162,7 +162,7 @@ public:
   /// \brief The space information instance for this data.
   base::SpaceInformationPtr si_;
 
-  SparseGraph *sparseDB_;
+  SparseGraph *sparseGraph_;
 
   /** \brief Based on number of threads system is using */
   std::size_t numQueryVertices_;

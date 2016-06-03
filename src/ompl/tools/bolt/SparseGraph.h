@@ -259,7 +259,7 @@ public:
   // bool getRandomOrder(std::list<WeightedVertex>& vertexInsertionOrder);
 
   /**
-   * \brief Run various checks/criteria to determine if to keep PlanningVertex in sparse graph
+   * \brief Run various checks/criteria to determine if to keep TaskVertex in sparse graph
    * \param denseVertex - the original vertex to consider
    * \param newVertex - if function returns true, the newly generated sparse vertex
    * \param addReason - if function returns true, the reson the denseVertex was added to the sparse graph

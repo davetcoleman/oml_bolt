@@ -37,7 +37,7 @@
 */
 
 // OMPL
-#include <ompl/tools/bolt/PlanningGraph.h>
+#include <ompl/tools/bolt/TaskGraph.h>
 #include <ompl/base/ScopedState.h>
 #include <ompl/util/Time.h>
 #include <ompl/util/Console.h>
@@ -65,30 +65,30 @@ namespace otb = ompl::tools::bolt;
 
 namespace boost
 {
-double get(const ompl::tools::bolt::PlanningVertexWeightMap &m, const ompl::tools::bolt::PlanningVertex &e)
+double get(const ompl::tools::bolt::TaskEdgeWeightMap &m, const ompl::tools::bolt::TaskEdge &e)
 {
   return m.get(e);
 }
 }
 
 BOOST_CONCEPT_ASSERT(
-    (boost::ReadablePropertyMapConcept<ompl::tools::bolt::PlanningVertexWeightMap, ompl::tools::bolt::PlanningVertex>));
+    (boost::ReadablePropertyMapConcept<ompl::tools::bolt::TaskEdgeWeightMap, ompl::tools::bolt::TaskEdge>));
 
 // CustomAstarVisitor methods ////////////////////////////////////////////////////////////////////////////
 
-BOOST_CONCEPT_ASSERT((boost::AStarVisitorConcept<otb::PlanningGraph::CustomAstarVisitor, otb::PlanningAdjList>));
+BOOST_CONCEPT_ASSERT((boost::AStarVisitorConcept<otb::TaskGraph::CustomAstarVisitor, otb::TaskAdjList>));
 
-otb::PlanningGraph::CustomAstarVisitor::CustomAstarVisitor(PlanningVertex goal, PlanningGraph *parent) : goal_(goal), parent_(parent)
+otb::TaskGraph::CustomAstarVisitor::CustomAstarVisitor(TaskVertex goal, TaskGraph *parent) : goal_(goal), parent_(parent)
 {
 }
 
-void otb::PlanningGraph::CustomAstarVisitor::discover_vertex(PlanningVertex v, const PlanningAdjList &) const
+void otb::TaskGraph::CustomAstarVisitor::discover_vertex(TaskVertex v, const TaskAdjList &) const
 {
   if (parent_->visualizeAstar_)
     parent_->getVisual()->viz4State(parent_->stateProperty_[v], tools::SMALL, tools::GREEN, 1);
 }
 
-void otb::PlanningGraph::CustomAstarVisitor::examine_vertex(PlanningVertex v, const PlanningAdjList &) const
+void otb::TaskGraph::CustomAstarVisitor::examine_vertex(TaskVertex v, const TaskAdjList &) const
 {
   if (parent_->visualizeAstar_)
   {
@@ -109,7 +109,7 @@ namespace tools
 {
 namespace bolt
 {
-PlanningGraph::PlanningGraph(base::SpaceInformationPtr si, VisualizerPtr visual)
+TaskGraph::TaskGraph(base::SpaceInformationPtr si, VisualizerPtr visual)
   : si_(si)
   , visual_(visual)
   // Property accessors of edges
@@ -129,18 +129,18 @@ PlanningGraph::PlanningGraph(base::SpaceInformationPtr si, VisualizerPtr visual)
   denseCache_.reset(new DenseCache(si_, this, visual_));
 
   // Initialize nearest neighbor datastructure
-  nn_.reset(new NearestNeighborsGNAT<PlanningVertex>());
-  nn_->setDistanceFunction(boost::bind(&PlanningGraph::distanceFunction, this, _1, _2));
+  nn_.reset(new NearestNeighborsGNAT<TaskVertex>());
+  nn_->setDistanceFunction(boost::bind(&TaskGraph::distanceFunction, this, _1, _2));
 }
 
-PlanningGraph::~PlanningGraph(void)
+TaskGraph::~TaskGraph(void)
 {
   freeMemory();
 }
 
-void PlanningGraph::freeMemory()
+void TaskGraph::freeMemory()
 {
-  foreach (PlanningVertex v, boost::vertices(g_))
+  foreach (TaskVertex v, boost::vertices(g_))
   {
     if (stateProperty_[v] != nullptr)
       si_->freeState(stateProperty_[v]);
@@ -155,7 +155,7 @@ void PlanningGraph::freeMemory()
   sampler_.reset();
 }
 
-bool PlanningGraph::setup()
+bool TaskGraph::setup()
 {
   if (!sampler_)
     sampler_ = si_->allocValidStateSampler();
@@ -165,9 +165,9 @@ bool PlanningGraph::setup()
   return true;
 }
 
-bool PlanningGraph::load()
+bool TaskGraph::load()
 {
-  OMPL_INFORM("PlanningGraph: load()");
+  OMPL_INFORM("TaskGraph: load()");
 
   // Error checking
   if (getNumEdges() > queryVertices_.size() ||
@@ -231,7 +231,7 @@ bool PlanningGraph::load()
   return true;
 }
 
-bool PlanningGraph::saveIfChanged()
+bool TaskGraph::saveIfChanged()
 {
   if (graphUnsaved_)
   {
@@ -242,7 +242,7 @@ bool PlanningGraph::saveIfChanged()
   return true;
 }
 
-bool PlanningGraph::save()
+bool TaskGraph::save()
 {
   if (!graphUnsaved_)
     OMPL_WARN("No need to save because graphUnsaved_ is false, but saving anyway because requested");
@@ -250,7 +250,7 @@ bool PlanningGraph::save()
   // Disabled
   if (!savingEnabled_)
   {
-    OMPL_INFORM("Not saving because option disabled for PlanningGraph");
+    OMPL_INFORM("Not saving because option disabled for TaskGraph");
     return false;
   }
 
@@ -281,12 +281,12 @@ bool PlanningGraph::save()
   return true;
 }
 
-bool PlanningGraph::postProcessPath(og::PathGeometric &solutionPath)
+bool TaskGraph::postProcessPath(og::PathGeometric &solutionPath)
 {
   // Prevent inserting into database
   if (!savingEnabled_)
   {
-    OMPL_WARN("PlanningGraph: Saving is disabled so not adding path");
+    OMPL_WARN("TaskGraph: Saving is disabled so not adding path");
     return false;
   }
 
@@ -300,14 +300,14 @@ bool PlanningGraph::postProcessPath(og::PathGeometric &solutionPath)
   base::State *currentPathState = solutionPath.getStates()[0];
 
   // Get neighbors
-  std::vector<PlanningVertex> graphNeighborhood;
-  std::vector<PlanningVertex> visibleNeighborhood;
+  std::vector<TaskVertex> graphNeighborhood;
+  std::vector<TaskVertex> visibleNeighborhood;
   std::size_t coutIndent = 0;
   const std::size_t numThreads = 0;
   findGraphNeighbors(currentPathState, graphNeighborhood, visibleNeighborhood, sparseGraph_->sparseDelta_, numThreads,
                      coutIndent);
 
-  std::vector<PlanningVertex> roadmapPath;
+  std::vector<TaskVertex> roadmapPath;
 
   // Run in non-debug mode
   bool recurseVerbose = snapPathVerbose_;
@@ -352,9 +352,9 @@ bool PlanningGraph::postProcessPath(og::PathGeometric &solutionPath)
   return true;
 }
 
-bool PlanningGraph::postProcessPathWithNeighbors(og::PathGeometric &solutionPath,
-                                           const std::vector<PlanningVertex> &visibleNeighborhood, bool recurseVerbose,
-                                           std::vector<PlanningVertex> &roadmapPath)
+bool TaskGraph::postProcessPathWithNeighbors(og::PathGeometric &solutionPath,
+                                           const std::vector<TaskVertex> &visibleNeighborhood, bool recurseVerbose,
+                                           std::vector<TaskVertex> &roadmapPath)
 {
   std::size_t currVertexIndex = 1;
 
@@ -365,7 +365,7 @@ bool PlanningGraph::postProcessPathWithNeighbors(og::PathGeometric &solutionPath
   {
     if (recurseVerbose)
       std::cout << "Attempting to start with neighbor " << i << std::endl;
-    PlanningVertex prevGraphVertex = visibleNeighborhood[i];
+    TaskVertex prevGraphVertex = visibleNeighborhood[i];
 
     if (visualizeSnapPath_)  // Add first state
     {
@@ -396,12 +396,12 @@ bool PlanningGraph::postProcessPathWithNeighbors(og::PathGeometric &solutionPath
   return allValid;
 }
 
-bool PlanningGraph::updateEdgeWeights(const std::vector<PlanningVertex> &roadmapPath)
+bool TaskGraph::updateEdgeWeights(const std::vector<TaskVertex> &roadmapPath)
 {
   for (std::size_t vertexID = 1; vertexID < roadmapPath.size(); ++vertexID)
   {
-    std::pair<PlanningVertex, bool> edgeResult = boost::edge(roadmapPath[vertexID - 1], roadmapPath[vertexID], g_);
-    PlanningVertex &edge = edgeResult.first;
+    std::pair<TaskEdge, bool> edgeResult = boost::edge(roadmapPath[vertexID - 1], roadmapPath[vertexID], g_);
+    TaskEdge &edge = edgeResult.first;
 
     // Error check
     if (!edgeResult.second)
@@ -448,15 +448,15 @@ bool PlanningGraph::updateEdgeWeights(const std::vector<PlanningVertex> &roadmap
   return true;
 }
 
-bool PlanningGraph::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<PlanningVertex> &roadmapPath,
-                                   std::size_t currVertexIndex, const PlanningVertex &prevGraphVertex, bool &allValid,
+bool TaskGraph::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<TaskVertex> &roadmapPath,
+                                   std::size_t currVertexIndex, const TaskVertex &prevGraphVertex, bool &allValid,
                                    bool verbose)
 {
   if (verbose)
     std::cout << std::string(currVertexIndex, ' ') << "recurseSnapWaypoints() -------" << std::endl;
 
   // Find multiple nearby nodes on the graph
-  std::vector<PlanningVertex> graphNeighborhood;
+  std::vector<TaskVertex> graphNeighborhood;
 
   // Get the next state
   base::State *currentPathState = inputPath.getState(currVertexIndex);
@@ -473,7 +473,7 @@ bool PlanningGraph::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vect
   bool foundValidConnToPrevious = false;
   // track if we added a vertex to the roadmapPath, so that we can remove it later if needed
   bool addedToRoadmapPath = false;
-  PlanningVertex candidateVertex;
+  TaskVertex candidateVertex;
   for (std::size_t neighborID = 0; neighborID < graphNeighborhood.size(); ++neighborID)
   {
     bool isValid = false;
@@ -615,17 +615,17 @@ bool PlanningGraph::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vect
   return false;  // this loop found a valid connection, but lower recursive loop did not
 }
 
-bool PlanningGraph::astarSearch(const PlanningVertex start, const PlanningVertex goal, std::vector<PlanningVertex> &vertexPath)
+bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::vector<TaskVertex> &vertexPath)
 {
   // Hold a list of the shortest path parent to each vertex
-  PlanningVertex *vertexPredecessors = new PlanningVertex[getNumVertices()];
-  // boost::vector_property_map<PlanningVertex> vertexPredecessors(getNumVertices());
+  TaskVertex *vertexPredecessors = new TaskVertex[getNumVertices()];
+  // boost::vector_property_map<TaskVertex> vertexPredecessors(getNumVertices());
 
   bool foundGoal = false;
   double *vertexDistances = new double[getNumVertices()];
 
   // Error check
-  if (useTaskPlanning_)
+  if (useTaskTask_)
   {
     if (getTaskLevel(start) != 0)
     {
@@ -646,11 +646,11 @@ bool PlanningGraph::astarSearch(const PlanningVertex start, const PlanningVertex
     boost::astar_search(
         g_,     // graph
         start,  // start state
-                // boost::bind(&PlanningGraph::distanceFunction2, this, _1, goal),  // the heuristic
-        boost::bind(&PlanningGraph::distanceFunction, this, _1, goal),  // the heuristic
-        // boost::bind(&PlanningGraph::distanceFunctionTasks, this, _1, goal),  // the heuristic
+                // boost::bind(&TaskGraph::distanceFunction2, this, _1, goal),  // the heuristic
+        boost::bind(&TaskGraph::distanceFunction, this, _1, goal),  // the heuristic
+        // boost::bind(&TaskGraph::distanceFunctionTasks, this, _1, goal),  // the heuristic
         // ability to disable edges (set cost to inifinity):
-        boost::weight_map(PlanningVertexWeightMap(g_, edgeCollisionStateProperty_, popularityBias_, popularityBiasEnabled_))
+        boost::weight_map(TaskEdgeWeightMap(g_, edgeCollisionStateProperty_, popularityBias_, popularityBiasEnabled_))
             .predecessor_map(vertexPredecessors)
             .distance_map(&vertexDistances[0])
             .visitor(CustomAstarVisitor(goal, this)));
@@ -677,7 +677,7 @@ bool PlanningGraph::astarSearch(const PlanningVertex start, const PlanningVertex
       vertexPath.clear();  // remove any old solutions
 
       // Trace back the shortest path in reverse and only save the states
-      PlanningVertex v;
+      TaskVertex v;
       for (v = goal; v != vertexPredecessors[v]; v = vertexPredecessors[v])
       {
         vertexPath.push_back(v);
@@ -700,8 +700,8 @@ bool PlanningGraph::astarSearch(const PlanningVertex start, const PlanningVertex
     OMPL_INFORM("        Show all predecessors");
     for (std::size_t i = 1; i < getNumVertices(); ++i)  // skip vertex 0 b/c that is the search vertex
     {
-      const PlanningVertex v1 = i;
-      const PlanningVertex v2 = vertexPredecessors[v1];
+      const TaskVertex v1 = i;
+      const TaskVertex v2 = vertexPredecessors[v1];
       if (v1 != v2)
       {
         // std::cout << "Edge " << v1 << " to " << v2 << std::endl;
@@ -719,17 +719,17 @@ bool PlanningGraph::astarSearch(const PlanningVertex start, const PlanningVertex
   return foundGoal;
 }
 
-void PlanningGraph::computeDensePath(const PlanningVertex start, const PlanningVertex goal, DensePath &path)
+void TaskGraph::computeDensePath(const TaskVertex start, const TaskVertex goal, DensePath &path)
 {
   path.clear();
 
-  boost::vector_property_map<PlanningVertex> prev(boost::num_vertices(g_));
+  boost::vector_property_map<TaskVertex> prev(boost::num_vertices(g_));
   /*
   try
   {
     boost::astar_search(g_,                                                            // graph
                         start,                                                         // start state
-                        boost::bind(&PlanningGraph::distanceFunctionTasks, this, _1, goal),  // the heuristic
+                        boost::bind(&TaskGraph::distanceFunctionTasks, this, _1, goal),  // the heuristic
                         boost::predecessor_map(prev).visitor(CustomAstarVisitor(goal, this)));
   }
   catch (FoundGoalException &)
@@ -740,24 +740,24 @@ void PlanningGraph::computeDensePath(const PlanningVertex start, const PlanningV
     OMPL_WARN("No dense path was found?");
   else
   {
-    for (PlanningVertex pos = goal; prev[pos] != pos; pos = prev[pos])
+    for (TaskVertex pos = goal; prev[pos] != pos; pos = prev[pos])
       path.push_front(stateProperty_[pos]);
     path.push_front(stateProperty_[start]);
   }
   */
 }
 
-void PlanningGraph::debugVertex(const ompl::base::PlannerDataVertex &vertex)
+void TaskGraph::debugVertex(const ompl::base::PlannerDataVertex &vertex)
 {
   debugState(vertex.getState());
 }
 
-void PlanningGraph::debugState(const ompl::base::State *state)
+void TaskGraph::debugState(const ompl::base::State *state)
 {
   si_->printState(state, std::cout);
 }
 
-double PlanningGraph::distanceFunction(const PlanningVertex a, const PlanningVertex b) const
+double TaskGraph::distanceFunction(const TaskVertex a, const TaskVertex b) const
 {
   // const double dist = si_->distance(stateProperty_[a], stateProperty_[b]);
   // std::cout << "getting distance from " << a << " to " << b << " of value " << dist << std::endl;
@@ -765,7 +765,7 @@ double PlanningGraph::distanceFunction(const PlanningVertex a, const PlanningVer
   return si_->distance(stateProperty_[a], stateProperty_[b]);
 }
 
-double PlanningGraph::distanceFunction2(const PlanningVertex a, const PlanningVertex b) const
+double TaskGraph::distanceFunction2(const TaskVertex a, const TaskVertex b) const
 {
   // const double dist = si_->getStateSpace()->distance2(stateProperty_[a], stateProperty_[b]);
   // std::cout << "getting distance from " << a << " to " << b << " of value " << dist << std::endl;
@@ -773,17 +773,17 @@ double PlanningGraph::distanceFunction2(const PlanningVertex a, const PlanningVe
   return si_->getStateSpace()->distance2(stateProperty_[a], stateProperty_[b]);
 }
 
-std::size_t PlanningGraph::getTaskLevel(const PlanningVertex &v) const
+std::size_t TaskGraph::getTaskLevel(const TaskVertex &v) const
 {
   return si_->getStateSpace()->getLevel(stateProperty_[v]);
 }
 
-std::size_t PlanningGraph::getTaskLevel(const base::State *state) const
+std::size_t TaskGraph::getTaskLevel(const base::State *state) const
 {
   return si_->getStateSpace()->getLevel(state);
 }
 
-void PlanningGraph::initializeQueryState()
+void TaskGraph::initializeQueryState()
 {
   std::size_t numThreads = boost::thread::hardware_concurrency();
 
@@ -806,34 +806,34 @@ void PlanningGraph::initializeQueryState()
   }
 }
 
-void PlanningGraph::addVertexFromFile(BoltStorage::BoltVertexData v)
+void TaskGraph::addVertexFromFile(BoltStorage::BoltVertexData v)
 {
   VertexType type = static_cast<VertexType>(v.type_);
-  // PlanningVertex vNew =
+  // TaskVertex vNew =
   addVertex(v.state_, type);
 }
 
-void PlanningGraph::addEdgeFromFile(BoltStorage::BoltEdgeData e)
+void TaskGraph::addEdgeFromFile(BoltStorage::BoltEdgeData e)
 {
-  const PlanningVertex v1 = e.endpoints_.first;
-  const PlanningVertex v2 = e.endpoints_.second;
+  const TaskVertex v1 = e.endpoints_.first;
+  const TaskVertex v2 = e.endpoints_.second;
 
   // Error check
   BOOST_ASSERT_MSG(v1 <= getNumVertices(), "Vertex 1 out of range of possible verticies");
   BOOST_ASSERT_MSG(v2 <= getNumVertices(), "Vertex 2 out of range of possible verticies");
 
   // Add edge
-  // PlanningVertex newE =
+  // TaskEdge newE =
   addEdge(v1, v2, e.weight_);
 }
 
-void PlanningGraph::clearEdgeCollisionStates()
+void TaskGraph::clearEdgeCollisionStates()
 {
-  foreach (const PlanningVertex e, boost::edges(g_))
+  foreach (const TaskEdge e, boost::edges(g_))
     edgeCollisionStateProperty_[e] = NOT_CHECKED;  // each edge has an unknown state
 }
 
-void PlanningGraph::displayDatabase()
+void TaskGraph::displayDatabase()
 {
   OMPL_INFORM("Displaying database");
 
@@ -852,7 +852,7 @@ void PlanningGraph::displayDatabase()
     std::size_t count = 0;
     std::size_t debugFrequency = std::min(10000, static_cast<int>(getNumVertices() / 10));
     std::cout << "Displaying vertices: " << std::flush;
-    foreach (PlanningVertex v, boost::vertices(g_))
+    foreach (TaskVertex v, boost::vertices(g_))
     {
       // Check for null states
       if (stateProperty_[v])
@@ -883,11 +883,11 @@ void PlanningGraph::displayDatabase()
     std::size_t count = 0;
     std::size_t debugFrequency = std::min(10000, static_cast<int>(getNumEdges() / 10));
     std::cout << "Displaying edges: " << std::flush;
-    foreach (PlanningVertex e, boost::edges(g_))
+    foreach (TaskEdge e, boost::edges(g_))
     {
       // Add edge
-      const PlanningVertex &v1 = boost::source(e, g_);
-      const PlanningVertex &v2 = boost::target(e, g_);
+      const TaskVertex &v1 = boost::source(e, g_);
+      const TaskVertex &v2 = boost::target(e, g_);
 
       // Visualize
       assert(edgeWeightProperty_[e] <= MAX_POPULARITY_WEIGHT);
@@ -910,7 +910,7 @@ void PlanningGraph::displayDatabase()
   visual_->viz1Trigger();
 }
 
-void PlanningGraph::normalizeGraphEdgeWeights()
+void TaskGraph::normalizeGraphEdgeWeights()
 {
   bool verbose = false;
 
@@ -922,7 +922,7 @@ void PlanningGraph::normalizeGraphEdgeWeights()
 
   // Normalize weight of graph
   double total_cost = 0;
-  foreach (PlanningVertex e, boost::edges(g_))
+  foreach (TaskEdge e, boost::edges(g_))
   {
     total_cost += edgeWeightProperty_[e];
   }
@@ -941,7 +941,7 @@ void PlanningGraph::normalizeGraphEdgeWeights()
 
     if (verbose)
       OMPL_INFORM("Decreasing each edge's cost by %f", perEdgeReduction);
-    foreach (PlanningVertex e, boost::edges(g_))
+    foreach (TaskEdge e, boost::edges(g_))
     {
       assert(edgeWeightProperty_[e] <= MAX_POPULARITY_WEIGHT);
       edgeWeightProperty_[e] = std::min(edgeWeightProperty_[e] + perEdgeReduction, MAX_POPULARITY_WEIGHT);
@@ -956,10 +956,10 @@ void PlanningGraph::normalizeGraphEdgeWeights()
   }
 }
 
-otb::PlanningVertex PlanningGraph::addVertex(base::State *state, const VertexType &type)
+otb::TaskVertex TaskGraph::addVertex(base::State *state, const VertexType &type)
 {
   // Create vertex
-  PlanningVertex v = boost::add_vertex(g_);
+  TaskVertex v = boost::add_vertex(g_);
 
   // Add properties
   //typeProperty_[v] = type;
@@ -981,7 +981,7 @@ otb::PlanningVertex PlanningGraph::addVertex(base::State *state, const VertexTyp
   return v;
 }
 
-otb::PlanningVertex PlanningGraph::addEdge(const PlanningVertex &v1, const PlanningVertex &v2, const double weight,
+otb::TaskEdge TaskGraph::addEdge(const TaskVertex &v1, const TaskVertex &v2, const double weight,
                                 const EdgeCollisionState collisionState)
 {
   // Error check
@@ -989,7 +989,7 @@ otb::PlanningVertex PlanningGraph::addEdge(const PlanningVertex &v1, const Plann
   BOOST_ASSERT_MSG(v2 <= getNumVertices(), "Vertex 2 out of range of possible verticies");
 
   // Create the new edge
-  PlanningVertex e = (boost::add_edge(v1, v2, g_)).first;
+  TaskEdge e = (boost::add_edge(v1, v2, g_)).first;
 
   // std::cout << "Adding cost: " << weight << std::endl;
 
@@ -1005,7 +1005,7 @@ otb::PlanningVertex PlanningGraph::addEdge(const PlanningVertex &v1, const Plann
   return e;
 }
 
-void PlanningGraph::cleanupTemporaryVerticies()
+void TaskGraph::cleanupTemporaryVerticies()
 {
   const bool verbose = false;
 
@@ -1016,7 +1016,7 @@ void PlanningGraph::cleanupTemporaryVerticies()
   }
 
   OMPL_INFORM("Cleaning up temp verticies - vertex count: %u, edge count: %u", getNumVertices(), getNumEdges());
-  BOOST_REVERSE_FOREACH(PlanningVertex v, tempVerticies_)
+  BOOST_REVERSE_FOREACH(TaskVertex v, tempVerticies_)
   {
     removeVertex(v);
 
@@ -1027,7 +1027,7 @@ void PlanningGraph::cleanupTemporaryVerticies()
   OMPL_INFORM("Finished cleaning up temp verticies");
 }
 
-void PlanningGraph::removeVertex(PlanningVertex v)
+void TaskGraph::removeVertex(TaskVertex v)
 {
   const bool verbose = false;
 
@@ -1048,11 +1048,11 @@ void PlanningGraph::removeVertex(PlanningVertex v)
   boost::remove_vertex(v, g_);
 }
 
-void PlanningGraph::findGraphNeighbors(base::State *state, std::vector<PlanningVertex> &graphNeighborhood,
-                                 std::vector<PlanningVertex> &visibleNeighborhood, double searchRadius,
+void TaskGraph::findGraphNeighbors(base::State *state, std::vector<TaskVertex> &graphNeighborhood,
+                                 std::vector<TaskVertex> &visibleNeighborhood, double searchRadius,
                                  std::size_t threadID, std::size_t coutIndent)
 {
-  // Set a queryVertex to give us a PlanningVertex
+  // Set a queryVertex to give us a TaskVertex
   stateProperty_[queryVertices_[threadID]] = state;
 
   // Search
@@ -1062,8 +1062,8 @@ void PlanningGraph::findGraphNeighbors(base::State *state, std::vector<PlanningV
   stateProperty_[queryVertices_[threadID]] = nullptr;
 }
 
-void PlanningGraph::findGraphNeighbors(const PlanningVertex &denseV, std::vector<PlanningVertex> &graphNeighborhood,
-                                 std::vector<PlanningVertex> &visibleNeighborhood, double searchRadius,
+void TaskGraph::findGraphNeighbors(const TaskVertex &denseV, std::vector<TaskVertex> &graphNeighborhood,
+                                 std::vector<TaskVertex> &visibleNeighborhood, double searchRadius,
                                  std::size_t coutIndent)
 {
   bool verbose = false;
@@ -1073,7 +1073,7 @@ void PlanningGraph::findGraphNeighbors(const PlanningVertex &denseV, std::vector
   nn_->nearestR(denseV, searchRadius, graphNeighborhood);
 
   // Now that we got the neighbors from the NN, remove any we can't see
-  for (PlanningVertex &denseV : graphNeighborhood)
+  for (TaskVertex &denseV : graphNeighborhood)
   // for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
   {
     if (si_->checkMotion(stateProperty_[denseV], stateProperty_[denseV]))
@@ -1087,19 +1087,19 @@ void PlanningGraph::findGraphNeighbors(const PlanningVertex &denseV, std::vector
               << " | Visible neighborhood: " << visibleNeighborhood.size() << std::endl;
 }
 
-void PlanningGraph::viz1Edge(PlanningVertex &e)
+void TaskGraph::viz1Edge(TaskEdge &e)
 {
-  const PlanningVertex &v1 = boost::source(e, g_);
-  const PlanningVertex &v2 = boost::target(e, g_);
+  const TaskVertex &v1 = boost::source(e, g_);
+  const TaskVertex &v2 = boost::target(e, g_);
 
   // Visualize
   visual_->viz1Edge(stateProperty_[v1], stateProperty_[v2], edgeWeightProperty_[e]);
 }
 
-void PlanningGraph::checkStateType()
+void TaskGraph::checkStateType()
 {
   std::size_t count = 0;
-  foreach (const PlanningVertex v, boost::vertices(g_))
+  foreach (const TaskVertex v, boost::vertices(g_))
   {
     // The first vertex (id=0) should have a nullptr state because it is used for searching
     if (!stateProperty_[v])
@@ -1121,7 +1121,7 @@ void PlanningGraph::checkStateType()
   OMPL_INFORM("All states checked for task level");
 }
 
-void PlanningGraph::connectNewVertex(PlanningVertex v1)
+void TaskGraph::connectNewVertex(TaskVertex v1)
 {
   bool verbose = false;
 
@@ -1132,9 +1132,9 @@ void PlanningGraph::connectNewVertex(PlanningVertex v1)
   }
 
   // Connect to nearby vertices
-  std::vector<PlanningVertex> graphNeighborhood;
+  std::vector<TaskVertex> graphNeighborhood;
   std::size_t findNearestKNeighbors = Discretizer::getEdgesPerVertex(si_);
-  OMPL_INFORM("PlanningGraph.connectNewVertex(): Finding %u nearest neighbors for new vertex", findNearestKNeighbors);
+  OMPL_INFORM("TaskGraph.connectNewVertex(): Finding %u nearest neighbors for new vertex", findNearestKNeighbors);
   const std::size_t numSameVerticiesFound = 1;  // add 1 to the end because the NN tree always returns itself
 
   // Search
@@ -1148,7 +1148,7 @@ void PlanningGraph::connectNewVertex(PlanningVertex v1)
   std::size_t errorCheckNumSameVerticies = 0;  // sanity check
   for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
   {
-    PlanningVertex &v2 = graphNeighborhood[i];
+    TaskVertex &v2 = graphNeighborhood[i];
 
     // Check if these vertices are the same
     if (v1 == v2)
@@ -1176,7 +1176,7 @@ void PlanningGraph::connectNewVertex(PlanningVertex v1)
     // Create edge if not in collision
     if (si_->checkMotion(stateProperty_[v1], stateProperty_[v2]))
     {
-      // PlanningVertex e =
+      // TaskEdge e =
       addEdge(v1, v2, desiredAverageCost_);
       // std::cout << "added valid edge " << e << std::endl;
 
@@ -1204,10 +1204,10 @@ void PlanningGraph::connectNewVertex(PlanningVertex v1)
   graphUnsaved_ = true;
 }
 
-std::size_t PlanningGraph::getDisjointSetsCount(bool verbose)
+std::size_t TaskGraph::getDisjointSetsCount(bool verbose)
 {
   std::size_t numSets = 0;
-  foreach (PlanningVertex v, boost::vertices(g_))
+  foreach (TaskVertex v, boost::vertices(g_))
   {
     // Do not count the search vertex within the sets
     if (v <= queryVertices_.back())
@@ -1224,7 +1224,7 @@ std::size_t PlanningGraph::getDisjointSetsCount(bool verbose)
   return numSets;
 }
 
-std::size_t PlanningGraph::checkConnectedComponents()
+std::size_t TaskGraph::checkConnectedComponents()
 {
   // Check how many disjoint sets are in the dense graph (should be none)
   std::size_t numSets = getDisjointSetsCount();
@@ -1236,12 +1236,12 @@ std::size_t PlanningGraph::checkConnectedComponents()
   return numSets;
 }
 
-bool PlanningGraph::sameComponent(const PlanningVertex &v1, const PlanningVertex &v2)
+bool TaskGraph::sameComponent(const TaskVertex &v1, const TaskVertex &v2)
 {
   return boost::same_component(v1, v2, disjointSets_);
 }
 
-void PlanningGraph::removeInvalidVertices()
+void TaskGraph::removeInvalidVertices()
 {
   OMPL_INFORM("Removing invalid vertices");
   bool actuallyRemove = true;
@@ -1250,7 +1250,7 @@ void PlanningGraph::removeInvalidVertices()
   if (actuallyRemove)
     OMPL_WARN("Actually deleting verticies and resetting edge cache");
 
-  typedef boost::graph_traits<PlanningAdjList>::vertex_iterator VertexIterator;
+  typedef boost::graph_traits<TaskAdjList>::vertex_iterator VertexIterator;
   for (VertexIterator vertexIt = boost::vertices(g_).first; vertexIt != boost::vertices(g_).second; ++vertexIt)
   {
     if (*vertexIt <= queryVertices_.back())
@@ -1290,7 +1290,7 @@ void PlanningGraph::removeInvalidVertices()
   }
 }
 
-void PlanningGraph::getDisjointSets(DisjointSetsParentKey &disjointSets)
+void TaskGraph::getDisjointSets(DisjointSetsParentKey &disjointSets)
 {
   OMPL_INFORM("Get disjoint sets...");
   disjointSets.clear();
@@ -1299,7 +1299,7 @@ void PlanningGraph::getDisjointSets(DisjointSetsParentKey &disjointSets)
   disjointSets_.compress_sets(boost::vertices(g_).first, boost::vertices(g_).second);
 
   // Count size of each disjoint set and group its containing vertices
-  typedef boost::graph_traits<PlanningAdjList>::vertex_iterator VertexIterator;
+  typedef boost::graph_traits<TaskAdjList>::vertex_iterator VertexIterator;
   for (VertexIterator v = boost::vertices(g_).first; v != boost::vertices(g_).second; ++v)
   {
     // Do not count the search vertex within the sets
@@ -1310,28 +1310,28 @@ void PlanningGraph::getDisjointSets(DisjointSetsParentKey &disjointSets)
   }
 }
 
-void PlanningGraph::printDisjointSets(DisjointSetsParentKey &disjointSets)
+void TaskGraph::printDisjointSets(DisjointSetsParentKey &disjointSets)
 {
   for (DisjointSetsParentKey::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
        iterator++)
   {
-    const PlanningVertex v = iterator->first;
+    const TaskVertex v = iterator->first;
     const std::size_t freq = iterator->second.size();
     std::cout << "Parent: " << v << " frequency " << freq << std::endl;
   }
 }
 
-void PlanningGraph::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
+void TaskGraph::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
 {
   OMPL_INFORM("Visualizing disjoint sets");
 
   // Find the disjoint set that is the 'main' large one
   std::size_t maxDisjointSetSize = 0;
-  PlanningVertex maxDisjointSetParent;
+  TaskVertex maxDisjointSetParent;
   for (DisjointSetsParentKey::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
        iterator++)
   {
-    const PlanningVertex v = iterator->first;
+    const TaskVertex v = iterator->first;
     const std::size_t freq = iterator->second.size();
 
     if (freq > maxDisjointSetSize)
@@ -1346,7 +1346,7 @@ void PlanningGraph::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
   for (DisjointSetsParentKey::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
        iterator++)
   {
-    const PlanningVertex v1 = iterator->first;
+    const TaskVertex v1 = iterator->first;
     const std::size_t freq = iterator->second.size();
     std::cout << v1 << ": frequency: " << freq << std::endl;
 
@@ -1371,7 +1371,7 @@ void PlanningGraph::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
 
       // Visualize this subgraph that is disconnected
       // Loop through every every vertex and check if its part of this group
-      typedef boost::graph_traits<PlanningAdjList>::vertex_iterator VertexIterator;
+      typedef boost::graph_traits<TaskAdjList>::vertex_iterator VertexIterator;
       for (VertexIterator v2 = boost::vertices(g_).first; v2 != boost::vertices(g_).second; ++v2)
       {
         if (boost::get(boost::get(boost::vertex_predecessor, g_), *v2) == v1)
@@ -1379,10 +1379,10 @@ void PlanningGraph::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
           visual_->viz4State(stateProperty_[*v2], tools::LARGE, tools::RED, 0);
 
           // Show state's edges
-          foreach (PlanningVertex edge, boost::out_edges(*v2, g_))
+          foreach (TaskEdge edge, boost::out_edges(*v2, g_))
           {
-            PlanningVertex e_v1 = boost::source(edge, g_);
-            PlanningVertex e_v2 = boost::target(edge, g_);
+            TaskEdge e_v1 = boost::source(edge, g_);
+            TaskEdge e_v2 = boost::target(edge, g_);
             visual_->viz4Edge(stateProperty_[e_v1], stateProperty_[e_v2], edgeWeightProperty_[edge]);
           }
           visual_->viz4Trigger();

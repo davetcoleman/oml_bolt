@@ -77,7 +77,7 @@ OMPL_CLASS_FORWARD(SparseGraph);
    @par External documentation
    Berenson, Dmitry, Pieter Abbeel, and Ken Goldberg: A robot path planning framework that learns from experience, in
    <em>Robotics and Automation (ICRA), 2012 IEEE International Conference on. IEEE</em>, 2012.
-   David Coleman, Ioan A. Sucan, Mark Moll, Kei Okada, Nikolaus Correll, "Experience-Based Planning with Sparse Roadmap
+   David Coleman, Ioan A. Sucan, Mark Moll, Kei Okada, Nikolaus Correll, "Experience-Based Task with Sparse Roadmap
    Spanners"
    <a href="http://arxiv.org/pdf/1410.1950.pdf">[PDF]</a>
 */
@@ -87,7 +87,7 @@ class BoltRetrieveRepair : public base::Planner
 {
 public:
   /** \brief Constructor */
-  BoltRetrieveRepair(const base::SpaceInformationPtr &si, const SparseGraphPtr &sparseDB, VisualizerPtr visual);
+  BoltRetrieveRepair(const base::SpaceInformationPtr &si, const SparseGraphPtr &sparseGraph, VisualizerPtr visual);
 
   virtual ~BoltRetrieveRepair(void);
 
@@ -124,7 +124,7 @@ public:
   /**
    * \brief Pass a pointer of the database from the bolt framework
    */
-  void setExperienceDB(const SparseGraphPtr &sparseDB);
+  void setExperienceDB(const SparseGraphPtr &sparseGraph);
 
   /** \brief Setup function */
   virtual void setup(void);
@@ -199,7 +199,7 @@ public:
 
   SparseGraphPtr getSparseGraph()
   {
-    return sparseDB_;
+    return sparseGraph_;
   }
 
   std::shared_ptr<geometric::PathGeometric> getOriginalSolutionPath()
@@ -220,7 +220,7 @@ protected:
   void freeMemory(void);
 
   /** \brief The database of motions to search through */
-  SparseGraphPtr sparseDB_;
+  SparseGraphPtr sparseGraph_;
 
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;

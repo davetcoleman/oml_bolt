@@ -134,7 +134,7 @@ base::PlannerStatus BoltRetrieveRepair::solve(const base::PlannerTerminationCond
   }
 
   // // Error check task planning
-  // if (sparseGraph_->getUseTaskPlanning())
+  // if (sparseGraph_->getUseTaskTask())
   // {
   //   if (sparseGraph_->getTaskLevel(startState) != 0)
   //   {

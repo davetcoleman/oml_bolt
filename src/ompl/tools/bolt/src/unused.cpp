@@ -15,8 +15,8 @@
   */
 
 
-    bool checkAsymptoticOptimal(const PlanningVertex& denseV, std::size_t coutIndent);
-    bool checkAddPath(PlanningVertex q, const std::vector<PlanningVertex>& neigh, std::size_t coutIndent);
+    bool checkAsymptoticOptimal(const TaskVertex& denseV, std::size_t coutIndent);
+    bool checkAddPath(TaskVertex q, const std::vector<TaskVertex>& neigh, std::size_t coutIndent);
     void computeVPP(SparseVertex v, SparseVertex vp, std::vector<SparseVertex>& VPPs);
     void computeX(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::vector<SparseVertex>& Xs);
     bool addPathToSpanner(const DensePath& densePath, SparseVertex vp, SparseVertex vpp);
@@ -31,7 +31,7 @@ bool SparseGraph::findSparseRepresentatives()
   bool verbose = false;
 
   OMPL_INFORM("Calculating representative nodes for each dense verte");
-  foreach (PlanningVertex denseV, boost::vertices(denseDB_->g_))
+  foreach (TaskVertex denseV, boost::vertices(denseDB_->g_))
   {
     std::vector<SparseVertex> graphNeighborhood;
     base::State *state = getDenseState(denseV);
@@ -96,13 +96,13 @@ bool SparseGraph::findSparseRepresentatives()
   return true;
 }
 
-bool SparseGraph::checkAsymptoticOptimal(const PlanningVertex &denseV, std::size_t coutIndent)
+bool SparseGraph::checkAsymptoticOptimal(const TaskVertex &denseV, std::size_t coutIndent)
 {
     if (fourthCheckVerbose_)
         std::cout << std::string(coutIndent, ' ') << "checkAsymptoticOptimal()" << std::endl;
 
     // Storage for the interface neighborhood, populated by getInterfaceNeighborhood()
-    std::vector<PlanningVertex> interfaceNeighborhood;
+    std::vector<TaskVertex> interfaceNeighborhood;
 
     // Check to see if Vertex is on an interface
     getInterfaceNeighborhood(denseV, interfaceNeighborhood, coutIndent + 4);
@@ -126,10 +126,10 @@ bool SparseGraph::checkAsymptoticOptimal(const PlanningVertex &denseV, std::size
     return false;
 }
 
-bool SparseGraph::checkAddPath(PlanningVertex q, const std::vector<PlanningVertex> &neigh, std::size_t coutIndent)
+bool SparseGraph::checkAddPath(TaskVertex q, const std::vector<TaskVertex> &neigh, std::size_t coutIndent)
 {
     if (fourthCheckVerbose_)
-        std::cout << std::string(coutIndent, ' ') << "checkAddPath() PlanningVertex: " << q << std::endl;
+        std::cout << std::string(coutIndent, ' ') << "checkAddPath() TaskVertex: " << q << std::endl;
 
     bool spannerPropertyViolated = false;
 
@@ -138,7 +138,7 @@ bool SparseGraph::checkAddPath(PlanningVertex q, const std::vector<PlanningVerte
 
     // Extract the representatives of neigh => n_rep
     std::set<SparseVertex> neighborReps;
-    foreach (PlanningVertex qp, neigh)
+    foreach (TaskVertex qp, neigh)
         neighborReps.insert(denseDB_->representativesProperty_[qp]);
 
     // Feedback
@@ -183,7 +183,7 @@ bool SparseGraph::checkAddPath(PlanningVertex q, const std::vector<PlanningVerte
             }
 
             DensePath bestDPath;
-            PlanningVertex best_qpp = boost::graph_traits<DenseGraph>::null_vertex();
+            TaskVertex best_qpp = boost::graph_traits<DenseGraph>::null_vertex();
             double d_min = std::numeric_limits<double>::infinity();  // Insanely big number
             // For each vpp in vpps
             for (std::size_t j = 0; j < VPPs.size() && !spannerPropertyViolated; ++j)
@@ -193,7 +193,7 @@ bool SparseGraph::checkAddPath(PlanningVertex q, const std::vector<PlanningVerte
 
                 SparseVertex vpp = VPPs[j];
                 // For each q", which are stored interface nodes on v for i(vpp,v)
-                foreach (PlanningVertex qpp, interfaceListsProperty_[v].interfaceHash[vpp])
+                foreach (TaskVertex qpp, interfaceListsProperty_[v].interfaceHash[vpp])
                 {
                     if (fourthCheckVerbose_)
                         std::cout << std::string(coutIndent + 8, ' ') << "for interfaceHsh " << qpp << std::endl;
@@ -238,8 +238,8 @@ bool SparseGraph::checkAddPath(PlanningVertex q, const std::vector<PlanningVerte
                 if (s_max > stretchFactor_ * d_min)
                 {
                     // Need to augment this path with the appropriate neighbor information
-                    PlanningVertex na = getInterfaceNeighbor(q, vp);
-                    PlanningVertex nb = getInterfaceNeighbor(best_qpp, vpp);
+                    TaskVertex na = getInterfaceNeighbor(q, vp);
+                    TaskVertex nb = getInterfaceNeighbor(best_qpp, vpp);
 
                     bestDPath.push_front(getDenseState(na));
                     bestDPath.push_back(getDenseState(nb));
@@ -330,9 +330,9 @@ void SparseGraph::connectSparsePoints(SparseVertex v, SparseVertex vp)
     // sparseDJSets_.union_set(v, vp);
 }
 
-PlanningVertex SparseGraph::getInterfaceNeighbor(PlanningVertex q, SparseVertex rep)
+TaskVertex SparseGraph::getInterfaceNeighbor(TaskVertex q, SparseVertex rep)
 {
-    foreach (PlanningVertex vp, boost::adjacent_vertices(q, g_))
+    foreach (TaskVertex vp, boost::adjacent_vertices(q, g_))
         if (denseDB_->representativesProperty_[vp] == rep)
             if (distanceFunction(q, vp) <= denseDelta_)
                 return vp;

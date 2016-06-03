@@ -132,7 +132,7 @@ base::PlannerStatus Bolt::solve(const base::PlannerTerminationCondition &ptc)
   // SOLVE
   lastStatus_ = boltPlanner_->solve(ptc);
 
-  // Planning time
+  // Task time
   planTime_ = time::seconds(time::now() - start);
 
   // Do logging
@@ -383,7 +383,7 @@ void Bolt::printLogs(std::ostream &out) const
   double edgePercent = sparseGraph_->getNumEdges() / double(sparseGraph_->getNumEdges()) * 100.0;
   double solvedPercent = stats_.numSolutionsFromRecall_ / static_cast<double>(stats_.numProblems_) * 100.0;
   if (!recallEnabled_)
-    out << "Scratch Planning Logging Results (inside Bolt Framework)" << std::endl;
+    out << "Scratch Task Logging Results (inside Bolt Framework)" << std::endl;
   else
     out << "Bolt Framework Logging Results" << std::endl
         << std::setprecision(0);
