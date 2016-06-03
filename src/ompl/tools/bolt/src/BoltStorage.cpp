@@ -116,15 +116,11 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
   foreach (const SparseVertex v, boost::vertices(sparseGraph_->getGraph()))
   {
     // Skip the query vertex that is nullptr
-    if (v <= sparseGraph_->getNumQueryVertices())
+    if (v < sparseGraph_->getNumQueryVertices())
     {
       errorCheckNumQueryVertices++;
       continue;
     }
-
-    // Debug
-    //std::cout << "v: " << v << " stateID: " << sparseGraph_->getStateID(v) << " state: ";
-    //si_->printState(sparseGraph_->getVertexStateNonConst(v), std::cout);
 
     // Convert to new structure
     BoltVertexData vertexData;
@@ -146,7 +142,6 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
   }
   BOOST_ASSERT_MSG(errorCheckNumQueryVertices == numQueryVertices_,
                    "There should be the same number of query vertex as threads that were skipped while saving");
-
 
   std::cout << std::endl;
 }

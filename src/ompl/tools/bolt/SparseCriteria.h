@@ -41,6 +41,7 @@
 
 // OMPL
 #include <ompl/tools/bolt/SparseGraph.h>
+#include <ompl/base/samplers/MinimumClearanceValidStateSampler.h>
 
 namespace ompl
 {

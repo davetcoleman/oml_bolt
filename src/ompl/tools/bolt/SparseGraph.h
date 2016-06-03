@@ -33,7 +33,7 @@
  *********************************************************************/
 
 /* Author: Dave Coleman <dave@dav.ee>
-   Desc:   Sparse experience database for storing and reusing past path plans
+   Desc:   Near-asypmotically optimal roadmap datastructure
 */
 
 #ifndef OMPL_TOOLS_BOLT_SPARSE_GRAPH_
@@ -45,8 +45,6 @@
 
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/datastructures/NearestNeighbors.h>
-#include <ompl/base/PlannerTerminationCondition.h>
-#include <ompl/base/samplers/MinimumClearanceValidStateSampler.h>
 
 // Bolt
 #include <ompl/tools/debug/Visualizer.h>
@@ -55,11 +53,10 @@
 #include <ompl/tools/bolt/Debug.h>
 #include <ompl/tools/bolt/VertexDiscretizer.h>
 #include <ompl/tools/bolt/BoltStorage.h>
-#include <boost/graph/astar_search.hpp>
 
 // Boost
 #include <boost/function.hpp>
-#include <ompl/tools/boost/disjoint_sets.hpp> // TODO remove this class since we didn't customize it
+#include <boost/graph/astar_search.hpp>
 
 // C++
 #include <list>
@@ -73,8 +70,7 @@ namespace bolt
 {
 /**
    @anchor SparseGraph
-   @par Short description
-   Database for storing and retrieving past plans
+   @par Near-asypmotically optimal roadmap datastructure
 */
 
 /// @cond IGNORE
@@ -85,12 +81,7 @@ OMPL_CLASS_FORWARD(SparseCriteria);
 /** \class ompl::tools::bolt::::SparseGraphPtr
     \brief A boost shared pointer wrapper for ompl::tools::SparseGraph */
 
-typedef std::map<SparseVertex, std::vector<SparseVertex> > DisjointSetsParentKey;
-
-typedef boost::my_disjoint_sets<boost::property_map<SparseAdjList, boost::vertex_rank_t>::type,
-                                boost::property_map<SparseAdjList, boost::vertex_predecessor_t>::type> DisjointSetType;
-
-/** \brief Save and load entire paths from file */
+/** \brief Near-asypmotically optimal roadmap datastructure */
 class SparseGraph
 {
   friend class BoltRetrieveRepair;
@@ -99,7 +90,6 @@ class SparseGraph
 public:
 
   /** \brief Constructor needs the state space used for planning.
-   *  \param space - state space
    */
   SparseGraph(base::SpaceInformationPtr si, VisualizerPtr visual);
 
@@ -110,6 +100,51 @@ public:
   void setSparseCriteria(SparseCriteriaPtr sparseCriteria)
   {
     sparseCriteria_ = sparseCriteria;
+  }
+
+  /** \brief Retrieve the computed roadmap. */
+  const SparseAdjList& getGraph() const
+  {
+    return g_;
+  }
+
+  SparseAdjList getGraphNonConst()
+  {
+    return g_;
+  }
+
+  DenseCachePtr getDenseCache()
+  {
+    return denseCache_;
+  }
+
+  base::SpaceInformationPtr getSpaceInformation()
+  {
+    return si_;
+  }
+
+  /** \brief Get class for managing various visualization features */
+  VisualizerPtr getVisual()
+  {
+    return visual_;
+  }
+
+  /** \brief Free all the memory allocated by the database */
+  void freeMemory();
+
+  /** \brief Initialize database */
+  bool setup();
+
+  /** \brief Clear data on why vertices and edges were added by optimality criteria */
+  void clearStatistics();
+
+  /** \brief Check that the query vertex is initialized (used for internal nearest neighbor searches) */
+  void initializeQueryState();
+
+  /** \brief Set the file path to load/save to/from */
+  void setFilePath(const std::string& filePath)
+  {
+    filePath_ = filePath;
   }
 
   /**
@@ -130,12 +165,6 @@ public:
    */
   bool save();
 
-  /** \brief Set the file path to load/save to/from */
-  void setFilePath(const std::string& filePath)
-  {
-    filePath_ = filePath;
-  }
-
   /** \brief Given two milestones from the same connected component, construct a path connecting them and set it as
    * the solution
    *  \param start
@@ -148,18 +177,22 @@ public:
   /** \brief Distance between two states with special bias using popularity */
   double astarHeuristic(const SparseVertex a, const SparseVertex b) const;
 
-  /** \brief Print info to screen */
-  void debugState(const ompl::base::State* state);
+  /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
+  double distanceFunction(const SparseVertex a, const SparseVertex b) const;
 
-  /** \brief Retrieve the computed roadmap. */
-  const SparseAdjList& getGraph() const
+  /** \brief Custom A* visitor statistics */
+  void recordNodeOpened()  // discovered
   {
-    return g_;
+    numNodesOpened_++;
+  }
+  void recordNodeClosed()  // examined
+  {
+    numNodesClosed_++;
   }
 
-  SparseAdjList getGraphNonConst()
+  const std::size_t getNumQueryVertices() const
   {
-    return g_;
+    return queryVertices_.size();
   }
 
   /** \brief Get the number of vertices in the sparse roadmap. */
@@ -173,83 +206,6 @@ public:
   {
     return boost::num_edges(g_);
   }
-
-  /** \brief Free all the memory allocated by the database */
-  void freeMemory();
-
-  /** \brief Initialize database */
-  bool setup();
-
-  void clearStatistics();
-
-  /** \brief Determine if no nodes or edges have been added to the graph except query vertices */
-  bool isEmpty() const;
-
-  /** \brief Check that the query vertex is initialized (used for internal nearest neighbor searches) */
-  void initializeQueryState();
-
-  /** \brief Clear all past edge state information about in collision or not */
-  void clearEdgeCollisionStates();
-
-  void errorCheckDuplicateStates(std::size_t indent);
-
-  /** \brief Cleanup graph because we leave deleted vertices in graph during construction */
-  void removeDeletedVertices(std::size_t indent);
-
-  bool smoothQualityPathOriginal(geometric::PathGeometric* path, std::size_t indent);
-  bool smoothQualityPath(geometric::PathGeometric* path, double clearance, std::size_t indent);
-
-  std::size_t getDisjointSetsCount(bool verbose = false);
-
-  void getDisjointSets(DisjointSetsParentKey &disjointSets);
-  void printDisjointSets(DisjointSetsParentKey &disjointSets);
-  void visualizeDisjointSets(DisjointSetsParentKey &disjointSets);
-
-  std::size_t checkConnectedComponents();
-
-  bool sameComponent(SparseVertex v1, SparseVertex v2);
-
-  StateID addState(base::State *state);
-
-  /** \brief Add vertices to graph */
-  SparseVertex addVertex(base::State *state, const VertexType &type, std::size_t indent);
-  SparseVertex addVertex(StateID stateID, const VertexType& type, std::size_t indent);
-
-  /** \brief Add edge to graph */
-  SparseEdge addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent);
-  edgeColors convertEdgeTypeToColor(EdgeType edgeType);
-  void visualizeVertex(SparseVertex v, const VertexType &type);
-  void removeVertex(SparseVertex v);
-
-  /** \brief When a new guard is added at state st, finds all guards who must abandon their interface information and
-   * deletes that information */
-  void clearInterfaceData(base::State* st);
-
-  /** \brief When a quality path is added with new vertices, remove all edges near the new vertex */
-  void clearEdgesNearVertex(SparseVertex vertex);
-
-  /** \brief Show in visualizer the sparse graph */
-  void displayDatabase(bool showVertices = false, std::size_t indent = 0);
-
-  /** \brief Rectifies indexing order for accessing the vertex data */
-  VertexPair interfaceDataIndex(SparseVertex vp, SparseVertex vpp);
-
-  /** \brief Retrieves the Vertex data associated with v,vp,vpp */
-  InterfaceData& getInterfaceData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent);
-
-  DenseCachePtr getDenseCache()
-  {
-    return denseCache_;
-  }
-
-  /** \brief Get the state of a vertex used for querying - i.e. vertices 0-11 for 12 thread system */
-  base::State *&getQueryStateNonConst(SparseVertex v);
-
-  /** \brief Shortcut function for getting the state of a vertex */
-  base::State*& getVertexStateNonConst(SparseVertex v);
-  const base::State* getVertexState(SparseVertex v) const;
-  const base::State* getState(StateID stateID) const;
-  const StateID getStateID(SparseVertex v) const;
 
   VertexType getVertexTypeProperty(SparseVertex v) const
   {
@@ -266,41 +222,85 @@ public:
     return edgeTypeProperty_[e];
   }
 
+  /** \brief Determine if no nodes or edges have been added to the graph except query vertices */
+  bool isEmpty() const;
+
+  /** \brief Clear all past edge state information about in collision or not */
+  void clearEdgeCollisionStates();
+
+  /** \brief Part of super debugging */
+  void errorCheckDuplicateStates(std::size_t indent);
+
+  /** \brief Path smoothing helpers */
+  bool smoothQualityPathOriginal(geometric::PathGeometric* path, std::size_t indent);
+  bool smoothQualityPath(geometric::PathGeometric* path, double clearance, std::size_t indent);
+
+  /** \brief Disjoint sets analysis tools */
+  std::size_t getDisjointSetsCount(bool verbose = false);
+  void getDisjointSets(DisjointSetsMap &disjointSets);
+  void printDisjointSets(DisjointSetsMap &disjointSets);
+  void visualizeDisjointSets(DisjointSetsMap &disjointSets);
+  std::size_t checkConnectedComponents();
+  bool sameComponent(SparseVertex v1, SparseVertex v2);
+
+  /** \brief Add a state to the DenseCache */
+  StateID addState(base::State *state);
+
+  /** \brief Add vertices to graph */
+  SparseVertex addVertex(base::State *state, const VertexType &type, std::size_t indent);
+  SparseVertex addVertex(StateID stateID, const VertexType& type, std::size_t indent);
+
+  /** \brief Remove vertex from graph */
+  void removeVertex(SparseVertex v);
+
+  /** \brief Cleanup graph because we leave deleted vertices in graph during construction */
+  void removeDeletedVertices(std::size_t indent);
+
+  /** \brief Display in viewer */
+  void visualizeVertex(SparseVertex v, const VertexType &type);
+
+  /** \brief Add edge to graph */
+  SparseEdge addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent);
+
+  /** \brief Check graph for edge existence */
+  bool hasEdge(SparseVertex v1, SparseVertex v2);
+
+  /** \brief Helper for choosing an edge's display color based on type of edge */
+  edgeColors convertEdgeTypeToColor(EdgeType edgeType);
+
+  /** \brief Get the state of a vertex used for querying - i.e. vertices 0-11 for 12 thread system */
+  base::State *&getQueryStateNonConst(SparseVertex v);
+
+  /** \brief Shortcut function for getting the state of a vertex */
+  base::State*& getVertexStateNonConst(SparseVertex v);
+  const base::State* getVertexState(SparseVertex v) const;
+  const base::State* getState(StateID stateID) const;
+  const StateID getStateID(SparseVertex v) const;
+
   /** \brief Used for creating a voronoi diagram */
   SparseVertex getSparseRepresentative(base::State* state);
 
+  /** \brief When a new guard is added at state, finds all guards who must abandon their interface information and
+   * delete that information */
+  void clearInterfaceData(base::State* st);
+
+  /** \brief When a quality path is added with new vertices, remove all edges near the new vertex */
+  void clearEdgesNearVertex(SparseVertex vertex);
+
+  /** \brief Show in visualizer the sparse graph */
+  void displayDatabase(bool showVertices = false, std::size_t indent = 0);
+
+  /** \brief Rectifies indexing order for accessing the vertex data */
+  VertexPair interfaceDataIndex(SparseVertex vp, SparseVertex vpp);
+
+  /** \brief Retrieves the Vertex data associated with v,vp,vpp */
+  InterfaceData& getInterfaceData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent);
+
+  /** \brief Print info to console */
+  void debugState(const ompl::base::State* state);
+
+  /** \brief Print nearest neighbor info to console */
   void debugNN();
-
-  /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
-  double distanceFunction(const SparseVertex a, const SparseVertex b) const;
-
-  bool hasEdge(SparseVertex v1, SparseVertex v2);
-
-  /** \brief Custom A* visitor statistics */
-  void recordNodeOpened()  // discovered
-  {
-    numNodesOpened_++;
-  }
-  void recordNodeClosed()  // examined
-  {
-    numNodesClosed_++;
-  }
-
-  base::SpaceInformationPtr getSpaceInformation()
-  {
-    return si_;
-  }
-
-  /** \brief Get class for managing various visualization features */
-  VisualizerPtr getVisual()
-  {
-    return visual_;
-  }
-
-  const std::size_t getNumQueryVertices() const
-  {
-    return queryVertices_.size();
-  }
 
 protected:
 
@@ -319,16 +319,11 @@ protected:
   /** \brief Speed up collision checking by saving redundant checks and using file storage */
   DenseCachePtr denseCache_;
 
-  /** \brief Track where to load/save datastructures */
-  std::string filePath_;
-
   /** \brief Nearest neighbors data structure */
   std::shared_ptr<NearestNeighbors<SparseVertex> > nn_;
 
   /** \brief Connectivity graph */
   SparseAdjList g_;
-
-  std::size_t numThreads_;
 
   /** \brief Vertices for performing nearest neighbor queries on multiple threads */
   std::vector<SparseVertex> queryVertices_;
@@ -344,13 +339,13 @@ protected:
   SparseEdgeCollisionStateMap edgeCollisionStatePropertySparse_;
 
   /** \brief Access to the internal base::state at each Vertex */
-  boost::property_map<SparseAdjList, vertex_state_cache_t>::type stateCacheProperty_;
+  boost::property_map<SparseAdjList, vertex_state_cache_t>::type vertexStateProperty_;
 
   /** \brief Access to the SPARS vertex type for the vertices */
   boost::property_map<SparseAdjList, vertex_type_t>::type vertexTypeProperty_;
 
   /** \brief Access to the interface pair information for the vertices */
-  boost::property_map<SparseAdjList, vertex_interface_data_t>::type interfaceDataProperty_;
+  boost::property_map<SparseAdjList, vertex_interface_data_t>::type vertexInterfaceProperty_;
 
   /** \brief Access to the popularity of each node */
   boost::property_map<SparseAdjList, vertex_popularity_t>::type vertexPopularity_;
@@ -361,10 +356,17 @@ protected:
   /** \brief A path simplifier used to simplify dense paths added to S */
   geometric::PathSimplifierPtr pathSimplifier_;
 
+  /** \brief Track where to load/save datastructures */
+  std::string filePath_;
+
+  /** \brief Number of cores available on system */
+  std::size_t numThreads_;
+
   /** \brief Astar statistics */
   std::size_t numNodesOpened_ = 0;
   std::size_t numNodesClosed_ = 0;
 
+  /** \brief Track if the graph has been modified */
   bool graphUnsaved_ = false;
 
   /** \brief For statistics */
@@ -373,7 +375,7 @@ protected:
   int numSamplesAddedForInterface_ = 0;
   int numSamplesAddedForQuality_ = 0;
 
-public:
+public: // user settings from other applications
 
   /** \brief Allow the database to save to file (new experiences) */
   bool savingEnabled_ = true;
@@ -400,8 +402,7 @@ public:
   bool visualizeDatabaseEdges_ = true;
   bool visualizeDatabaseCoverage_ = true;
 
-  //bool testingBool_;
-};  // end of class SparseGraph
+};  // end class SparseGraph
 
 ////////////////////////////////////////////////////////////////////////////////////////
 /**
