@@ -458,7 +458,6 @@ void SparseCriteria::addRandomSamples(std::size_t indent)
       OMPL_ERROR("Unable to find valid sample");
       exit(-1);  // this should never happen
     }
-    // si_->getStateSpace()->setLevel(candidateState, 0);  // TODO no hardcode
 
     // Debug
     if (false)
@@ -761,21 +760,23 @@ bool SparseCriteria::checkAddInterface(StateID candidateStateID, std::vector<Spa
     return false;
   }
 
+  SparseVertex v1 = visibleNeighborhood[0];
+  SparseVertex v2 = visibleNeighborhood[1];
+
   // If the two closest nodes are also visible
   const std::size_t threadID = 0;
-  if (graphNeighborhood[0] == visibleNeighborhood[0] && graphNeighborhood[1] == visibleNeighborhood[1])
+  if (graphNeighborhood[0] == v1 && graphNeighborhood[1] == v2)
   {
     // If our two closest neighbors don't share an edge
-    if (!sg_->hasEdge(visibleNeighborhood[0], visibleNeighborhood[1]))
+    if (!sg_->hasEdge(v1, v2))
     {
       // If they can be directly connected
-      if (denseCache_->checkMotionWithCacheVertex(visibleNeighborhood[0], visibleNeighborhood[1], threadID))
+      if (denseCache_->checkMotionWithCacheVertex(v1, v2, threadID))
       {
         BOLT_DEBUG(indent, vCriteria_, "INTERFACE: directly connected nodes");
 
-        SparseVertex v1 = visibleNeighborhood[0];
-        SparseVertex v2 = visibleNeighborhood[1];
-        if (si_->getStateSpace()->equalStates(sg_->getVertexState(v1), sg_->getVertexState(v2)))
+        // TODO(davetcoleman): remove this debug code
+        if (false && si_->getStateSpace()->equalStates(sg_->getVertexState(v1), sg_->getVertexState(v2)))
         {
           OMPL_ERROR("States are equal");
           visualizeRemoveCloseVertices(v1, v2);
@@ -791,7 +792,7 @@ bool SparseCriteria::checkAddInterface(StateID candidateStateID, std::vector<Spa
         }
 
         // Connect them
-        sg_->addEdge(visibleNeighborhood[0], visibleNeighborhood[1], eINTERFACE, indent + 2);
+        sg_->addEdge(v1, v2, eINTERFACE, indent + 2);
 
         // Also add the vertex if we are in a special mode where we know its desired
         if (discretizedSamplesInsertion_)
@@ -811,21 +812,21 @@ bool SparseCriteria::checkAddInterface(StateID candidateStateID, std::vector<Spa
           return true;
         }
 
-        if (sg_->getVertexState(visibleNeighborhood[0]) == NULL)
+        if (sg_->getVertexState(v1) == NULL)
         {
           BOLT_RED_DEBUG(indent + 3, 1, "Skipping edge 0 because vertex was removed");
           visual_->waitForUserFeedback("skipping edge 0");
         }
         else
-          sg_->addEdge(newVertex, visibleNeighborhood[0], eINTERFACE, indent + 2);
+          sg_->addEdge(newVertex, v1, eINTERFACE, indent + 2);
 
-        if (sg_->getVertexState(visibleNeighborhood[1]) == NULL)
+        if (sg_->getVertexState(v2) == NULL)
         {
           BOLT_RED_DEBUG(indent + 3, 1, "Skipping edge 1 because vertex was removed");
           visual_->waitForUserFeedback("skipping edge 2");
         }
         else
-          sg_->addEdge(newVertex, visibleNeighborhood[1], eINTERFACE, indent + 2);
+          sg_->addEdge(newVertex, v2, eINTERFACE, indent + 2);
 
         BOLT_DEBUG(indent, vCriteria_, "INTERFACE: connected two neighbors through new interface node");
       }
@@ -1466,7 +1467,6 @@ void SparseCriteria::findCloseRepresentatives(base::State *workState, const Stat
       BOLT_DEBUG(indent + 4, vQuality_, "Sample attempt " << attempt);
 
       regularSampler_->sampleNear(sampledState, denseCache_->getState(candidateStateID), denseDelta_);
-      // si_->getStateSpace()->setLevel(sampledState, 0);  // TODO no hardcode
 
       if (!si_->isValid(sampledState))
       {

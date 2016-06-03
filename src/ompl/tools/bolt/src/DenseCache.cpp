@@ -63,21 +63,17 @@ static const boost::uint32_t BOLT_DENSE_CACHE_MARKER = 0x1044414D; // unknown va
 DenseCache::DenseCache(base::SpaceInformationPtr si, SparseGraph *sparseGraph, VisualizerPtr visual)
   : si_(si), sparseGraph_(sparseGraph), visual_(visual)
 {
-  resetCounters();
+  if (disableCache_)
+    OMPL_WARN("Dense cache disabled");
 
+  // Threading setup
   numThreads_ = boost::thread::hardware_concurrency();
   keys_.resize(numThreads_);
   totalCollisionChecks_.resize(numThreads_, 0);
   totalCollisionChecksFromCache_.resize(numThreads_, 0);
 
-  // Estimate the size of the state cache
-  stateCache_.reserve(30000); // based on experiments in 2D
-
-  // Add zeroth state - which indicates a deleted/NULL vertex
-  addState(si_->allocState());
-
-  if (disableCache_)
-    OMPL_WARN("Dense cache disabled");
+  // Init
+  initialize();
 }
 
 void DenseCache::clear()
@@ -86,7 +82,17 @@ void DenseCache::clear()
 
   collisionCheckDenseCache_.clear();
   stateCache_.clear();
+
+  // Init
+  initialize();
+}
+
+void DenseCache::initialize()
+{
   resetCounters();
+
+  // Estimate the size of the state cache
+  stateCache_.reserve(30000); // based on experiments in 2D
 
   // Add zeroth state - which indicates a deleted/NULL vertex
   addState(si_->allocState());
@@ -359,7 +365,7 @@ base::State* &DenseCache::getStateNonConst(StateID stateID)
 
 bool DenseCache::checkMotionWithCacheVertex(const SparseVertex &v1, const SparseVertex &v2, const std::size_t &threadID)
 {
-  return checkMotionWithCache(sparseGraph_->stateCacheProperty_[v1], sparseGraph_->stateCacheProperty_[v2], threadID);
+  return checkMotionWithCache(sparseGraph_->getStateID(v1), sparseGraph_->getStateID(v2), threadID);
 }
 
 bool DenseCache::checkMotionWithCache(const StateID &stateID1, const StateID &stateID2, const std::size_t &threadID)
@@ -396,13 +402,11 @@ bool DenseCache::checkMotionWithCache(const StateID &stateID1, const StateID &st
   if (result) // Cache available
   {
     totalCollisionChecksFromCache_[threadID]++;
-    // std::cout << "Cache: Edge " << stateID1 << ", " << stateID2 << " collision: " << lb->second << std::endl;
     return lb->second;
   }
 
   // No cache available
   result = si_->checkMotion(stateCache_[stateID1], stateCache_[stateID2]);
-  // std::cout << "No cache: Edge " << stateID1 << ", " << stateID2 << " collision: " << result << std::endl;
 
   {  // Get write mutex
     boost::lock_guard<boost::shared_mutex> writeLock(denseCacheMutex_);

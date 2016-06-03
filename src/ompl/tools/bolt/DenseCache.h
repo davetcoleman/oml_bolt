@@ -75,6 +75,9 @@ public:
   /** \brief Clear the edge cache completely */
   void clear();
 
+  /** \brief Setup */
+  void initialize();
+
   /** \brief Reset the counters */
   void resetCounters();
 
