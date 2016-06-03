@@ -39,7 +39,7 @@
 // OMPL
 #include <ompl/tools/bolt/BoltStorage.h>
 #include <ompl/tools/bolt/SparseGraph.h>
-#include <ompl/tools/bolt/BoltGraph.h>
+#include <ompl/tools/bolt/BoostGraphHeaders.h>
 
 // Boost
 #include <boost/foreach.hpp>

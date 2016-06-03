@@ -39,6 +39,7 @@ add_library(${PROJECT_NAME}
   src/ompl/tools/bolt/src/Bolt.cpp
   src/ompl/tools/bolt/src/BoltRetrieveRepair.cpp
   src/ompl/tools/bolt/src/SparseGraph.cpp
+  src/ompl/tools/bolt/src/TaskGraph.cpp
   src/ompl/tools/bolt/src/BoltStorage.cpp
   src/ompl/tools/bolt/src/DenseCache.cpp
   src/ompl/tools/bolt/src/VertexDiscretizer.cpp

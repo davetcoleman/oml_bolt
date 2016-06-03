@@ -36,13 +36,13 @@
    Desc:   Basic graph components for Bolt
 */
 
-#ifndef OMPL_TOOLS_BOLT_BOLTGRAPH_
-#define OMPL_TOOLS_BOLT_BOLTGRAPH_
+#ifndef OMPL_TOOLS_BOLT_BOOST_GRAPH_HEADERS_
+#define OMPL_TOOLS_BOLT_BOOST_GRAPH_HEADERS_
 
 // OMPL
 #include <ompl/base/State.h>
 #include <ompl/base/SpaceInformation.h>
-#include <ompl/base/PlannerTerminationCondition.h>
+//#include <ompl/base/PlannerTerminationCondition.h>
 #include <ompl/util/Hash.h>
 #include <ompl/tools/bolt/InterfaceData.h>
 
@@ -50,7 +50,7 @@
 #include <boost/range/adaptor/map.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/filtered_graph.hpp>
+//#include <boost/graph/filtered_graph.hpp>
 #include <boost/graph/graph_utility.hpp>
 #include <boost/graph/astar_search.hpp>
 #include <boost/graph/connected_components.hpp>
@@ -278,16 +278,13 @@ typedef boost::adjacency_list<boost::vecS,  // store in std::vector
                               boost::undirectedS, TaskVertexProperties, TaskEdgeProperties> TaskAdjList;
 
 /** \brief Vertex in Graph */
-typedef boost::graph_traits<TaskAdjList>::vertex_descriptor TaskVertex
-
-
-;
+typedef boost::graph_traits<TaskAdjList>::vertex_descriptor TaskVertex;
 
 /** \brief Edge in Graph */
 typedef boost::graph_traits<TaskAdjList>::edge_descriptor TaskEdge;
 
 /** \brief Internal representation of a dense path */
-typedef std::deque<base::State*> DensePath;
+//typedef std::deque<base::State*> DensePath;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Typedefs for property maps
@@ -485,4 +482,4 @@ class FoundGoalException
 }  // namespace tools
 }  // namespace ompl
 
-#endif  // OMPL_TOOLS_BOLT_BOLTGRAPH_
+#endif  // OMPL_TOOLS_BOLT_BOOST_GRAPH_HEADERS_

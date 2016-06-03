@@ -45,7 +45,7 @@
 #include <ompl/datastructures/NearestNeighbors.h>
 #include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/SparseGraph.h>
-#include <ompl/tools/bolt/BoltGraph.h>
+#include <ompl/tools/bolt/BoostGraphHeaders.h>
 
 // Boost
 //#include <boost/function.hpp>
@@ -177,63 +177,6 @@ public:
   /** \brief Initialize database */
   bool setup();
 
-  /** \brief Set the file path to load/save to/from */
-  void setFilePath(const std::string& filePath)
-  {
-    filePath_ = filePath;
-  }
-
-  /**
-   * \brief Load database from file
-   * \param fileName - name of database file
-   * \return true if file loaded successfully
-   */
-  bool load();
-
-  /**
-   * \brief Save loaded database to file, except skips saving if no paths have been added
-   * \param fileName - name of database file
-   * \return true if file saved successfully
-   */
-  bool saveIfChanged();
-
-  /**
-   * \brief Save loaded database to file
-   * \param fileName - name of database file
-   * \return true if file saved successfully
-   */
-  bool save();
-
-  /**
-   * \brief Add a new solution path to our database. Des not actually save to file so
-   *        experience will be lost if save() is not called
-   * \param new path - must be non-const because will be interpolated
-   * \return true on success
-   */
-  bool postProcessPath(geometric::PathGeometric& solutionPath);
-
-  /** \brief Helper function for postProcessPath */
-  bool postProcessPathWithNeighbors(geometric::PathGeometric& solutionPath,
-                                    const std::vector<TaskVertex>& visibleNeighborhood, bool recurseVerbose,
-                                    std::vector<TaskVertex>& roadmapPath);
-
-  /** \brief Update edge weights of dense graph based on this a newly created path */
-  bool updateEdgeWeights(const std::vector<TaskVertex>& roadmapPath);
-
-  /**
-   * \brief Call itself recursively for each point in the trajectory, looking for vertices on the graph to connect to
-   * \param inputPath - smoothed trajectory that we want to now convert into a 'snapped' trajectory
-   * \param roadmapPath - resulting path that is 'snapped' onto the pre-existing roadmap
-   * \param currVertexIndex - index in inputPath (smoothed path) that we are trying to connect to
-   * \param prevGraphVertex - vertex we are trying to connect to
-   * \param allValid - flag to determine if any of the edges were never found to be valid
-   * \param verbose - whether to show lots of debug output to console
-   * \return true on success
-   */
-  bool recurseSnapWaypoints(ompl::geometric::PathGeometric& inputPath, std::vector<TaskVertex>& roadmapPath,
-                            std::size_t currVertexIndex, const TaskVertex& prevGraphVertex, bool& allValid,
-                            bool verbose);
-
   /** \brief Given two milestones from the same connected component, construct a path connecting them and set it as
    * the solution
    *  \param start
@@ -243,7 +186,7 @@ public:
    */
   bool astarSearch(const TaskVertex start, const TaskVertex goal, std::vector<TaskVertex>& vertexPath);
 
-  void computeDensePath(const TaskVertex start, const TaskVertex goal, DensePath& path);
+  //void computeDensePath(const TaskVertex start, const TaskVertex goal, DensePath& path);
 
   /**
    * \brief Get a vector of all the planner datas in the database
@@ -335,9 +278,6 @@ public:
   /** \brief Visualize the stored database in an external program using callbacks */
   void displayDatabase();
 
-  /** \brief Keep graph evenly weighted */
-  void normalizeGraphEdgeWeights();
-
   /** \brief Helper for creating/loading graph vertices */
   TaskVertex addVertex(base::State* state, const VertexType& type);
 
@@ -366,8 +306,6 @@ public:
   /** \brief Remove parts of graph that were intended to be temporary */
   void cleanupTemporaryVerticies();
 
-  void removeVertex(TaskVertex v);
-
   /**
    * \brief Get neighbors within radius
    * \param denseV - origin state to search from
@@ -384,9 +322,6 @@ public:
 
   /** \brief Shortcut for visualizing an edge */
   void viz1Edge(TaskEdge& e);
-
-  /** \brief Check that all states are the correct type */
-  void checkStateType();
 
   /** \brief Getter for using task planning flag */
   const bool& getUseTaskTask() const
@@ -412,23 +347,12 @@ public:
     return sparseGraph_;
   }
 
-  /**
-   * \brief Sometimes the dense graph's discretization is not enough, so we have the ability to manually add
-   *        samples and connect to the graph
-   * \param denseV - a newly created vertex that needs to be connected to the dense graph
-   *                 the vertex should cover a currently un-visible region of the configuration space
-   */
-  void connectNewVertex(TaskVertex denseV);
-
   /** \brief Helper for counting the number of disjoint sets in the sparse graph */
   std::size_t getDisjointSetsCount(bool verbose = false);
 
   std::size_t checkConnectedComponents();
 
   bool sameComponent(const TaskVertex& v1, const TaskVertex& v2);
-
-  void removeInvalidVertices();
-
 
   /** \brief Get all the different conencted components in the graph, and print to console or visualize */
   void getDisjointSets(DisjointSetsParentKey &disjointSets);

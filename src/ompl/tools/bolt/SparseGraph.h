@@ -50,7 +50,7 @@
 
 // Bolt
 #include <ompl/tools/debug/Visualizer.h>
-#include <ompl/tools/bolt/BoltGraph.h>
+#include <ompl/tools/bolt/BoostGraphHeaders.h>
 #include <ompl/tools/bolt/DenseCache.h>
 #include <ompl/tools/bolt/Debug.h>
 #include <ompl/tools/bolt/VertexDiscretizer.h>
