@@ -85,14 +85,14 @@ otb::TaskGraph::CustomAstarVisitor::CustomAstarVisitor(TaskVertex goal, TaskGrap
 void otb::TaskGraph::CustomAstarVisitor::discover_vertex(TaskVertex v, const TaskAdjList &) const
 {
   if (parent_->visualizeAstar_)
-    parent_->getVisual()->viz4State(parent_->stateProperty_[v], tools::SMALL, tools::GREEN, 1);
+    parent_->getVisual()->viz4State(parent_->getVertexState(v), tools::SMALL, tools::GREEN, 1);
 }
 
 void otb::TaskGraph::CustomAstarVisitor::examine_vertex(TaskVertex v, const TaskAdjList &) const
 {
   if (parent_->visualizeAstar_)
   {
-    parent_->getVisual()->viz4State(parent_->stateProperty_[v], tools::MEDIUM, tools::BLACK, 1);
+    parent_->getVisual()->viz4State(parent_->getVertexState(v), tools::MEDIUM, tools::BLACK, 1);
     parent_->getVisual()->viz4Trigger();
     usleep(parent_->visualizeAstarSpeed_ * 1000000);
   }
@@ -139,9 +139,9 @@ void TaskGraph::freeMemory()
 {
   foreach (TaskVertex v, boost::vertices(g_))
   {
-    if (stateProperty_[v] != nullptr)
-      si_->freeState(stateProperty_[v]);
-    stateProperty_[v] = nullptr;  // TODO(davetcoleman): is this needed??
+    if (getVertexState(v) != nullptr)
+      si_->freeState(getVertexState(v));
+    getVertexState(v) = nullptr;  // TODO(davetcoleman): is this needed??
   }
 
   g_.clear();
@@ -250,7 +250,7 @@ bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::
       if (v1 != v2)
       {
         // std::cout << "Edge " << v1 << " to " << v2 << std::endl;
-        visual_->viz4Edge(stateProperty_[v1], stateProperty_[v2], 10);
+        visual_->viz4Edge(getVertexState(v1), getVertexState(v2), 10);
       }
     }
     visual_->viz4Trigger();
@@ -387,7 +387,7 @@ void TaskGraph::displayDatabase()
 
       // Visualize
       assert(edgeWeightProperty_[e] <= MAX_POPULARITY_WEIGHT);
-      visual_->viz1Edge(stateProperty_[v1], stateProperty_[v2], edgeWeightProperty_[e]);
+      visual_->viz1Edge(getVertexState(v1), getVertexState(v2), edgeWeightProperty_[e]);
 
       // Prevent cache from getting too big
       if (count % debugFrequency == 0)
@@ -624,7 +624,7 @@ void TaskGraph::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
     // Visualize sets of size one
     if (freq == 1 && true)
     {
-      visual_->viz5State(stateProperty_[v1], tools::ROBOT, tools::RED, 0);
+      visual_->viz5State(getVertexState(v1), tools::ROBOT, tools::RED, 0);
       visual_->viz5Trigger();
       usleep(1.0 * 1000000);
     }

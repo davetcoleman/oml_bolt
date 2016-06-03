@@ -42,7 +42,7 @@
 #include <ompl/base/StateSpace.h>
 #include <ompl/geometric/PathGeometric.h>
 #include <ompl/geometric/PathSimplifier.h>
-#include <ompl/base/Planner.h>
+
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/datastructures/NearestNeighbors.h>
 #include <ompl/base/PlannerTerminationCondition.h>
@@ -55,10 +55,11 @@
 #include <ompl/tools/bolt/Debug.h>
 #include <ompl/tools/bolt/VertexDiscretizer.h>
 #include <ompl/tools/bolt/BoltStorage.h>
+#include <boost/graph/astar_search.hpp>
 
 // Boost
 #include <boost/function.hpp>
-#include <ompl/tools/boost/disjoint_sets.hpp>
+#include <ompl/tools/boost/disjoint_sets.hpp> // TODO remove this class since we didn't customize it
 
 // C++
 #include <list>
@@ -78,66 +79,24 @@ namespace bolt
 
 /// @cond IGNORE
 OMPL_CLASS_FORWARD(SparseGraph);
+OMPL_CLASS_FORWARD(SparseCriteria);
 /// @endcond
+
+/** \class ompl::tools::bolt::::SparseGraphPtr
+    \brief A boost shared pointer wrapper for ompl::tools::SparseGraph */
 
 typedef std::map<SparseVertex, std::vector<SparseVertex> > DisjointSetsParentKey;
 
 typedef boost::my_disjoint_sets<boost::property_map<SparseAdjList, boost::vertex_rank_t>::type,
                                 boost::property_map<SparseAdjList, boost::vertex_predecessor_t>::type> DisjointSetType;
 
-////////////////////////////////////////////////////////////////////////////////////////
-/**
- * Vertex visitor to check if A* search is finished.
- * \implements AStarVisitorConcept
- * See http://www.boost.org/doc/libs/1_58_0/libs/graph/doc/AStarVisitor.html
- */
-class CustomAstarVisitor : public boost::default_astar_visitor
-{
-private:
-  SparseVertex goal_;  // Goal Vertex of the search
-  SparseGraph* parent_;
-
-public:
-  /**
-   * Construct a visitor for a given search.
-   * \param goal  goal vertex of the search
-   */
-  CustomAstarVisitor(SparseVertex goal, SparseGraph* parent);
-
-  /**
-   * \brief Invoked when a vertex is first discovered and is added to the OPEN list.
-   * \param v current Vertex
-   * \param g graph we are searching on
-   */
-  void discover_vertex(SparseVertex v, const SparseAdjList& g) const;
-
-  /**
-   * \brief Check if we have arrived at the goal.
-   * This is invoked on a vertex as it is popped from the queue (i.e., it has the lowest
-   * cost on the OPEN list). This happens immediately before examine_edge() is invoked on
-   * each of the out-edges of vertex u.
-   * \param v current vertex
-   * \param g graph we are searching on
-   * \throw FoundGoalException if \a u is the goal
-   */
-  void examine_vertex(SparseVertex v, const SparseAdjList& g) const;
-};
-
-/** \class ompl::tools::bolt::::SparseGraphPtr
-    \brief A boost shared pointer wrapper for ompl::tools::SparseGraph */
-
 /** \brief Save and load entire paths from file */
 class SparseGraph
 {
   friend class BoltRetrieveRepair;
-  friend class Discretizer;
-  friend class BoltStorage;
-  friend class DenseCache;
+  friend class SparseCriteria;
 
 public:
-  ////////////////////////////////////////////////////////////////////////////////////////
-  // SparseGraph MEMBER FUNCTIONS
-  ////////////////////////////////////////////////////////////////////////////////////////
 
   /** \brief Constructor needs the state space used for planning.
    *  \param space - state space
@@ -147,8 +106,11 @@ public:
   /** \brief Deconstructor */
   virtual ~SparseGraph(void);
 
-  /** \brief Initialize database */
-  bool setup();
+  /** \brief Give the sparse graph reference to the criteria, because sometimes it needs data from there */
+  void setSparseCriteria(SparseCriteriaPtr sparseCriteria)
+  {
+    sparseCriteria_ = sparseCriteria;
+  }
 
   /**
    * \brief Load database from file
@@ -190,7 +152,12 @@ public:
   void debugState(const ompl::base::State* state);
 
   /** \brief Retrieve the computed roadmap. */
-  const SparseAdjList& getRoadmap() const
+  const SparseAdjList& getGraph() const
+  {
+    return g_;
+  }
+
+  SparseAdjList getGraphNonConst()
   {
     return g_;
   }
@@ -207,8 +174,19 @@ public:
     return boost::num_edges(g_);
   }
 
+  /** \brief Determine if no nodes or edges have been added to the graph except query vertices */
+  unsigned int isEmpty() const
+  {
+    return (getNumVertices() <= getNumQueryVertices() && getNumEdges() == 0);
+  }
+
   /** \brief Free all the memory allocated by the database */
   void freeMemory();
+
+  /** \brief Initialize database */
+  bool setup();
+
+  void clearStatistics();
 
   /**
    * \brief Check if anything has been loaded into DB
@@ -225,144 +203,13 @@ public:
   /** \brief Clear all past edge state information about in collision or not */
   void clearEdgeCollisionStates();
 
-  /** \brief Utilize multi-threading by using lots of caching */
-  //void preprocessSPARS();
-  //void preprocessSPARSThread(std::size_t threadID, std::size_t numThreads, base::SpaceInformationPtr si);
-
-  /** \brief Create a SPARS graph from the discretized dense graph and its popularity metric */
-  void createSPARS();
-  void createSPARSOuterLoop();
-  bool createSPARSInnerLoop(std::list<WeightedVertex>& vertexInsertionOrder, std::size_t& sucessfulInsertions);
-
-  void addDiscretizedStates(std::size_t indent);
-
   void errorCheckDuplicateStates(std::size_t indent);
 
   /** \brief Cleanup graph because we leave deleted vertices in graph during construction */
   void removeDeletedVertices(std::size_t indent);
 
-  /** \brief Helper function for choosing the correct method for vertex insertion ordering */
-  //void getVertexInsertionOrdering(std::list<WeightedVertex>& vertexInsertionOrder);
-
-  void addRandomSamples(std::size_t indent);
-  void addSamplesFromCache(std::size_t indent);
-
-  /**
-   * \brief Add state to sparse graph
-   * \param stateID representing a pre-populate state
-   * \return true if sparse graph is still accepting states, false if the sparse graph has completed
-   */
-  bool addSample(StateID candidateStateID, std::size_t indent);
-
-  // bool getPopularityOrder(std::list<WeightedVertex>& vertexInsertionOrder);
-  // bool getDefaultOrder(std::list<WeightedVertex>& vertexInsertionOrder);
-  // bool getRandomOrder(std::list<WeightedVertex>& vertexInsertionOrder);
-
-  /**
-   * \brief Run various checks/criteria to determine if to keep TaskVertex in sparse graph
-   * \param denseVertex - the original vertex to consider
-   * \param newVertex - if function returns true, the newly generated sparse vertex
-   * \param addReason - if function returns true, the reson the denseVertex was added to the sparse graph
-   * \return true on success
-   */
-  bool addStateToRoadmap(StateID candidateStateID, SparseVertex& newVertex, VertexType& addReason, std::size_t threadID, std::size_t indent);
-
-  /* ----------------------------------------------------------------------------------------*/
-  /** \brief SPARS-related functions */
-  bool checkAddCoverage(StateID candidateStateID, std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
-                        std::size_t indent);
-  bool checkAddConnectivity(StateID candidateStateID, std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
-                            std::size_t indent);
-  bool checkAddInterface(StateID candidateStateID, std::vector<SparseVertex>& graphNeighborhood,
-                         std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex, std::size_t indent);
-  bool checkAddQuality(StateID candidateStateID, std::vector<SparseVertex>& graphNeighborhood,
-                       std::vector<SparseVertex>& visibleNeighborhood, base::State* workState, SparseVertex& newVertex,
-                       std::size_t indent);
-  void visualizeCheckAddQuality(StateID candidateStateID, SparseVertex candidateRep);
-
-  /* ----------------------------------------------------------------------------------------*/
-  // 4th Criteria
-  /* ----------------------------------------------------------------------------------------*/
-
-  /** \brief Checks vertex v for short paths through its region and adds when appropriate.
-   *         Referred to as 'Test_Add_paths' in paper
-   */
-  bool checkAddPath(SparseVertex v, std::size_t indent);
-  void visualizeCheckAddPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
-
-  bool addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
-
-  bool smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent);
-  bool smoothQualityPath(geometric::PathGeometric *path, std::size_t indent);
-
-  /** \brief As described in paper */
-  bool spannerTestOriginal(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
-
-  /** \brief Slight modification */
-  bool spannerTestOuter(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
-
-  /** \brief Using Astar to find shortest path */
-  bool spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData, std::size_t indent);
-
-  /** \brief Finds the representative of the input state, st  */
-  SparseVertex findGraphRepresentative(base::State* st, std::size_t indent);
-
-  /** \brief Finds representatives of samples near candidateState_ which are not his representative
-             Referred to as 'Get_Close_Reps' in paper
-   */
-  void findCloseRepresentatives(base::State* workState, StateID stateID, SparseVertex candidateRep,
-                                std::map<SparseVertex, base::State*>& closeRepresentatives, std::size_t indent);
-
-  /** \brief Updates pair point information for a representative with neighbor r
-             Referred to as 'Update_Points' in paper
-      \return true if an update actually happend wihtin the representatives, false if no change
-   */
-  bool updatePairPoints(SparseVertex candidateRep, const base::State* candidateState, SparseVertex nearSampledRep,
-                        const base::State* nearSampledState, std::size_t indent);
-
-  /** \brief Computes all nodes which qualify as a candidate v" for v and vp */
-  void getAdjVerticesOfV1UnconnectedToV2(SparseVertex v1, SparseVertex v2,
-                                         std::vector<SparseVertex>& adjVerticesUnconnected, std::size_t indent);
-
-  /** \brief Computes all nodes which qualify as a candidate x for v, v', and v"
-   *  \return length of maximum path
-   */
-  double maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent);
-
-  /** \brief Rectifies indexing order for accessing the vertex data */
-  VertexPair index(SparseVertex vp, SparseVertex vpp);
-
-  /** \brief Retrieves the Vertex data associated with v,vp,vpp */
-  InterfaceData& getData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent);
-
-  /** \brief Performs distance checking for the candidate new state, q against the current information
-      \return true if an update actually happend wihtin the representatives, false if no change
-  */
-  bool distanceCheck(SparseVertex v, const base::State* q, SparseVertex vp,
-                     const base::State* qp, SparseVertex vpp, std::size_t indent);
-
-  /** \brief When a new guard is added at state st, finds all guards who must abandon their interface information and
-   * deletes that information */
-  void clearInterfaceData(base::State* st);
-
-  /* ----------------------------------------------------------------------------------------*/
-
-  /** \brief When a quality path is added with new vertices, remove all edges near the new vertex */
-  void clearEdgesNearVertex(SparseVertex vertex);
-
-  /**
-   * \brief Get neighbors within sparseDelta radius
-   * \param denseV - origin state to search from
-   * \param graphNeighborhood - resulting nearby states
-   * \param visibleNeighborhood - resulting nearby states that are visible
-   * \param indent - debugging tool
-   */
-  void findGraphNeighbors(StateID candidateStateID, std::vector<SparseVertex>& graphNeighborhood,
-                          std::vector<SparseVertex>& visibleNeighborhood, std::size_t threadID, std::size_t indent);
-
-  /** \brief After adding a new vertex, check if there is a really close nearby vertex that can be merged with this one */
-  bool checkRemoveCloseVertices(SparseVertex v1, std::size_t indent = 0);
-  void visualizeRemoveCloseVertices(SparseVertex v1, SparseVertex v2);
+  bool smoothQualityPathOriginal(geometric::PathGeometric* path, std::size_t indent);
+  bool smoothQualityPath(geometric::PathGeometric* path, double clearance, std::size_t indent);
 
   std::size_t getDisjointSetsCount(bool verbose = false);
 
@@ -386,12 +233,21 @@ public:
   void visualizeVertex(SparseVertex v, const VertexType &type);
   void removeVertex(SparseVertex v);
 
-  void debugNN();
+  /** \brief When a new guard is added at state st, finds all guards who must abandon their interface information and
+   * deletes that information */
+  void clearInterfaceData(base::State* st);
 
-  //std::size_t getVizVertexType(const VertexType& type);
+  /** \brief When a quality path is added with new vertices, remove all edges near the new vertex */
+  void clearEdgesNearVertex(SparseVertex vertex);
 
   /** \brief Show in visualizer the sparse graph */
   void displayDatabase(bool showVertices = false, std::size_t indent = 0);
+
+  /** \brief Rectifies indexing order for accessing the vertex data */
+  VertexPair interfaceDataIndex(SparseVertex vp, SparseVertex vpp);
+
+  /** \brief Retrieves the Vertex data associated with v,vp,vpp */
+  InterfaceData& getInterfaceData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent);
 
   DenseCachePtr getDenseCache()
   {
@@ -407,26 +263,30 @@ public:
   const base::State* getState(StateID stateID) const;
   const StateID getStateID(SparseVertex v) const;
 
+  VertexType getVertexTypeProperty(SparseVertex v) const
+  {
+    return vertexTypeProperty_[v];
+  }
+
+  double getEdgeWeightProperty(SparseEdge e) const
+  {
+    return edgeWeightProperty_[e];
+  }
+
+  EdgeType getEdgeTypeProperty(SparseEdge e) const
+  {
+    return edgeTypeProperty_[e];
+  }
+
+  /** \brief Used for creating a voronoi diagram */
+  SparseVertex getSparseRepresentative(base::State* state);
+
+  void debugNN();
+
   /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
   double distanceFunction(const SparseVertex a, const SparseVertex b) const;
 
-  double getSecondarySparseDelta();
-
   bool hasEdge(SparseVertex v1, SparseVertex v2);
-
-  void visualizeInterfaces(SparseVertex v, std::size_t indent);
-  void visualizeAllInterfaces(std::size_t indent);
-
-  /** \brief Count total number of states that are used for defining boundary regions of visibility interfaces
-   *  \return first  - total num states
-   *          second - num missing interfaces
-   */
-  std::pair<std::size_t, std::size_t> getInterfaceStateStorageSize();
-
-  SparseVertex getSparseRepresentative(base::State* state);
-
-  /** \brief Return true if state is far enough away from nearest obstacle */
-  bool sufficientClearance(base::State *state);
 
   /** \brief Custom A* visitor statistics */
   void recordNodeOpened()  // discovered
@@ -438,29 +298,20 @@ public:
     numNodesClosed_++;
   }
 
+  base::SpaceInformationPtr getSpaceInformation()
+  {
+    return si_;
+  }
+
   /** \brief Get class for managing various visualization features */
   VisualizerPtr getVisual()
   {
     return visual_;
   }
 
-  /** \brief Getter for vertexDiscretizer */
-  VertexDiscretizerPtr& getVertexDiscretizer()
-  {
-    return vertexDiscretizer_;
-  }
-
-  std::size_t getNumQueryVertices()
+  const std::size_t getNumQueryVertices() const
   {
     return queryVertices_.size();
-  }
-
-  double getSparseDelta() { return sparseDelta_; }
-  double getDenseDelta() { return denseDelta_; }
-
-  void setDiscretizedSamplesInsertion(bool discretizedSamplesInsertion)
-  {
-    discretizedSamplesInsertion_ = discretizedSamplesInsertion;
   }
 
 protected:
@@ -473,6 +324,9 @@ protected:
 
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;
+
+  /** \brief Class for deciding which vertices and edges get added */
+  SparseCriteriaPtr sparseCriteria_;
 
   /** \brief Speed up collision checking by saving redundant checks and using file storage */
   DenseCachePtr denseCache_;
@@ -495,6 +349,7 @@ protected:
   /** \brief Access to the weights of each Edge */
   boost::property_map<SparseAdjList, boost::edge_weight_t>::type edgeWeightProperty_;
 
+  /** \brief Access to the type (reason for being added in SPARS) of each Edge */
   boost::property_map<SparseAdjList, edge_type_t>::type edgeTypeProperty_;
 
   /** \brief Access to the collision checking state of each Edge */
@@ -518,55 +373,17 @@ protected:
   /** \brief A path simplifier used to simplify dense paths added to S */
   geometric::PathSimplifierPtr pathSimplifier_;
 
-  /** \brief Sampler user for generating valid samples in the state space */
-  base::ValidStateSamplerPtr regularSampler_;
-  base::MinimumClearanceValidStateSamplerPtr clearanceSampler_;
-
-  /** \brief Random number generator components */
-  //std::random_device rand_dev_;
-  //std::default_random_engine rand_eng_(rand_dev_());
-
-  /** \brief Special flag for tracking mode when inserting into sparse graph */
-  bool secondSparseInsertionAttempt_ = false;
-
-  /** \brief Special flag for tracking mode when inserting from discretized grid */
-  bool discretizedSamplesInsertion_ = false;
-
-  /** \brief Amount of sub-optimality allowed */
-  double sparseDelta_ = 2.0;
-
-  /** \brief SPARS parameter for dense graph connection distance */
-  double denseDelta_;
-
-  /** \brief Number of sample points to use when trying to detect interfaces. */
-  std::size_t nearSamplePoints_;
-
-  /** \brief Show what nodes are added on top of the regular SPARS graph */
-  bool visualizeOverlayNodes_ = false;
-
-  /** \brief Cache the maximum extent for later re-use */
-  double maxExtent_;
-
-  /** \brief Distance between nodes for 1st pass, the offset and reused again for 2nd pass */
-  double discretization_;
-
-  /** \brief Distance to the nearest possible vertex in the grid, referred to as z */
-  double nearestDiscretizedV_;
-
-  bool useFourthCriteria_;
-
   /** \brief Astar statistics */
   std::size_t numNodesOpened_ = 0;
   std::size_t numNodesClosed_ = 0;
 
-  std::size_t numConsecutiveFailures_;
-
-  VertexDiscretizerPtr vertexDiscretizer_;
-
-  //double ignoreEdgesSmallerThan_ = 32.502; // 3D
-  double ignoreEdgesSmallerThan_ = 12.7; // 2D
-
   bool graphUnsaved_ = false;
+
+  /** \brief For statistics */
+  int numSamplesAddedForCoverage_ = 0;
+  int numSamplesAddedForConnectivity_ = 0;
+  int numSamplesAddedForInterface_ = 0;
+  int numSamplesAddedForQuality_ = 0;
 
 public:
 
@@ -578,85 +395,63 @@ public:
 
   /** \brief Visualization speed of astar search, num of seconds to show each vertex */
   double visualizeAstarSpeed_ = 0.1;
-
-  /** \brief SPARS parameter for dense graph connection distance as a fraction of max. extent */
-  double denseDeltaFraction_ = 0.05;
-
-  /** \brief Maximum visibility range for nodes in the graph as a fraction of maximum extent. */
-  double sparseDeltaFraction_ = 0.25;
-
-  /** \brief Multiply this number by the dimension of the state space to choose how much sampling to perform */
-  double nearSamplePointsMultiple_ = 2.0;
-
-  /** \brief The stretch factor in terms of graph spanners for SPARS to check against */
-  double stretchFactor_ = 0.0;
-
-  /** \brief How overlapping two visibility regions should be to each other, where 0 is just barely touching */
-  double discretizePenetrationDist_ = 0.001;
-
-  /** \brief Number of failed state insertion attempts before stopping the algorithm */
-  std::size_t terminateAfterFailures_ = 1000;
-
-  /** \brief Number of failed state insertion attempts before starting to apply the fourth quality criteria from SPARS */
-  std::size_t fourthCriteriaAfterFailures_ = 500;
-
-  /** \brief Testing parameter */
-  double magicMultiple_ = 0;
-
-  /** \brief How much the popularity of a node can cause its cost-to-go heuristic to be underestimated */
-  double percentMaxExtentUnderestimate_ = 0.01;
-
-  /** \brief Generate the Sparse graph with discretized and/or random samples */
-  bool useDiscretizedSamples_;
-  bool useRandomSamples_;
-
-  /** \brief Experimental feature that allows very closeby vertices to be merged with newly added ones */
-  bool useCheckRemoveCloseVertices_ = true;
-  bool useClearEdgesNearVertex_ = true;
-  bool useOriginalSmoother_ = false;
-
-  /** \brief Clearance of obstacles in order to be considered "cl-robust" as described in paper */
-  double obstacleClearance_ = 1;
+  bool visualizeQualityPathSimp_ = false;
 
   /** \brief Change verbosity levels */
+  bool vVisualize_ = false;
   bool vAdd_ = false; // message when adding edges and vertices
-  bool vCriteria_ = false;
-  bool vQuality_ = false;
-  bool vRemoveClose_ = false;
-  bool vAddedReason_ = false; // print why each vertex or edge was added
+  bool vSearch_ = false;
 
   /** \brief Run with extra safety checks */
   bool superDebug_ = true;
 
   /** \brief Show the sparse graph being generated */
   bool visualizeSparsGraph_ = false;
-  bool visualizeAttemptedStates_ = false;
-  bool visualizeConnectivity_ = false;
-  bool visualizeQualityCriteria_ = false;
-  bool visualizeQualityPathSimp_ = false;
-  bool visualizeRemoveCloseVertices_ = false;
   double visualizeSparsGraphSpeed_ = 0.0;
   bool visualizeDatabaseVertices_ = true;
   bool visualizeDatabaseEdges_ = true;
   bool visualizeDatabaseCoverage_ = true;
-  bool visualizeVoronoiDiagram_ = true;
-  bool visualizeVoronoiDiagramAnimated_ = true;
-  bool visualizeNodePopularity_ = false;
 
-  /** \brief Method for ordering of vertex insertion */
-  int sparseCreationInsertionOrder_ = 0;
-
-  /** \brief For statistics */
-  int numGraphGenerations_ = 0;
-  int numRandSamplesAdded_ = 0;
-  int numSamplesAddedForCoverage_ = 0;
-  int numSamplesAddedForConnectivity_ = 0;
-  int numSamplesAddedForInterface_ = 0;
-  int numSamplesAddedForQuality_ = 0;
-  int numVerticesMoved_ = 0;
-
-  bool testingBool_;
+  //bool testingBool_;
 };  // end of class SparseGraph
+
+////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * Vertex visitor to check if A* search is finished.
+ * \implements AStarVisitorConcept
+ * See http://www.boost.org/doc/libs/1_58_0/libs/graph/doc/AStarVisitor.html
+ */
+class CustomAstarVisitor : public boost::default_astar_visitor
+{
+private:
+  SparseVertex goal_;  // Goal Vertex of the search
+  SparseGraph* parent_;
+
+public:
+  /**
+   * Construct a visitor for a given search.
+   * \param goal  goal vertex of the search
+   */
+  CustomAstarVisitor(SparseVertex goal, SparseGraph* parent);
+
+  /**
+   * \brief Invoked when a vertex is first discovered and is added to the OPEN list.
+   * \param v current Vertex
+   * \param g graph we are searching on
+   */
+  void discover_vertex(SparseVertex v, const SparseAdjList& g) const;
+
+  /**
+   * \brief Check if we have arrived at the goal.
+   * This is invoked on a vertex as it is popped from the queue (i.e., it has the lowest
+   * cost on the OPEN list). This happens immediately before examine_edge() is invoked on
+   * each of the out-edges of vertex u.
+   * \param v current vertex
+   * \param g graph we are searching on
+   * \throw FoundGoalException if \a u is the goal
+   */
+  void examine_vertex(SparseVertex v, const SparseAdjList& g) const;
+}; // end SparseGraph
 
 }  // namespace bolt
 }  // namespace tools

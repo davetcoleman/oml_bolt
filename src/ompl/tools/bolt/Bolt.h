@@ -41,9 +41,9 @@
 #include <ompl/tools/experience/ExperienceSetup.h>  // the parent class
 
 #include <ompl/tools/bolt/SparseGraph.h>
+#include <ompl/tools/bolt/SparseCriteria.h>
 #include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/BoltRetrieveRepair.h>
-//#include <ompl/tools/bolt/Discretizer.h>
 
 #include <ompl/base/Planner.h>
 #include <ompl/base/PlannerData.h>
@@ -180,6 +180,7 @@ public:
 
   /** \brief Hook for getting access to sparse db */
   SparseGraphPtr getSparseGraph();
+  SparseCriteriaPtr getSparseCriteria();
 
   /** \brief Allow accumlated experiences to be processed */
   bool doPostProcessing();
@@ -191,8 +192,11 @@ protected:
   /**  The maintained experience planner instance */
   BoltRetrieveRepairPtr boltPlanner_;
 
-  /** \brief A shared object between all the planners for saving and loading previous experience */
+  /** \brief The graph that contains a sparse roadmap of the space */
   SparseGraphPtr sparseGraph_;
+
+  /** \brief Generator of sparse vertices and edges */
+  SparseCriteriaPtr sparseCriteria_;
 
   /** \brief Accumulated experiences to be later added to experience database */
   std::vector<geometric::PathGeometric> queuedSolutionPaths_;

@@ -42,7 +42,6 @@
 // OMPL
 #include <ompl/base/State.h>
 #include <ompl/base/SpaceInformation.h>
-//#include <ompl/base/PlannerTerminationCondition.h>
 #include <ompl/util/Hash.h>
 #include <ompl/tools/bolt/InterfaceData.h>
 
@@ -50,9 +49,7 @@
 #include <boost/range/adaptor/map.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/adjacency_list.hpp>
-//#include <boost/graph/filtered_graph.hpp>
 #include <boost/graph/graph_utility.hpp>
-#include <boost/graph/astar_search.hpp>
 #include <boost/graph/connected_components.hpp>
 #include <boost/property_map/property_map.hpp>
 #include <boost/pending/disjoint_sets.hpp>
@@ -114,6 +111,11 @@ struct vertex_state_t
 };
 
 struct vertex_state_cache_t
+{
+  typedef boost::vertex_property_tag kind;
+};
+
+struct vertex_task_mirror_t
 {
   typedef boost::vertex_property_tag kind;
 };
@@ -193,8 +195,7 @@ enum EdgeCollisionState
 
 /** Wrapper for the vertex's multiple as its property. */
 // clang-format off
-typedef //boost::property<vertex_state_t, base::State *,
-        boost::property<vertex_state_cache_t, VertexIndexType, // State
+typedef boost::property<vertex_state_cache_t, VertexIndexType, // State
         boost::property<boost::vertex_predecessor_t, VertexIndexType, // Disjoint Sets
         boost::property<boost::vertex_rank_t, VertexIndexType, // Disjoint Sets
         boost::property<vertex_type_t, VertexType, // Sparse Type
@@ -260,17 +261,19 @@ typedef boost::property_map<SparseAdjList, edge_collision_state_t>::type SparseE
 
 /** Wrapper for the vertex's multiple as its property. */
 // clang-format off
-typedef boost::property<vertex_state_t, base::State *,
-        boost::property<boost::vertex_predecessor_t, VertexIndexType,
-        boost::property<boost::vertex_rank_t, VertexIndexType,
-        boost::property<vertex_sparse_rep_t, SparseVertex, // Currently unused
-        boost::property<boost::vertex_rank_t, VertexIndexType,
-        boost::property<vertex_type_t, VertexType> > > > > > TaskVertexProperties;
+typedef boost::property<vertex_state_cache_t, VertexIndexType, // State
+        boost::property<boost::vertex_predecessor_t, VertexIndexType, // Disjoint Sets
+        boost::property<boost::vertex_rank_t, VertexIndexType, // Disjoint Sets
+        boost::property<vertex_task_mirror_t, VertexIndexType // Link to corresponding free space TaskVertex, if one exists
+        > > > > TaskVertexProperties;
 // clang-format on
 
 /** Wrapper for the double assigned to an edge as its weight property. */
-typedef boost::property<boost::edge_weight_t, double, boost::property<edge_collision_state_t, int> >
-    TaskEdgeProperties;
+// clang-format off
+typedef boost::property<boost::edge_weight_t, double,
+        boost::property<edge_collision_state_t, int
+        > > TaskEdgeProperties;
+// clang-format on
 
 /** The underlying boost graph type (undirected weighted-edge adjacency list with above properties). */
 typedef boost::adjacency_list<boost::vecS,  // store in std::vector
@@ -481,5 +484,7 @@ class FoundGoalException
 }  // namespace bolt
 }  // namespace tools
 }  // namespace ompl
+
+
 
 #endif  // OMPL_TOOLS_BOLT_BOOST_GRAPH_HEADERS_

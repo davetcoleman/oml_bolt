@@ -70,8 +70,14 @@ void Bolt::initialize()
   scratchEnabled_ = true;
   filePath_ = "unloaded";
 
-  // Load the experience database
+  // Load the sparse graph datastructure
   sparseGraph_.reset(new SparseGraph(si_, visual_));
+
+  // Load the generator of sparse vertices and edges
+  sparseCriteria_.reset(new SparseCriteria(sparseGraph_));
+
+  // Give the sparse graph reference to the criteria, because sometimes it needs data from there
+  sparseGraph_->setSparseCriteria(sparseCriteria_);
 
   // Load the Retrieve repair database. We do it here so that setRepairPlanner() works
   boltPlanner_ = BoltRetrieveRepairPtr(new BoltRetrieveRepair(si_, sparseGraph_, visual_));
@@ -178,7 +184,7 @@ bool Bolt::checkOptimalityGuarantees(std::size_t indent)
 
   double optimalLength = smoothedPath->length();
   double sparseLength = rawPath->length();
-  double theoryLength = sparseGraph_->stretchFactor_ * optimalLength + 4 * sparseGraph_->getSparseDelta();
+  double theoryLength = sparseCriteria_->getStretchFactor() * optimalLength + 4 * sparseCriteria_->getSparseDelta();
   double percentOfMaxAllows = sparseLength / theoryLength * 100.0;
 
   BOLT_DEBUG(indent, 1, "-----------------------------------------");
@@ -186,8 +192,8 @@ bool Bolt::checkOptimalityGuarantees(std::size_t indent)
   BOLT_DEBUG(indent+2, 1, "Raw Path Length:         " << sparseLength);
   BOLT_DEBUG(indent+2, 1, "Smoothed Path Length:    " << optimalLength);
   BOLT_DEBUG(indent+2, 1, "Theoretical Path Length: " << theoryLength);
-  BOLT_DEBUG(indent+2, 1, "Stretch Factor t:        " << sparseGraph_->stretchFactor_);
-  BOLT_DEBUG(indent+2, 1, "Sparse Delta:            " << sparseGraph_->getSparseDelta());
+  BOLT_DEBUG(indent+2, 1, "Stretch Factor t:        " << sparseCriteria_->getStretchFactor());
+  BOLT_DEBUG(indent+2, 1, "Sparse Delta:            " << sparseCriteria_->getSparseDelta());
 
   if (sparseLength >= theoryLength)
   {
@@ -346,7 +352,7 @@ void Bolt::printResultsInfo(std::ostream &out) const
 bool Bolt::loadOrGenerate()
 {
   // Load from file or generate new grid
-  if (sparseGraph_->getNumVertices() > sparseGraph_->getNumQueryVertices())  // the search verticie may already be there
+  if (!sparseGraph_->isEmpty())
   {
     OMPL_INFORM("Database already loaded");
     return true;
@@ -392,16 +398,12 @@ void Bolt::printLogs(std::ostream &out) const
   out << "    Failed:                      " << stats_.numSolutionsFailed_ << std::endl;
   out << "    Timedout:                    " << stats_.numSolutionsTimedout_ << std::endl;
   out << "    Approximate:                 " << stats_.numSolutionsApproximate_ << std::endl;
-  // out << "  DenseDB                        " << std::endl;
-  // out << "    Vertices:                    " << sparseGraph_->getNumVertices() << std::endl;
-  // out << "    Edges:                       " << sparseGraph_->getNumEdges() << std::endl;
-  //out << "    Start/Goal States Added:     " << stats_.numStartGoalStatesAddedToDense_ << std::endl;
   out << "  SparseGraph                       " << std::endl;
   out << "    Vertices:                    " << sparseGraph_->getNumVertices() << " (" << vertPercent << "%)" << std::endl;
   out << "    Edges:                       " << sparseGraph_->getNumEdges() << " (" << edgePercent << "%)" << std::endl;
-  out << "    Regenerations:               " << sparseGraph_->numGraphGenerations_ << std::endl;
-  out << "    Disjoint Samples Added:      " << sparseGraph_->numRandSamplesAdded_ << std::endl;
-  out << "    Sparse Delta Fraction:       " << sparseGraph_->sparseDeltaFraction_ << std::endl;
+  out << "    Regenerations:               " << sparseCriteria_->numGraphGenerations_ << std::endl;
+  out << "    Disjoint Samples Added:      " << sparseCriteria_->numRandSamplesAdded_ << std::endl;
+  out << "    Sparse Delta:                " << sparseCriteria_->getSparseDelta() << std::endl;
   out << "  Average planning time:         " << std::setprecision(4) << stats_.getAveragePlanningTime() << " seconds" << std::endl;
   out << "  Average insertion time:        " << stats_.getAverageInsertionTime() << " seconds" << std::endl;
   out << std::endl;
@@ -427,6 +429,11 @@ void Bolt::convertPlannerData(const ob::PlannerDataPtr plannerData, og::PathGeom
 SparseGraphPtr Bolt::getSparseGraph()
 {
   return sparseGraph_;
+}
+
+SparseCriteriaPtr Bolt::getSparseCriteria()
+{
+  return sparseCriteria_;
 }
 
 bool Bolt::doPostProcessing()

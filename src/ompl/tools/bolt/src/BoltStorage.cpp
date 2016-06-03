@@ -113,10 +113,10 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
   std::cout << "         Saving vertices: " << std::flush;
   std::size_t count = 0;
   std::size_t errorCheckNumQueryVertices = 0;
-  foreach (const SparseVertex v, boost::vertices(sparseGraph_->g_))
+  foreach (const SparseVertex v, boost::vertices(sparseGraph_->getGraph()))
   {
     // Skip the query vertex that is nullptr
-    if (v <= sparseGraph_->queryVertices_.back())
+    if (v <= sparseGraph_->getNumQueryVertices())
     {
       errorCheckNumQueryVertices++;
       continue;
@@ -130,7 +130,7 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
     BoltVertexData vertexData;
 
     // Record the type of the vertex
-    vertexData.type_ = sparseGraph_->vertexTypeProperty_[v];
+    vertexData.type_ = sparseGraph_->getVertexTypeProperty(v);
 
     // Serializing the state contained in this vertex
     space->serialize(&state[0], sparseGraph_->getVertexStateNonConst(v));
@@ -157,10 +157,10 @@ void BoltStorage::saveEdges(boost::archive::binary_oarchive &oa)
 
   std::cout << "         Saving edges: " << std::flush;
   std::size_t count = 1;
-  foreach (const SparseEdge e, boost::edges(sparseGraph_->g_))
+  foreach (const SparseEdge e, boost::edges(sparseGraph_->getGraph()))
   {
-    const SparseVertex v1 = boost::source(e, sparseGraph_->g_);
-    const SparseVertex v2 = boost::target(e, sparseGraph_->g_);
+    const SparseVertex v1 = boost::source(e, sparseGraph_->getGraph());
+    const SparseVertex v2 = boost::target(e, sparseGraph_->getGraph());
 
     // Convert to new structure
     BoltEdgeData edgeData;
@@ -169,8 +169,8 @@ void BoltStorage::saveEdges(boost::archive::binary_oarchive &oa)
     edgeData.endpoints_.second = v2 - numQueryVertices_;
 
     // Other properties
-    edgeData.weight_ = sparseGraph_->edgeWeightProperty_[e];
-    edgeData.type_ = sparseGraph_->edgeTypeProperty_[e];
+    edgeData.weight_ = sparseGraph_->getEdgeWeightProperty(e);
+    edgeData.type_ = sparseGraph_->getEdgeTypeProperty(e);
 
     // Copy to file
     oa << edgeData;

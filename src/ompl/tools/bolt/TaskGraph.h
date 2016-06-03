@@ -46,12 +46,10 @@
 #include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/SparseGraph.h>
 #include <ompl/tools/bolt/BoostGraphHeaders.h>
+#include <ompl/tools/bolt/DenseCache.h>
 
 // Boost
-//#include <boost/function.hpp>
-//#include <boost/thread.hpp>
-
-#include <ompl/tools/bolt/DenseCache.h>
+#include <boost/graph/astar_search.hpp>
 
 namespace ompl
 {
@@ -68,7 +66,6 @@ namespace bolt
 /// @cond IGNORE
 OMPL_CLASS_FORWARD(TaskGraph);
 OMPL_CLASS_FORWARD(SparseGraph);
-OMPL_CLASS_FORWARD(Discretizer);
 /// @endcond
 
 typedef std::map<TaskVertex, std::vector<TaskVertex> > DisjointSetsParentKey;
@@ -82,7 +79,6 @@ class TaskGraph
   friend class BoltRetrieveRepair;
   friend class SparseGraph;
   friend class BoltStorage;
-  friend class Discretizer;
   friend class DenseCache;
 
 public:
@@ -186,29 +182,9 @@ public:
    */
   bool astarSearch(const TaskVertex start, const TaskVertex goal, std::vector<TaskVertex>& vertexPath);
 
-  //void computeDensePath(const TaskVertex start, const TaskVertex goal, DensePath& path);
-
-  /**
-   * \brief Get a vector of all the planner datas in the database
-   */
-  // TODO(davetcoleman): remove the vector of plannerdatas, because really its just one
-  // void getAllPlannerDatas(std::vector<ompl::base::PlannerDataPtr>& plannerDatas) const;
-
   /** \brief Print info to screen */
   void debugVertex(const ompl::base::PlannerDataVertex& vertex);
   void debugState(const ompl::base::State* state);
-
-  /** \brief Getter for enabling experience database saving */
-  bool getSavingEnabled()
-  {
-    return savingEnabled_;
-  }
-
-  /** \brief Setter for enabling experience database saving */
-  void setSavingEnabled(bool savingEnabled)
-  {
-    savingEnabled_ = savingEnabled;
-  }
 
   /**
    * \brief Check if anything has been loaded into DB
@@ -289,18 +265,6 @@ public:
   bool getPopularityBiasEnabled()
   {
     return popularityBias_;
-  }
-
-  /** \brief Set whether to bias search using popularity of edges */
-  void setPopularityBiasEnabled(bool enable)
-  {
-    popularityBiasEnabled_ = enable;
-  }
-
-  /** \brief Set how much to bias search using popularity of edges */
-  void setPopularityBias(double popularityBias)
-  {
-    popularityBias_ = popularityBias;
   }
 
   /** \brief Remove parts of graph that were intended to be temporary */
@@ -393,7 +357,7 @@ protected:
   TaskEdgeCollisionStateMap edgeCollisionStateProperty_;
 
   /** \brief Access to the internal base::state at each Vertex */
-  boost::property_map<TaskAdjList, vertex_state_t>::type stateProperty_;
+  boost::property_map<TaskAdjList, vertex_state_cache__t>::type stateCacheProperty_;
 
   /** \brief Access to the SPARS vertex type for the vertices */
   boost::property_map<TaskAdjList, vertex_type_t>::type typeProperty_;
@@ -420,15 +384,6 @@ protected:
   bool graphUnsaved_ = false;
 
 public:
-
-  /** \brief Allow the database to save to file (new experiences) */
-  bool savingEnabled_ = true;
-
-  /** \brief Whether to bias search using popularity of edges */
-  bool popularityBiasEnabled_ = false;
-
-  /** \brief How much influence should the popularity costs have over the admissible heuristic */
-  double popularityBias_ = 0.0;
 
   /** \brief Are we task planning i.e. for hybrid cartesian paths? */
   bool useTaskTask_ = false;
