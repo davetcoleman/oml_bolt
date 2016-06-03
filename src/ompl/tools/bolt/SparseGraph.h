@@ -36,8 +36,8 @@
    Desc:   Sparse experience database for storing and reusing past path plans
 */
 
-#ifndef OMPL_TOOLS_BOLT_SPARSEDB_
-#define OMPL_TOOLS_BOLT_SPARSEDB_
+#ifndef OMPL_TOOLS_BOLT_SPARSE_GRAPH_
+#define OMPL_TOOLS_BOLT_SPARSE_GRAPH_
 
 #include <ompl/base/StateSpace.h>
 #include <ompl/geometric/PathGeometric.h>
@@ -71,19 +71,19 @@ namespace tools
 namespace bolt
 {
 /**
-   @anchor SparsDB
+   @anchor SparseGraph
    @par Short description
    Database for storing and retrieving past plans
 */
 
 /// @cond IGNORE
-OMPL_CLASS_FORWARD(SparseDB);
+OMPL_CLASS_FORWARD(SparseGraph);
 /// @endcond
 
 typedef std::map<SparseVertex, std::vector<SparseVertex> > DisjointSetsParentKey;
 
-typedef boost::my_disjoint_sets<boost::property_map<SparseGraph, boost::vertex_rank_t>::type,
-                                boost::property_map<SparseGraph, boost::vertex_predecessor_t>::type> DisjointSetType;
+typedef boost::my_disjoint_sets<boost::property_map<SparseAdjList, boost::vertex_rank_t>::type,
+                                boost::property_map<SparseAdjList, boost::vertex_predecessor_t>::type> DisjointSetType;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 /**
@@ -95,21 +95,21 @@ class CustomAstarVisitor : public boost::default_astar_visitor
 {
 private:
   SparseVertex goal_;  // Goal Vertex of the search
-  SparseDB* parent_;
+  SparseGraph* parent_;
 
 public:
   /**
    * Construct a visitor for a given search.
    * \param goal  goal vertex of the search
    */
-  CustomAstarVisitor(SparseVertex goal, SparseDB* parent);
+  CustomAstarVisitor(SparseVertex goal, SparseGraph* parent);
 
   /**
    * \brief Invoked when a vertex is first discovered and is added to the OPEN list.
    * \param v current Vertex
    * \param g graph we are searching on
    */
-  void discover_vertex(SparseVertex v, const SparseGraph& g) const;
+  void discover_vertex(SparseVertex v, const SparseAdjList& g) const;
 
   /**
    * \brief Check if we have arrived at the goal.
@@ -120,14 +120,14 @@ public:
    * \param g graph we are searching on
    * \throw FoundGoalException if \a u is the goal
    */
-  void examine_vertex(SparseVertex v, const SparseGraph& g) const;
+  void examine_vertex(SparseVertex v, const SparseAdjList& g) const;
 };
 
-/** \class ompl::tools::bolt::::SparseDBPtr
-    \brief A boost shared pointer wrapper for ompl::tools::SparseDB */
+/** \class ompl::tools::bolt::::SparseGraphPtr
+    \brief A boost shared pointer wrapper for ompl::tools::SparseGraph */
 
 /** \brief Save and load entire paths from file */
-class SparseDB
+class SparseGraph
 {
   friend class BoltRetrieveRepair;
   friend class Discretizer;
@@ -136,16 +136,16 @@ class SparseDB
 
 public:
   ////////////////////////////////////////////////////////////////////////////////////////
-  // SparseDB MEMBER FUNCTIONS
+  // SparseGraph MEMBER FUNCTIONS
   ////////////////////////////////////////////////////////////////////////////////////////
 
   /** \brief Constructor needs the state space used for planning.
    *  \param space - state space
    */
-  SparseDB(base::SpaceInformationPtr si, VisualizerPtr visual);
+  SparseGraph(base::SpaceInformationPtr si, VisualizerPtr visual);
 
   /** \brief Deconstructor */
-  virtual ~SparseDB(void);
+  virtual ~SparseGraph(void);
 
   /** \brief Initialize database */
   bool setup();
@@ -190,7 +190,7 @@ public:
   void debugState(const ompl::base::State* state);
 
   /** \brief Retrieve the computed roadmap. */
-  const SparseGraph& getRoadmap() const
+  const SparseAdjList& getRoadmap() const
   {
     return g_;
   }
@@ -259,7 +259,7 @@ public:
   // bool getRandomOrder(std::list<WeightedVertex>& vertexInsertionOrder);
 
   /**
-   * \brief Run various checks/criteria to determine if to keep DenseVertex in sparse graph
+   * \brief Run various checks/criteria to determine if to keep PlanningVertex in sparse graph
    * \param denseVertex - the original vertex to consider
    * \param newVertex - if function returns true, the newly generated sparse vertex
    * \param addReason - if function returns true, the reson the denseVertex was added to the sparse graph
@@ -343,7 +343,7 @@ public:
 
   /** \brief When a new guard is added at state st, finds all guards who must abandon their interface information and
    * deletes that information */
-  void abandonLists(base::State* st);
+  void clearInterfaceData(base::State* st);
 
   /* ----------------------------------------------------------------------------------------*/
 
@@ -363,8 +363,6 @@ public:
   /** \brief After adding a new vertex, check if there is a really close nearby vertex that can be merged with this one */
   bool checkRemoveCloseVertices(SparseVertex v1, std::size_t indent = 0);
   void visualizeRemoveCloseVertices(SparseVertex v1, SparseVertex v2);
-
-  DenseVertex getInterfaceNeighbor(DenseVertex q, SparseVertex rep);
 
   std::size_t getDisjointSetsCount(bool verbose = false);
 
@@ -468,7 +466,7 @@ public:
 protected:
 
   /** \brief Short name of this class */
-  const std::string name_ = "SparseDB";
+  const std::string name_ = "SparseGraph";
 
   /** \brief The created space information */
   base::SpaceInformationPtr si_;
@@ -486,7 +484,7 @@ protected:
   std::shared_ptr<NearestNeighbors<SparseVertex> > nn_;
 
   /** \brief Connectivity graph */
-  SparseGraph g_;
+  SparseAdjList g_;
 
   std::size_t numThreads_;
 
@@ -495,24 +493,24 @@ protected:
   std::vector<base::State*> queryStates_;
 
   /** \brief Access to the weights of each Edge */
-  boost::property_map<SparseGraph, boost::edge_weight_t>::type edgeWeightProperty_;
+  boost::property_map<SparseAdjList, boost::edge_weight_t>::type edgeWeightProperty_;
 
-  boost::property_map<SparseGraph, edge_type_t>::type edgeTypeProperty_;
+  boost::property_map<SparseAdjList, edge_type_t>::type edgeTypeProperty_;
 
   /** \brief Access to the collision checking state of each Edge */
   SparseEdgeCollisionStateMap edgeCollisionStatePropertySparse_;
 
   /** \brief Access to the internal base::state at each Vertex */
-  boost::property_map<SparseGraph, vertex_state_cache_t>::type stateCacheProperty_;
+  boost::property_map<SparseAdjList, vertex_state_cache_t>::type stateCacheProperty_;
 
   /** \brief Access to the SPARS vertex type for the vertices */
-  boost::property_map<SparseGraph, vertex_type_t>::type vertexTypeProperty_;
+  boost::property_map<SparseAdjList, vertex_type_t>::type vertexTypeProperty_;
 
   /** \brief Access to the interface pair information for the vertices */
-  boost::property_map<SparseGraph, vertex_interface_data_t>::type interfaceDataProperty_;
+  boost::property_map<SparseAdjList, vertex_interface_data_t>::type interfaceDataProperty_;
 
   /** \brief Access to the popularity of each node */
-  boost::property_map<SparseGraph, vertex_popularity_t>::type vertexPopularity_;
+  boost::property_map<SparseAdjList, vertex_popularity_t>::type vertexPopularity_;
 
   /** \brief Data structure that maintains the connected components */
   DisjointSetType disjointSets_;
@@ -591,7 +589,7 @@ public:
   double nearSamplePointsMultiple_ = 2.0;
 
   /** \brief The stretch factor in terms of graph spanners for SPARS to check against */
-  double stretchFactor_ = 3.0;
+  double stretchFactor_ = 0.0;
 
   /** \brief How overlapping two visibility regions should be to each other, where 0 is just barely touching */
   double discretizePenetrationDist_ = 0.001;
@@ -658,10 +656,10 @@ public:
   int numVerticesMoved_ = 0;
 
   bool testingBool_;
-};  // end of class SparseDB
+};  // end of class SparseGraph
 
 }  // namespace bolt
 }  // namespace tools
 }  // namespace ompl
 
-#endif  // OMPL_TOOLS_BOLT_SPARSEDB_
+#endif  // OMPL_TOOLS_BOLT_SPARSE_GRAPH_

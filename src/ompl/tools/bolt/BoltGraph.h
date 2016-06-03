@@ -213,19 +213,19 @@ typedef boost::property<boost::edge_weight_t, double,
 /** The underlying boost graph type (undirected weighted-edge adjacency list with above properties). */
 typedef boost::adjacency_list<boost::vecS,  // store in std::vector
                               boost::vecS,  // store in std::vector
-                              boost::undirectedS, SparseVertexProperties, SparseEdgeProperties> SparseGraph;
+                              boost::undirectedS, SparseVertexProperties, SparseEdgeProperties> SparseAdjList;
 
 /** \brief Vertex in Graph */
-typedef boost::graph_traits<SparseGraph>::vertex_descriptor SparseVertex;
+typedef boost::graph_traits<SparseAdjList>::vertex_descriptor SparseVertex;
 
 /** \brief Edge in Graph */
-typedef boost::graph_traits<SparseGraph>::edge_descriptor SparseEdge;
+typedef boost::graph_traits<SparseAdjList>::edge_descriptor SparseEdge;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Typedefs for property maps
 
 /** \brief Access map that stores the lazy collision checking status of each edge */
-typedef boost::property_map<SparseGraph, edge_collision_state_t>::type SparseEdgeCollisionStateMap;
+typedef boost::property_map<SparseAdjList, edge_collision_state_t>::type SparseEdgeCollisionStateMap;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -265,23 +265,26 @@ typedef boost::property<vertex_state_t, base::State *,
         boost::property<boost::vertex_rank_t, VertexIndexType,
         boost::property<vertex_sparse_rep_t, SparseVertex, // Currently unused
         boost::property<boost::vertex_rank_t, VertexIndexType,
-        boost::property<vertex_type_t, VertexType> > > > > > DenseVertexProperties;
+        boost::property<vertex_type_t, VertexType> > > > > > PlanningVertexProperties;
 // clang-format on
 
 /** Wrapper for the double assigned to an edge as its weight property. */
 typedef boost::property<boost::edge_weight_t, double, boost::property<edge_collision_state_t, int> >
-    DenseEdgeProperties;
+    PlanningVertexProperties;
 
 /** The underlying boost graph type (undirected weighted-edge adjacency list with above properties). */
 typedef boost::adjacency_list<boost::vecS,  // store in std::vector
                               boost::vecS,  // store in std::vector
-                              boost::undirectedS, DenseVertexProperties, DenseEdgeProperties> DenseGraph;
+                              boost::undirectedS, PlanningVertexProperties, PlanningVertexProperties> PlanningAdjList;
 
 /** \brief Vertex in Graph */
-typedef boost::graph_traits<DenseGraph>::vertex_descriptor DenseVertex;
+typedef boost::graph_traits<PlanningAdjList>::vertex_descriptor PlanningVertex
+
+
+;
 
 /** \brief Edge in Graph */
-typedef boost::graph_traits<DenseGraph>::edge_descriptor DenseEdge;
+typedef boost::graph_traits<PlanningAdjList>::edge_descriptor PlanningVertex;
 
 /** \brief Internal representation of a dense path */
 typedef std::deque<base::State*> DensePath;
@@ -290,7 +293,7 @@ typedef std::deque<base::State*> DensePath;
 // Typedefs for property maps
 
 /** \brief Access map that stores the lazy collision checking status of each edge */
-typedef boost::property_map<DenseGraph, edge_collision_state_t>::type DenseEdgeCollisionStateMap;
+typedef boost::property_map<PlanningAdjList, edge_collision_state_t>::type PlanningVertexCollisionStateMap;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 /** \brief Custom storage class */
@@ -334,17 +337,17 @@ public:
  * Used to artifically supress edges during A* search.
  * \implements ReadablePropertyMapConcept
  */
-class DenseEdgeWeightMap
+class PlanningVertexWeightMap
 {
 private:
-  const DenseGraph& g_;  // Graph used
-  const DenseEdgeCollisionStateMap& collisionStates_;
+  const PlanningAdjList& g_;  // Graph used
+  const PlanningVertexCollisionStateMap& collisionStates_;
   const double popularityBias_;
   const bool popularityBiasEnabled_;
 
 public:
   /** Map key type. */
-  typedef DenseEdge key_type;
+  typedef PlanningVertex key_type;
   /** Map value type. */
   typedef double value_type;
   /** Map auxiliary value type. */
@@ -356,7 +359,7 @@ public:
    * Construct map for certain constraints.
    * \param graph         Graph to use
    */
-  DenseEdgeWeightMap(const DenseGraph& graph, const DenseEdgeCollisionStateMap& collisionStates,
+  PlanningVertexWeightMap(const PlanningAdjList& graph, const PlanningVertexCollisionStateMap& collisionStates,
                      const double& popularityBias, const bool popularityBiasEnabled)
     : g_(graph)
     , collisionStates_(collisionStates)
@@ -370,7 +373,7 @@ public:
    * \param e the edge
    * \return infinity if \a e lies in a forbidden neighborhood; actual weight of \a e otherwise
    */
-  double get(DenseEdge e) const
+  double get(PlanningVertex e) const
   {
     // Get the status of collision checking for this edge
     if (collisionStates_[e] == IN_COLLISION)
@@ -406,7 +409,7 @@ public:
 class SparseEdgeWeightMap
 {
 private:
-  const SparseGraph& g_;  // Graph used
+  const SparseAdjList& g_;  // Graph used
   const SparseEdgeCollisionStateMap& collisionStates_;
   const double popularityBias_;
   const bool popularityBiasEnabled_;
@@ -425,7 +428,7 @@ public:
    * Construct map for certain constraints.
    * \param graph         Graph to use
    */
-  SparseEdgeWeightMap(const SparseGraph& graph, const SparseEdgeCollisionStateMap& collisionStates,
+  SparseEdgeWeightMap(const SparseAdjList& graph, const SparseEdgeCollisionStateMap& collisionStates,
                       const double& popularityBias, const bool popularityBiasEnabled)
     : g_(graph)
     , collisionStates_(collisionStates)

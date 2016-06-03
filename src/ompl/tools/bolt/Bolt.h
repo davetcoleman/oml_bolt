@@ -40,7 +40,7 @@
 
 #include <ompl/tools/experience/ExperienceSetup.h>  // the parent class
 
-#include <ompl/tools/bolt/SparseDB.h>
+#include <ompl/tools/bolt/SparseGraph.h>
 #include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/BoltRetrieveRepair.h>
 //#include <ompl/tools/bolt/Discretizer.h>
@@ -135,6 +135,8 @@ public:
 
   void visualize();
 
+  bool checkOptimalityGuarantees(std::size_t indent = 0);
+
   /** \brief Helper function for logging data to file */
   void logResults();
 
@@ -177,7 +179,7 @@ public:
   void convertPlannerData(const base::PlannerDataPtr plannerData, geometric::PathGeometric &path);
 
   /** \brief Hook for getting access to sparse db */
-  SparseDBPtr getSparseDB();
+  SparseGraphPtr getSparseGraph();
 
   /** \brief Allow accumlated experiences to be processed */
   bool doPostProcessing();
@@ -190,7 +192,7 @@ protected:
   BoltRetrieveRepairPtr boltPlanner_;
 
   /** \brief A shared object between all the planners for saving and loading previous experience */
-  SparseDBPtr sparseDB_;
+  SparseGraphPtr sparseDB_;
 
   /** \brief Accumulated experiences to be later added to experience database */
   std::vector<geometric::PathGeometric> queuedSolutionPaths_;

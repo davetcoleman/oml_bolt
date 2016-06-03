@@ -33,29 +33,24 @@
  *********************************************************************/
 
 /* Author: Dave Coleman <dave@dav.ee>
-   Desc:   Experience database for storing and reusing past path plans
+   Desc:   Dynamic graph for storing copies of a sparse graph along with cartesian task dimensions
 */
 
-#ifndef OMPL_TOOLS_BOLT_DENSEDB_
-#define OMPL_TOOLS_BOLT_DENSEDB_
+#ifndef OMPL_TOOLS_BOLT_PLANNING_GRAPH_
+#define OMPL_TOOLS_BOLT_PLANNING_GRAPH_
 
 // OMPL
 #include <ompl/base/StateSpace.h>
 #include <ompl/geometric/PathGeometric.h>
-#include <ompl/base/Planner.h>
-//#include <ompl/base/PlannerData.h>
-//#include <ompl/base/PlannerDataStorage.h>
 #include <ompl/datastructures/NearestNeighbors.h>
 #include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/SparseGraph.h>
 #include <ompl/tools/bolt/BoltGraph.h>
 
 // Boost
-#include <boost/function.hpp>
-#include <boost/thread.hpp>
+//#include <boost/function.hpp>
+//#include <boost/thread.hpp>
 
-// this package
-#include <ompl/tools/bolt/BoltStorage.h>
 #include <ompl/tools/bolt/DenseCache.h>
 
 namespace ompl
@@ -65,24 +60,24 @@ namespace tools
 namespace bolt
 {
 /**
-   @anchor DenseDB
+   @anchor PlanningGraph
    @par Short description
    Database for storing and retrieving past plans
 */
 
 /// @cond IGNORE
-OMPL_CLASS_FORWARD(DenseDB);
+OMPL_CLASS_FORWARD(PlanningGraph);
 OMPL_CLASS_FORWARD(SparseGraph);
 OMPL_CLASS_FORWARD(Discretizer);
 /// @endcond
 
 typedef std::map<PlanningVertex, std::vector<PlanningVertex> > DisjointSetsParentKey;
 
-/** \class ompl::tools::bolt::DenseDBPtr
-    \brief A boost shared pointer wrapper for ompl::tools::bolt::DenseDB */
+/** \class ompl::tools::bolt::PlanningGraphPtr
+    \brief A boost shared pointer wrapper for ompl::tools::bolt::PlanningGraph */
 
 /** \brief Save and load entire paths from file */
-class DenseDB
+class PlanningGraph
 {
   friend class BoltRetrieveRepair;
   friend class SparseGraph;
@@ -99,7 +94,7 @@ public:
   // class PlanningVertexWeightMap
   // {
   // private:
-  //   const DenseGraph& g_;  // Graph used
+  //   const PlanningAdjList& g_;  // Graph used
   //   const PlanningVertexCollisionStateMap& collisionStates_;
   //   const double popularityBias_;
   //   const bool popularityBiasEnabled_;
@@ -118,7 +113,7 @@ public:
   //    * Construct map for certain constraints.
   //    * \param graph         Graph to use
   //    */
-  //   PlanningVertexWeightMap(const DenseGraph& graph, const PlanningVertexCollisionStateMap& collisionStates,
+  //   PlanningVertexWeightMap(const PlanningAdjList& graph, const PlanningVertexCollisionStateMap& collisionStates,
   //                 const double& popularityBias, const bool popularityBiasEnabled);
 
   //   /**
@@ -139,21 +134,21 @@ public:
   {
   private:
     PlanningVertex goal_;  // Goal Vertex of the search
-    DenseDB* parent_;
+    PlanningGraph* parent_;
 
   public:
     /**
      * Construct a visitor for a given search.
      * \param goal  goal vertex of the search
      */
-    CustomAstarVisitor(PlanningVertex goal, DenseDB* parent);
+    CustomAstarVisitor(PlanningVertex goal, PlanningGraph* parent);
 
     /**
      * \brief Invoked when a vertex is first discovered and is added to the OPEN list.
      * \param v current Vertex
      * \param g graph we are searching on
      */
-    void discover_vertex(PlanningVertex v, const DenseGraph& g) const;
+    void discover_vertex(PlanningVertex v, const PlanningAdjList& g) const;
 
     /**
      * \brief Check if we have arrived at the goal.
@@ -164,20 +159,20 @@ public:
      * \param g graph we are searching on
      * \throw foundGoalException if \a u is the goal
      */
-    void examine_vertex(PlanningVertex v, const DenseGraph& g) const;
+    void examine_vertex(PlanningVertex v, const PlanningAdjList& g) const;
   };
 
   ////////////////////////////////////////////////////////////////////////////////////////
-  // DenseDB MEMBER FUNCTIONS
+  // PlanningGraph MEMBER FUNCTIONS
   ////////////////////////////////////////////////////////////////////////////////////////
 
   /** \brief Constructor needs the state space used for planning.
    *  \param space - state space
    */
-  DenseDB(base::SpaceInformationPtr si, VisualizerPtr visual);
+  PlanningGraph(base::SpaceInformationPtr si, VisualizerPtr visual);
 
   /** \brief Deconstructor */
-  virtual ~DenseDB(void);
+  virtual ~PlanningGraph(void);
 
   /** \brief Initialize database */
   bool setup();
@@ -208,9 +203,6 @@ public:
    * \return true if file saved successfully
    */
   bool save();
-
-  /** \brief Create grid */
-  bool generateGrid();
 
   /**
    * \brief Add a new solution path to our database. Des not actually save to file so
@@ -285,7 +277,7 @@ public:
   }
 
   /** \brief Retrieve the computed roadmap. */
-  const DenseGraph& getRoadmap() const
+  const PlanningAdjList& getRoadmap() const
   {
     return g_;
   }
@@ -437,10 +429,6 @@ public:
 
   void removeInvalidVertices();
 
-  DiscretizerPtr getDiscretizer()
-  {
-    return discretizer_;
-  }
 
   /** \brief Get all the different conencted components in the graph, and print to console or visualize */
   void getDisjointSets(DisjointSetsParentKey &disjointSets);
@@ -469,35 +457,32 @@ protected:
   std::shared_ptr<NearestNeighbors<PlanningVertex> > nn_;
 
   /** \brief Connectivity graph */
-  DenseGraph g_;
+  PlanningAdjList g_;
 
   /** \brief Vertices for performing nearest neighbor queries on multiple threads */
   std::vector<PlanningVertex> queryVertices_;
 
   /** \brief Access to the weights of each Edge */
-  boost::property_map<DenseGraph, boost::edge_weight_t>::type edgeWeightProperty_;
+  boost::property_map<PlanningAdjList, boost::edge_weight_t>::type edgeWeightProperty_;
 
   /** \brief Access to the collision checking state of each Edge */
   PlanningVertexCollisionStateMap edgeCollisionStateProperty_;
 
   /** \brief Access to the internal base::state at each Vertex */
-  boost::property_map<DenseGraph, vertex_state_t>::type stateProperty_;
+  boost::property_map<PlanningAdjList, vertex_state_t>::type stateProperty_;
 
   /** \brief Access to the SPARS vertex type for the vertices */
-  boost::property_map<DenseGraph, vertex_type_t>::type typeProperty_;
+  boost::property_map<PlanningAdjList, vertex_type_t>::type typeProperty_;
 
   /** \brief Access to the representatives of the Dense vertices */
-  boost::property_map<DenseGraph, vertex_sparse_rep_t>::type representativesProperty_;
+  boost::property_map<PlanningAdjList, vertex_sparse_rep_t>::type representativesProperty_;
 
   /** \brief Data structure that maintains the connected components */
-  boost::disjoint_sets<boost::property_map<DenseGraph, boost::vertex_rank_t>::type,
-                       boost::property_map<DenseGraph, boost::vertex_predecessor_t>::type> disjointSets_;
+  boost::disjoint_sets<boost::property_map<PlanningAdjList, boost::vertex_rank_t>::type,
+                       boost::property_map<PlanningAdjList, boost::vertex_predecessor_t>::type> disjointSets_;
 
   /** \brief Class for storing collision check data of edges */
   DenseCachePtr denseCache_;
-
-  /** \brief Tool for gridding state space */
-  DiscretizerPtr discretizer_;
 
   /** \brief Track where to load/save datastructures */
   std::string filePath_;
@@ -545,10 +530,10 @@ public:
   /** \brief Keep the average cost of the graph at this level */
   double desiredAverageCost_ = 90;
 
-};  // end of class DenseDB
+};  // end of class PlanningGraph
 
 }  // namespace bolt
 }  // namespace tools
 }  // namespace ompl
 
-#endif
+#endif // OMPL_TOOLS_BOLT_PLANNING_GRAPH_

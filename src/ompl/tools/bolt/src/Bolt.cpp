@@ -71,10 +71,10 @@ void Bolt::initialize()
   filePath_ = "unloaded";
 
   // Load the experience database
-  sparseDB_.reset(new SparseDB(si_, visual_));
+  sparseGraph_.reset(new SparseGraph(si_, visual_));
 
   // Load the Retrieve repair database. We do it here so that setRepairPlanner() works
-  boltPlanner_ = BoltRetrieveRepairPtr(new BoltRetrieveRepair(si_, sparseDB_, visual_));
+  boltPlanner_ = BoltRetrieveRepairPtr(new BoltRetrieveRepair(si_, sparseGraph_, visual_));
 
   std::size_t numThreads = boost::thread::hardware_concurrency();
   OMPL_INFORM("Bolt Framework initialized using %u threads", numThreads);
@@ -95,7 +95,7 @@ void Bolt::setup(void)
       boltPlanner_->setup();
 
     // Setup database
-    sparseDB_->setup();
+    sparseGraph_->setup();
 
     // Set the configured flag
     configured_ = true;
@@ -160,8 +160,7 @@ void Bolt::visualize()
     }
   }
 
-  const ompl::base::PathPtr pathSolutionBase = pdef_->getSolutionPath();
-  geometric::PathGeometric *solutionPath = static_cast<geometric::PathGeometric*>(pathSolutionBase.get());
+  geometric::PathGeometric *solutionPath = static_cast<geometric::PathGeometric*>(pdef_->getSolutionPath().get());
 
   // Show smoothed & interpolated path
   visual_->viz6Path(solutionPath, /*style*/ 1, tools::BLUE);
@@ -170,6 +169,39 @@ void Bolt::visualize()
   // Show robot animated if not 2D
   if (si_->getStateSpace()->getDimension() > 3)
     visual_->viz6Path(solutionPath, /*style*/ 3, tools::DEFAULT);
+}
+
+bool Bolt::checkOptimalityGuarantees(std::size_t indent)
+{
+  geometric::PathGeometric *rawPath = boltPlanner_->getOriginalSolutionPath().get();
+  geometric::PathGeometric *smoothedPath = static_cast<geometric::PathGeometric*>(pdef_->getSolutionPath().get());
+
+  double optimalLength = smoothedPath->length();
+  double sparseLength = rawPath->length();
+  double theoryLength = sparseGraph_->stretchFactor_ * optimalLength + 4 * sparseGraph_->getSparseDelta();
+  double percentOfMaxAllows = sparseLength / theoryLength * 100.0;
+
+  BOLT_DEBUG(indent, 1, "-----------------------------------------");
+  BOLT_DEBUG(indent, 1, "Checking Asymptotic Optimality Guarantees");
+  BOLT_DEBUG(indent+2, 1, "Raw Path Length:         " << sparseLength);
+  BOLT_DEBUG(indent+2, 1, "Smoothed Path Length:    " << optimalLength);
+  BOLT_DEBUG(indent+2, 1, "Theoretical Path Length: " << theoryLength);
+  BOLT_DEBUG(indent+2, 1, "Stretch Factor t:        " << sparseGraph_->stretchFactor_);
+  BOLT_DEBUG(indent+2, 1, "Sparse Delta:            " << sparseGraph_->getSparseDelta());
+
+  if (sparseLength >= theoryLength)
+  {
+    BOLT_RED_DEBUG(indent+2, 1, "Asymptotic optimality guarantee VIOLATED");
+    return false;
+  }
+  else
+    BOLT_GREEN_DEBUG(indent+2, 1, "Asymptotic optimality guarantee maintained");
+  BOLT_YELLOW_DEBUG(indent+2, 1, "Percent of max allowed:  " << percentOfMaxAllows << " %");
+  BOLT_DEBUG(indent, 1, "-----------------------------------------");
+
+  visual_->waitForUserFeedback("review results");
+
+  return true;
 }
 
 void Bolt::logResults()
@@ -220,6 +252,10 @@ void Bolt::logResults()
         if (!checkRepeatedStates(solutionPath))
           exit(-1);
 
+        // Check optimality
+        if (!checkOptimalityGuarantees())
+          exit(-1);
+
         // Stats
         stats_.numSolutionsFromRecall_++;
 
@@ -251,8 +287,8 @@ void Bolt::logResults()
 
   // Final log data
   // log.insertion_time = insertionTime; TODO fix this
-  log.numVertices = sparseDB_->getNumVertices();
-  log.numEdges = sparseDB_->getNumEdges();
+  log.numVertices = sparseGraph_->getNumVertices();
+  log.numEdges = sparseGraph_->getNumEdges();
   log.numConnectedComponents = 0;
 
   // Flush the log to buffer
@@ -280,21 +316,21 @@ base::PlannerStatus Bolt::solve(double time)
 
 bool Bolt::setFilePath(const std::string &filePath)
 {
-  sparseDB_->getDenseCache()->setFilePath(filePath+".cache");
-  sparseDB_->setFilePath(filePath+".ompl");
+  sparseGraph_->getDenseCache()->setFilePath(filePath+".cache");
+  sparseGraph_->setFilePath(filePath+".ompl");
   return true;
 }
 
 bool Bolt::save()
 {
   // setup(); // ensure the db has been loaded to the Experience DB
-  return sparseDB_->save();
+  return sparseGraph_->save();
 }
 
 bool Bolt::saveIfChanged()
 {
   // setup(); // ensure the db has been loaded to the Experience DB
-  return sparseDB_->saveIfChanged();
+  return sparseGraph_->saveIfChanged();
 }
 
 void Bolt::printResultsInfo(std::ostream &out) const
@@ -310,17 +346,17 @@ void Bolt::printResultsInfo(std::ostream &out) const
 bool Bolt::loadOrGenerate()
 {
   // Load from file or generate new grid
-  if (sparseDB_->getNumVertices() > sparseDB_->getNumQueryVertices())  // the search verticie may already be there
+  if (sparseGraph_->getNumVertices() > sparseGraph_->getNumQueryVertices())  // the search verticie may already be there
   {
     OMPL_INFORM("Database already loaded");
     return true;
   }
 
-  if (!sparseDB_->load())  // load from file
+  if (!sparseGraph_->load())  // load from file
   {
     return false;
   }
-  sparseDB_->displayDatabase();
+  sparseGraph_->displayDatabase();
 
   return true;
 }
@@ -343,8 +379,8 @@ void Bolt::print(std::ostream &out) const
 
 void Bolt::printLogs(std::ostream &out) const
 {
-  double vertPercent = sparseDB_->getNumVertices() / double(sparseDB_->getNumVertices()) * 100.0;
-  double edgePercent = sparseDB_->getNumEdges() / double(sparseDB_->getNumEdges()) * 100.0;
+  double vertPercent = sparseGraph_->getNumVertices() / double(sparseGraph_->getNumVertices()) * 100.0;
+  double edgePercent = sparseGraph_->getNumEdges() / double(sparseGraph_->getNumEdges()) * 100.0;
   double solvedPercent = stats_.numSolutionsFromRecall_ / static_cast<double>(stats_.numProblems_) * 100.0;
   if (!recallEnabled_)
     out << "Scratch Planning Logging Results (inside Bolt Framework)" << std::endl;
@@ -357,15 +393,15 @@ void Bolt::printLogs(std::ostream &out) const
   out << "    Timedout:                    " << stats_.numSolutionsTimedout_ << std::endl;
   out << "    Approximate:                 " << stats_.numSolutionsApproximate_ << std::endl;
   // out << "  DenseDB                        " << std::endl;
-  // out << "    Vertices:                    " << sparseDB_->getNumVertices() << std::endl;
-  // out << "    Edges:                       " << sparseDB_->getNumEdges() << std::endl;
+  // out << "    Vertices:                    " << sparseGraph_->getNumVertices() << std::endl;
+  // out << "    Edges:                       " << sparseGraph_->getNumEdges() << std::endl;
   //out << "    Start/Goal States Added:     " << stats_.numStartGoalStatesAddedToDense_ << std::endl;
-  out << "  SparseDB                       " << std::endl;
-  out << "    Vertices:                    " << sparseDB_->getNumVertices() << " (" << vertPercent << "%)" << std::endl;
-  out << "    Edges:                       " << sparseDB_->getNumEdges() << " (" << edgePercent << "%)" << std::endl;
-  out << "    Regenerations:               " << sparseDB_->numGraphGenerations_ << std::endl;
-  out << "    Disjoint Samples Added:      " << sparseDB_->numRandSamplesAdded_ << std::endl;
-  out << "    Sparse Delta Fraction:       " << sparseDB_->sparseDeltaFraction_ << std::endl;
+  out << "  SparseGraph                       " << std::endl;
+  out << "    Vertices:                    " << sparseGraph_->getNumVertices() << " (" << vertPercent << "%)" << std::endl;
+  out << "    Edges:                       " << sparseGraph_->getNumEdges() << " (" << edgePercent << "%)" << std::endl;
+  out << "    Regenerations:               " << sparseGraph_->numGraphGenerations_ << std::endl;
+  out << "    Disjoint Samples Added:      " << sparseGraph_->numRandSamplesAdded_ << std::endl;
+  out << "    Sparse Delta Fraction:       " << sparseGraph_->sparseDeltaFraction_ << std::endl;
   out << "  Average planning time:         " << std::setprecision(4) << stats_.getAveragePlanningTime() << " seconds" << std::endl;
   out << "  Average insertion time:        " << stats_.getAverageInsertionTime() << " seconds" << std::endl;
   out << std::endl;
@@ -373,12 +409,12 @@ void Bolt::printLogs(std::ostream &out) const
 
 std::size_t Bolt::getExperiencesCount() const
 {
-  return sparseDB_->getNumVertices();
+  return sparseGraph_->getNumVertices();
 }
 
 void Bolt::getAllPlannerDatas(std::vector<ob::PlannerDataPtr> &plannerDatas) const
 {
-  // sparseDB_->getAllPlannerDatas(plannerDatas);
+  // sparseGraph_->getAllPlannerDatas(plannerDatas);
 }
 
 void Bolt::convertPlannerData(const ob::PlannerDataPtr plannerData, og::PathGeometric &path)
@@ -388,9 +424,9 @@ void Bolt::convertPlannerData(const ob::PlannerDataPtr plannerData, og::PathGeom
     path.append(plannerData->getVertex(i).getState());
 }
 
-SparseDBPtr Bolt::getSparseDB()
+SparseGraphPtr Bolt::getSparseGraph()
 {
-  return sparseDB_;
+  return sparseGraph_;
 }
 
 bool Bolt::doPostProcessing()
@@ -404,12 +440,12 @@ bool Bolt::doPostProcessing()
 
   for (std::size_t i = 0; i < queuedSolutionPaths_.size(); ++i)
   {
-    if (sparseDB_->snapPathVerbose_)
+    if (sparseGraph_->snapPathVerbose_)
       std::cout << "post processing path " << i << " of " << queuedSolutionPaths_.size() << " -------------------------"
         "- " << std::endl;
 
     // Time to add a path to experience database
-    if (!sparseDB_->postProcessPath(queuedSolutionPaths_[i]))
+    if (!sparseGraph_->postProcessPath(queuedSolutionPaths_[i]))
     {
       OMPL_ERROR("Unable to save path");
     }
@@ -420,11 +456,11 @@ bool Bolt::doPostProcessing()
   queuedSolutionPaths_.clear();
 
   // Ensure graph doesn't get too popular
-  if (sparseDB_->getPopularityBiasEnabled())
-    sparseDB_->normalizeGraphEdgeWeights();
+  if (sparseGraph_->getPopularityBiasEnabled())
+    sparseGraph_->normalizeGraphEdgeWeights();
 
   // Show changes
-  sparseDB_->displayDatabase();
+  sparseGraph_->displayDatabase();
 
   // Recreate the sparse graph, too
 

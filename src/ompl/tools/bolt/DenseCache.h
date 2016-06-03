@@ -59,7 +59,7 @@ namespace tools
 namespace bolt
 {
 OMPL_CLASS_FORWARD(DenseCache);
-OMPL_CLASS_FORWARD(SparseDB);
+OMPL_CLASS_FORWARD(SparseGraph);
 
 typedef base::State* CachedState;
 typedef std::vector<CachedState> StateCache;
@@ -70,7 +70,7 @@ class DenseCache
 {
 public:
   /** \brief Constructor */
-  DenseCache(base::SpaceInformationPtr si, SparseDB *sparseDB, VisualizerPtr visual);
+  DenseCache(base::SpaceInformationPtr si, SparseGraph *sparseDB, VisualizerPtr visual);
 
   /** \brief Clear the edge cache completely */
   void clear();
@@ -169,7 +169,7 @@ private:
   base::SpaceInformationPtr si_;
 
   /** \brief The database of motions to search through */
-  SparseDB *sparseDB_;
+  SparseGraph *sparseDB_;
 
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;

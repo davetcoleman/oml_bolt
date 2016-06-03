@@ -83,8 +83,8 @@ public:
 
   void getVertexNeighborsPreprocess();
 
-  void getVertexNeighbors(base::State* state, std::vector<DenseVertex> &graphNeighborhood, std::size_t threadID);
-  void getVertexNeighbors(DenseVertex v1, std::vector<DenseVertex>& graphNeighborhood);
+  void getVertexNeighbors(base::State* state, std::vector<PlanningVertex> &graphNeighborhood, std::size_t threadID);
+  void getVertexNeighbors(PlanningVertex v1, std::vector<PlanningVertex>& graphNeighborhood);
 
   void eliminateDisjointSets();
 
@@ -104,12 +104,12 @@ private:
   void generateEdges();
 
   /** \brief Collision check edges using threading */
-  void generateEdgesThread(std::size_t threadID, DenseVertex startVertex, DenseVertex endVertex,
+  void generateEdgesThread(std::size_t threadID, PlanningVertex startVertex, PlanningVertex endVertex,
                            base::SpaceInformationPtr si);
 
   void eliminateDisjointSetsThread(std::size_t threadID, base::SpaceInformationPtr si, bool verbose);
 
-  void connectNewVertex(base::State* state, std::vector<DenseVertex> visibleNeighborhood, bool verbose);
+  void connectNewVertex(base::State* state, std::vector<PlanningVertex> visibleNeighborhood, bool verbose);
 
   /** \brief The created space information */
   base::SpaceInformationPtr si_;

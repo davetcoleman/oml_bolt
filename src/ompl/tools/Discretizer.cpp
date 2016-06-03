@@ -475,7 +475,7 @@ void Discretizer::generateEdges()
   OMPL_INFORM("Generated %i edges. Finished generating grid.", denseDB_->getNumEdges());
 }
 
-void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVertex, DenseVertex endVertex,
+void Discretizer::generateEdgesThread(std::size_t threadID, PlanningVertex startVertex, PlanningVertex endVertex,
                                       base::SpaceInformationPtr si)
 {
   const bool verbose = false;
@@ -483,13 +483,13 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
   std::size_t feedbackFrequency = std::max(1.0, double(endVertex - startVertex) / 100.0);
 
   // Nearest Neighbor search
-  std::vector<DenseVertex> graphNeighborhood;
+  std::vector<PlanningVertex> graphNeighborhood;
 
   // Stats
   std::size_t numEdgesInCollision = 0;
 
   // Process [startVertex, endVertex] inclusive
-  for (DenseVertex v1 = startVertex; v1 <= endVertex; ++v1)
+  for (PlanningVertex v1 = startVertex; v1 <= endVertex; ++v1)
   {
     // Skip the query vertex (first vertex)
     if (v1 <= denseDB_->queryVertices_.back())
@@ -520,7 +520,7 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
       if (verbose)
         OMPL_INFORM("v2 = %u", i);
 
-      DenseVertex &v2 = graphNeighborhood[i];
+      PlanningVertex &v2 = graphNeighborhood[i];
 
       // Check if these vertices are the same
       if (v1 == v2)
@@ -556,7 +556,7 @@ void Discretizer::generateEdgesThread(std::size_t threadID, DenseVertex startVer
       }
 
       // Create edge
-      DenseEdge e;
+      PlanningVertex e;
       {
         boost::unique_lock<boost::mutex> scoped_lock(edgeMutex_);
         e = denseDB_->addEdge(v1, v2, cost, FREE);
@@ -604,14 +604,14 @@ void Discretizer::getVertexNeighborsPreprocess()
   }
 }
 
-void Discretizer::getVertexNeighbors(base::State *state, std::vector<DenseVertex> &graphNeighborhood, std::size_t threadID)
+void Discretizer::getVertexNeighbors(base::State *state, std::vector<PlanningVertex> &graphNeighborhood, std::size_t threadID)
 {
   denseDB_->stateProperty_[denseDB_->queryVertices_[threadID]] = state;
   getVertexNeighbors(denseDB_->queryVertices_[threadID], graphNeighborhood);
   denseDB_->stateProperty_[denseDB_->queryVertices_[threadID]] = nullptr;
 }
 
-void Discretizer::getVertexNeighbors(DenseVertex v1, std::vector<DenseVertex> &graphNeighborhood)
+void Discretizer::getVertexNeighbors(PlanningVertex v1, std::vector<PlanningVertex> &graphNeighborhood)
 {
   const std::size_t numSameVerticiesFound = 1;  // add 1 to the end because the NN tree always returns itself
 
@@ -649,7 +649,7 @@ void Discretizer::eliminateDisjointSets()
   stopSearchingDisjointSets_ = false;
 
   getVertexNeighborsPreprocess();    // prepare the constants
-  denseDB_->getSparseDB()->setup();  // make sure sparse delta is chosen
+  denseDB_->getSparseGraph()->setup();  // make sure sparse delta is chosen
 
   // Setup threading
   std::vector<boost::thread *> threads(numThreads_);
@@ -688,8 +688,8 @@ void Discretizer::eliminateDisjointSetsThread(std::size_t threadID, base::SpaceI
   std::size_t numSets = 2;  // dummy value that will be updated at first loop
   std::size_t sampleCount = 0;
   std::size_t noVisibleNeighborCount = 0;
-  std::vector<DenseVertex> graphNeighborhood;
-  std::vector<DenseVertex> visibleNeighborhood;
+  std::vector<PlanningVertex> graphNeighborhood;
+  std::vector<PlanningVertex> visibleNeighborhood;
 
   base::ValidStateSamplerPtr sampler = si_->allocValidStateSampler();
   while (numSets > 1 && !stopSearchingDisjointSets_)
@@ -724,7 +724,7 @@ void Discretizer::eliminateDisjointSetsThread(std::size_t threadID, base::SpaceI
       //}
 
       // Now that we got the neighbors from the NN, find the ones that are visible
-      for (DenseVertex &denseV : graphNeighborhood)
+      for (PlanningVertex &denseV : graphNeighborhood)
       {
         //BOOST_ASSERT_MSG(denseV != denseDB_->queryVertex_, "Query vertex should not be in the graph neighborhood");
 
@@ -824,11 +824,11 @@ void Discretizer::eliminateDisjointSetsThread(std::size_t threadID, base::SpaceI
   si_->freeState(candidateState);
 }
 
-void Discretizer::connectNewVertex(base::State *state, std::vector<DenseVertex> visibleNeighborhood, bool verbose)
+void Discretizer::connectNewVertex(base::State *state, std::vector<PlanningVertex> visibleNeighborhood, bool verbose)
 {
   boost::unique_lock<boost::mutex> scoped_lock(vertexMutex_);
 
-  DenseVertex v1 = denseDB_->addVertex(state, COVERAGE);  // TODO VertexType is meaningless
+  PlanningVertex v1 = denseDB_->addVertex(state, COVERAGE);  // TODO VertexType is meaningless
   denseDB_->setGraphUnsaved();
   eliminateDisjointSetsVerticesAdded_++;
   eliminateDisjointSetsVerticesAddedUnsaved_++;
@@ -842,7 +842,7 @@ void Discretizer::connectNewVertex(base::State *state, std::vector<DenseVertex> 
   // For each visible neighbor vertex, add an edge
   std::size_t numEdgesAdded = 0;  // sanity check
   // for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
-  for (DenseVertex &v2 : visibleNeighborhood)
+  for (PlanningVertex &v2 : visibleNeighborhood)
   {
     // Check if these vertices are the same STATE
     if (si_->getStateSpace()->equalStates(state, denseDB_->stateProperty_[v2]))
@@ -864,7 +864,7 @@ void Discretizer::connectNewVertex(base::State *state, std::vector<DenseVertex> 
   }  // for each neighbor
 
   // Make sure one and only one vertex is returned from the NN search that is the same as parent vertex
-  BOOST_ASSERT_MSG(numEdgesAdded >= 2, "Too few edges added from new DenseVertex connectivity node");
+  BOOST_ASSERT_MSG(numEdgesAdded >= 2, "Too few edges added from new PlanningVertex connectivity node");
 
   if (verbose)
     std::cout << "Connected new vertex to " << numEdgesAdded << " neighbors" << std::endl;

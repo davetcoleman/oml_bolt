@@ -38,7 +38,7 @@
 
 // OMPL
 #include <ompl/tools/bolt/BoltStorage.h>
-#include <ompl/tools/bolt/SparseDB.h>
+#include <ompl/tools/bolt/SparseGraph.h>
 #include <ompl/tools/bolt/BoltGraph.h>
 
 // Boost
@@ -54,7 +54,7 @@ namespace tools
 {
 namespace bolt
 {
-BoltStorage::BoltStorage(const base::SpaceInformationPtr &si, SparseDB *sparseDB) : si_(si), sparseDB_(sparseDB)
+BoltStorage::BoltStorage(const base::SpaceInformationPtr &si, SparseGraph *sparseGraph) : si_(si), sparseGraph_(sparseGraph)
 {
   numQueryVertices_ = boost::thread::hardware_concurrency();
 }
@@ -66,8 +66,8 @@ void BoltStorage::save(const std::string& filePath)
   OMPL_INFORM("------------------------------------------------");
   OMPL_INFORM("Saving Sparse Graph");
   OMPL_INFORM("  Path:            %s", filePath.c_str());
-  OMPL_INFORM("  Edges:           %u", sparseDB_->getNumEdges());
-  OMPL_INFORM("  Vertices:        %u", sparseDB_->getNumVertices());
+  OMPL_INFORM("  Edges:           %u", sparseGraph_->getNumEdges());
+  OMPL_INFORM("  Vertices:        %u", sparseGraph_->getNumVertices());
   OMPL_INFORM("------------------------------------------------");
 
   save(out);
@@ -89,8 +89,8 @@ void BoltStorage::save(std::ostream &out)
     // Writing the header
     Header h;
     h.marker = OMPL_PLANNER_DATA_ARCHIVE_MARKER;
-    h.vertex_count = sparseDB_->getNumVertices() - numQueryVertices_;
-    h.edge_count = sparseDB_->getNumEdges();
+    h.vertex_count = sparseGraph_->getNumVertices() - numQueryVertices_;
+    h.edge_count = sparseGraph_->getNumEdges();
     si_->getStateSpace()->computeSignature(h.signature);
     oa << h;
 
@@ -108,32 +108,32 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
   const base::StateSpacePtr &space = si_->getStateSpace();
 
   std::vector<unsigned char> state(space->getSerializationLength());
-  std::size_t feedbackFrequency = sparseDB_->getNumVertices() / 10;
+  std::size_t feedbackFrequency = sparseGraph_->getNumVertices() / 10;
 
   std::cout << "         Saving vertices: " << std::flush;
   std::size_t count = 0;
   std::size_t errorCheckNumQueryVertices = 0;
-  foreach (const SparseVertex v, boost::vertices(sparseDB_->g_))
+  foreach (const SparseVertex v, boost::vertices(sparseGraph_->g_))
   {
     // Skip the query vertex that is nullptr
-    if (v <= sparseDB_->queryVertices_.back())
+    if (v <= sparseGraph_->queryVertices_.back())
     {
       errorCheckNumQueryVertices++;
       continue;
     }
 
     // Debug
-    //std::cout << "v: " << v << " stateID: " << sparseDB_->getStateID(v) << " state: ";
-    //si_->printState(sparseDB_->getVertexStateNonConst(v), std::cout);
+    //std::cout << "v: " << v << " stateID: " << sparseGraph_->getStateID(v) << " state: ";
+    //si_->printState(sparseGraph_->getVertexStateNonConst(v), std::cout);
 
     // Convert to new structure
     BoltVertexData vertexData;
 
     // Record the type of the vertex
-    vertexData.type_ = sparseDB_->vertexTypeProperty_[v];
+    vertexData.type_ = sparseGraph_->vertexTypeProperty_[v];
 
     // Serializing the state contained in this vertex
-    space->serialize(&state[0], sparseDB_->getVertexStateNonConst(v));
+    space->serialize(&state[0], sparseGraph_->getVertexStateNonConst(v));
     vertexData.stateSerialized_ = state;
 
     // Save to file
@@ -141,7 +141,7 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
 
     // Feedback
     if ((++count) % feedbackFrequency == 0)
-      std::cout << std::fixed << std::setprecision(0) << (count / double(sparseDB_->getNumVertices())) * 100.0 << "% "
+      std::cout << std::fixed << std::setprecision(0) << (count / double(sparseGraph_->getNumVertices())) * 100.0 << "% "
                 << std::flush;
   }
   BOOST_ASSERT_MSG(errorCheckNumQueryVertices == numQueryVertices_,
@@ -153,14 +153,14 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
 
 void BoltStorage::saveEdges(boost::archive::binary_oarchive &oa)
 {
-  std::size_t feedbackFrequency = std::max(10.0, sparseDB_->getNumEdges() / 10.0);
+  std::size_t feedbackFrequency = std::max(10.0, sparseGraph_->getNumEdges() / 10.0);
 
   std::cout << "         Saving edges: " << std::flush;
   std::size_t count = 1;
-  foreach (const SparseEdge e, boost::edges(sparseDB_->g_))
+  foreach (const SparseEdge e, boost::edges(sparseGraph_->g_))
   {
-    const SparseVertex v1 = boost::source(e, sparseDB_->g_);
-    const SparseVertex v2 = boost::target(e, sparseDB_->g_);
+    const SparseVertex v1 = boost::source(e, sparseGraph_->g_);
+    const SparseVertex v2 = boost::target(e, sparseGraph_->g_);
 
     // Convert to new structure
     BoltEdgeData edgeData;
@@ -169,15 +169,15 @@ void BoltStorage::saveEdges(boost::archive::binary_oarchive &oa)
     edgeData.endpoints_.second = v2 - numQueryVertices_;
 
     // Other properties
-    edgeData.weight_ = sparseDB_->edgeWeightProperty_[e];
-    edgeData.type_ = sparseDB_->edgeTypeProperty_[e];
+    edgeData.weight_ = sparseGraph_->edgeWeightProperty_[e];
+    edgeData.type_ = sparseGraph_->edgeTypeProperty_[e];
 
     // Copy to file
     oa << edgeData;
 
     // Feedback
     if ((++count) % feedbackFrequency == 0)
-      std::cout << std::fixed << std::setprecision(0) << (count / double(sparseDB_->getNumEdges())) * 100.0 << "% "
+      std::cout << std::fixed << std::setprecision(0) << (count / double(sparseGraph_->getNumEdges())) * 100.0 << "% "
                 << std::flush;
 
   }  // for each edge
@@ -191,8 +191,8 @@ bool BoltStorage::load(const std::string& filePath)
   OMPL_INFORM("Path: %s", filePath.c_str());
 
   // Error checking
-  if (sparseDB_->getNumEdges() > numQueryVertices_ ||
-      sparseDB_->getNumVertices() > numQueryVertices_)  // the search verticie may already be there
+  if (sparseGraph_->getNumEdges() > numQueryVertices_ ||
+      sparseGraph_->getNumVertices() > numQueryVertices_)  // the search verticie may already be there
   {
     OMPL_INFORM("Database is not empty, unable to load from file");
     return false;
@@ -278,11 +278,11 @@ void BoltStorage::loadVertices(unsigned int numVertices, boost::archive::binary_
 
     // vertexData.state_ = state;
     // // Add to Sparse graph
-    // sparseDB_->addVertexFromFile(vertexData);
+    // sparseGraph_->addVertexFromFile(vertexData);
 
     // Add to Sparse graph
     VertexType type = static_cast<VertexType>(vertexData.type_);
-    sparseDB_->addVertex(state, type, 0);
+    sparseGraph_->addVertex(state, type, 0);
 
     // Feedback
     if ((i + 1) % feedbackFrequency == 0)
@@ -307,14 +307,14 @@ void BoltStorage::loadEdges(unsigned int numEdges, boost::archive::binary_iarchi
     const SparseVertex v2 = edgeData.endpoints_.second += numQueryVertices_;
 
     // Error check
-    BOOST_ASSERT_MSG(v1 <= sparseDB_->getNumVertices(), "Vertex 1 out of range of possible vertices");
-    BOOST_ASSERT_MSG(v2 <= sparseDB_->getNumVertices(), "Vertex 2 out of range of possible vertices");
+    BOOST_ASSERT_MSG(v1 <= sparseGraph_->getNumVertices(), "Vertex 1 out of range of possible vertices");
+    BOOST_ASSERT_MSG(v2 <= sparseGraph_->getNumVertices(), "Vertex 2 out of range of possible vertices");
     BOOST_ASSERT_MSG(v1 != v2, "Vertices of an edge loaded from file are the same");
 
     // Add
     EdgeType type = static_cast<EdgeType>(edgeData.type_);
     std::size_t indent = 2;
-    sparseDB_->addEdge(v1, v2, type, indent);
+    sparseGraph_->addEdge(v1, v2, type, indent);
 
     // We deserialized the edge object pointer, and we own it.
     // Since addEdge copies the object, it is safe to free here.

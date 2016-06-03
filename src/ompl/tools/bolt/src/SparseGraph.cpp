@@ -37,7 +37,7 @@
 */
 
 // OMPL
-#include <ompl/tools/bolt/SparseDB.h>
+#include <ompl/tools/bolt/SparseGraph.h>
 #include <ompl/util/Time.h>
 #include <ompl/util/Console.h>
 #include <ompl/datastructures/NearestNeighborsGNAT.h>
@@ -89,13 +89,13 @@ double get(const otb::SparseEdgeWeightMap &m, const otb::SparseEdge &e)
 
 // CustomAstarVisitor methods ////////////////////////////////////////////////////////////////////////////
 
-BOOST_CONCEPT_ASSERT((boost::AStarVisitorConcept<otb::CustomAstarVisitor, otb::SparseGraph>));
+BOOST_CONCEPT_ASSERT((boost::AStarVisitorConcept<otb::CustomAstarVisitor, otb::SparseAdjList>));
 
-otb::CustomAstarVisitor::CustomAstarVisitor(SparseVertex goal, SparseDB *parent) : goal_(goal), parent_(parent)
+otb::CustomAstarVisitor::CustomAstarVisitor(SparseVertex goal, SparseGraph *parent) : goal_(goal), parent_(parent)
 {
 }
 
-void otb::CustomAstarVisitor::discover_vertex(SparseVertex v, const SparseGraph &) const
+void otb::CustomAstarVisitor::discover_vertex(SparseVertex v, const SparseAdjList &) const
 {
   // Statistics
   parent_->recordNodeOpened();
@@ -104,7 +104,7 @@ void otb::CustomAstarVisitor::discover_vertex(SparseVertex v, const SparseGraph 
     parent_->getVisual()->viz4State(parent_->getVertexState(v), tools::SMALL, tools::GREEN, 1);
 }
 
-void otb::CustomAstarVisitor::examine_vertex(SparseVertex v, const SparseGraph &) const
+void otb::CustomAstarVisitor::examine_vertex(SparseVertex v, const SparseAdjList &) const
 {
   // Statistics
   parent_->recordNodeClosed();
@@ -126,7 +126,7 @@ namespace tools
 {
 namespace bolt
 {
-SparseDB::SparseDB(base::SpaceInformationPtr si, VisualizerPtr visual)
+SparseGraph::SparseGraph(base::SpaceInformationPtr si, VisualizerPtr visual)
   : si_(si)
   , visual_(visual)
   // Property accessors of edges
@@ -152,18 +152,18 @@ SparseDB::SparseDB(base::SpaceInformationPtr si, VisualizerPtr visual)
 
   // Initialize nearest neighbor datastructure
   nn_.reset(new NearestNeighborsGNAT<SparseVertex>());
-  nn_->setDistanceFunction(boost::bind(&otb::SparseDB::distanceFunction, this, _1, _2));
+  nn_->setDistanceFunction(boost::bind(&otb::SparseGraph::distanceFunction, this, _1, _2));
 
   // Initialize discretizer
   vertexDiscretizer_.reset(new VertexDiscretizer(si_, visual_));
 }
 
-SparseDB::~SparseDB(void)
+SparseGraph::~SparseGraph(void)
 {
   freeMemory();
 }
 
-void SparseDB::freeMemory()
+void SparseGraph::freeMemory()
 {
   clearanceSampler_.reset();
   regularSampler_.reset();
@@ -180,7 +180,7 @@ void SparseDB::freeMemory()
     nn_->clear();
 }
 
-bool SparseDB::setup()
+bool SparseGraph::setup()
 {
   const std::size_t indent = 0;
 
@@ -272,7 +272,7 @@ bool SparseDB::setup()
   return true;
 }
 
-bool SparseDB::load()
+bool SparseGraph::load()
 {
   // Load collision cache
   denseCache_->load();
@@ -319,7 +319,7 @@ bool SparseDB::load()
   return true;
 }
 
-bool SparseDB::saveIfChanged()
+bool SparseGraph::saveIfChanged()
 {
   if (graphUnsaved_)
   {
@@ -330,7 +330,7 @@ bool SparseDB::saveIfChanged()
   return true;
 }
 
-bool SparseDB::save()
+bool SparseGraph::save()
 {
   if (!graphUnsaved_)
     OMPL_WARN("No need to save because graphUnsaved_ is false, but saving anyway because requested");
@@ -338,7 +338,7 @@ bool SparseDB::save()
   // Disabled
   if (!savingEnabled_)
   {
-    OMPL_INFORM("Not saving because option disabled for SparseDB");
+    OMPL_INFORM("Not saving because option disabled for SparseGraph");
     return false;
   }
 
@@ -367,7 +367,7 @@ bool SparseDB::save()
   return true;
 }
 
-bool SparseDB::astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath,
+bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath,
                            double &distance, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vCriteria_, "astarSearch()");
@@ -395,7 +395,7 @@ bool SparseDB::astarSearch(const SparseVertex start, const SparseVertex goal, st
     bool popularityBiasEnabled = false;
     boost::astar_search(g_,                                                           // graph
                         start,                                                        // start state
-                        boost::bind(&otb::SparseDB::astarHeuristic, this, _1, goal),  // the heuristic
+                        boost::bind(&otb::SparseGraph::astarHeuristic, this, _1, goal),  // the heuristic
                         // ability to disable edges (set cost to inifinity):
                         boost::weight_map(SparseEdgeWeightMap(g_, edgeCollisionStatePropertySparse_, popularityBias,
                                                               popularityBiasEnabled))
@@ -475,7 +475,7 @@ bool SparseDB::astarSearch(const SparseVertex start, const SparseVertex goal, st
   return foundGoal;
 }
 
-double SparseDB::astarHeuristic(const SparseVertex a, const SparseVertex b) const
+double SparseGraph::astarHeuristic(const SparseVertex a, const SparseVertex b) const
 {
   // Assume vertex 'a' is the one we care about its populariy
 
@@ -525,12 +525,12 @@ double SparseDB::astarHeuristic(const SparseVertex a, const SparseVertex b) cons
   return dist;
 }
 
-void SparseDB::debugState(const ompl::base::State *state)
+void SparseGraph::debugState(const ompl::base::State *state)
 {
   si_->printState(state, std::cout);
 }
 
-void SparseDB::initializeQueryState()
+void SparseGraph::initializeQueryState()
 {
   if (boost::num_vertices(g_) > 0)
   {
@@ -550,13 +550,13 @@ void SparseDB::initializeQueryState()
   }
 }
 
-void SparseDB::clearEdgeCollisionStates()
+void SparseGraph::clearEdgeCollisionStates()
 {
   foreach (const SparseEdge e, boost::edges(g_))
     edgeCollisionStatePropertySparse_[e] = NOT_CHECKED;  // each edge has an unknown state
 }
 
-void SparseDB::createSPARS()
+void SparseGraph::createSPARS()
 {
   std::size_t indent = 0;
   BOLT_BLUE_DEBUG(indent, true, "createSPARS()");
@@ -649,7 +649,7 @@ void SparseDB::createSPARS()
   OMPL_INFORM("Finished creating sparse database");
 }
 
-void SparseDB::addDiscretizedStates(std::size_t indent)
+void SparseGraph::addDiscretizedStates(std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, true, "addDiscretizedStates()");
   indent += 2;
@@ -684,7 +684,7 @@ void SparseDB::addDiscretizedStates(std::size_t indent)
     errorCheckDuplicateStates(indent);
 }
 
-void SparseDB::errorCheckDuplicateStates(std::size_t indent)
+void SparseGraph::errorCheckDuplicateStates(std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, true, "errorCheckDuplicateStates() - part of super debug");
   bool found = false;
@@ -705,7 +705,7 @@ void SparseDB::errorCheckDuplicateStates(std::size_t indent)
     exit(-1);
 }
 
-void SparseDB::removeDeletedVertices(std::size_t indent)
+void SparseGraph::removeDeletedVertices(std::size_t indent)
 {
   bool verbose = true;
   BOLT_BLUE_DEBUG(indent, verbose, "removeDeletedVertices()");
@@ -714,7 +714,7 @@ void SparseDB::removeDeletedVertices(std::size_t indent)
   // Remove all vertices that are set to 0
   std::size_t numRemoved = 0;
   // foreach (SparseVertex v, boost::vertices(g_))
-  typedef boost::graph_traits<SparseGraph>::vertex_iterator VertexIterator;
+  typedef boost::graph_traits<SparseAdjList>::vertex_iterator VertexIterator;
   for (VertexIterator v = boost::vertices(g_).first; v != boost::vertices(g_).second; /* manual */)
   {
     if (*v < numThreads_)  // Skip the query vertices
@@ -770,7 +770,7 @@ void SparseDB::removeDeletedVertices(std::size_t indent)
 }
 
 /*
-void SparseDB::createSPARSOuterLoop()
+void SparseGraph::createSPARSOuterLoop()
 {
   std::size_t indent = 2;
 
@@ -851,7 +851,7 @@ void SparseDB::createSPARSOuterLoop()
 }
 */
 
-bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOrder, std::size_t &sucessfulInsertions)
+bool SparseGraph::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOrder, std::size_t &sucessfulInsertions)
 {
   std::size_t indent = 0;
 
@@ -916,7 +916,7 @@ bool SparseDB::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOr
   return true;
 }
 
-void SparseDB::addRandomSamples(std::size_t indent)
+void SparseGraph::addRandomSamples(std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vCriteria_, "addRandomSamples() ==================================================");
   indent += 2;
@@ -949,7 +949,7 @@ void SparseDB::addRandomSamples(std::size_t indent)
   }  // end while
 }
 
-void SparseDB::addSamplesFromCache(std::size_t indent)
+void SparseGraph::addSamplesFromCache(std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vCriteria_, "addRandomSamplesFromCache() ==================================================");
   indent += 2;
@@ -979,7 +979,7 @@ void SparseDB::addSamplesFromCache(std::size_t indent)
   }  // end while
 }
 
-bool SparseDB::addSample(StateID candidateStateID, std::size_t indent)
+bool SparseGraph::addSample(StateID candidateStateID, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vCriteria_, "addSample()");
   indent += 2;
@@ -1023,7 +1023,7 @@ bool SparseDB::addSample(StateID candidateStateID, std::size_t indent)
 }
 
 /*
-void SparseDB::getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInsertionOrder)
+void SparseGraph::getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInsertionOrder)
 {
   if (sparseCreationInsertionOrder_ == 0)
   {
@@ -1047,7 +1047,7 @@ void SparseDB::getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInser
   }
 }
 
-bool SparseDB::getPopularityOrder(std::list<WeightedVertex> &vertexInsertionOrder)
+bool SparseGraph::getPopularityOrder(std::list<WeightedVertex> &vertexInsertionOrder)
 {
   bool verbose = false;
 
@@ -1065,7 +1065,7 @@ bool SparseDB::getPopularityOrder(std::list<WeightedVertex> &vertexInsertionOrde
   std::priority_queue<WeightedVertex, std::vector<WeightedVertex>, CompareWeightedVertex> pqueue;
 
   // Loop through each popular edge in the dense graph
-  foreach (DenseVertex v, boost::vertices(g_))
+  foreach (PlanningVertex v, boost::vertices(g_))
   {
     // Do not process the search vertex, it is null
     if (v <= queryVertices_.back())
@@ -1074,7 +1074,7 @@ bool SparseDB::getPopularityOrder(std::list<WeightedVertex> &vertexInsertionOrde
     if (verbose)
       std::cout << "Vertex: " << v << std::endl;
     double popularity = 0;
-    foreach (DenseEdge edge, boost::out_edges(v, g_))
+    foreach (PlanningVertex edge, boost::out_edges(v, g_))
     {
       if (verbose)
         std::cout << "  Edge: " << edge << std::endl;
@@ -1124,13 +1124,13 @@ bool SparseDB::getPopularityOrder(std::list<WeightedVertex> &vertexInsertionOrde
   return true;
 }
 
-bool SparseDB::getDefaultOrder(std::list<WeightedVertex> &vertexInsertionOrder)
+bool SparseGraph::getDefaultOrder(std::list<WeightedVertex> &vertexInsertionOrder)
 {
   bool verbose = false;
   double largestWeight = -1 * std::numeric_limits<double>::infinity();
 
   // Loop through each popular edge in the dense graph
-  foreach (DenseVertex v, boost::vertices(g_))
+  foreach (PlanningVertex v, boost::vertices(g_))
   {
     // Do not process the search vertex, it is null
     if (v <= queryVertices_.back())
@@ -1140,7 +1140,7 @@ bool SparseDB::getDefaultOrder(std::list<WeightedVertex> &vertexInsertionOrder)
       std::cout << "Vertex: " << v << std::endl;
     double popularity = 0;
 
-    foreach (DenseEdge edge, boost::out_edges(v, g_))
+    foreach (PlanningVertex edge, boost::out_edges(v, g_))
     {
       if (verbose)
         std::cout << "  Edge: " << edge << std::endl;
@@ -1181,7 +1181,7 @@ bool SparseDB::getDefaultOrder(std::list<WeightedVertex> &vertexInsertionOrder)
   return true;
 }
 
-bool SparseDB::getRandomOrder(std::list<WeightedVertex> &vertexInsertionOrder)
+bool SparseGraph::getRandomOrder(std::list<WeightedVertex> &vertexInsertionOrder)
 {
   std::list<WeightedVertex> defaultVertexInsertionOrder;
   getDefaultOrder(defaultVertexInsertionOrder);
@@ -1201,7 +1201,7 @@ bool SparseDB::getRandomOrder(std::list<WeightedVertex> &vertexInsertionOrder)
 }
 */
 
-bool SparseDB::addStateToRoadmap(StateID candidateStateID, SparseVertex &newVertex, VertexType &addReason,
+bool SparseGraph::addStateToRoadmap(StateID candidateStateID, SparseVertex &newVertex, VertexType &addReason,
                                  std::size_t threadID, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vCriteria_, "addStateToRoadmap() Adding candidate state ID " << candidateStateID);
@@ -1277,7 +1277,7 @@ bool SparseDB::addStateToRoadmap(StateID candidateStateID, SparseVertex &newVert
   return stateAdded;
 }
 
-bool SparseDB::checkAddCoverage(StateID candidateStateID, std::vector<SparseVertex> &visibleNeighborhood,
+bool SparseGraph::checkAddCoverage(StateID candidateStateID, std::vector<SparseVertex> &visibleNeighborhood,
                                 SparseVertex &newVertex, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vCriteria_, "checkAddCoverage() Are other nodes around it visible?");
@@ -1300,7 +1300,7 @@ bool SparseDB::checkAddCoverage(StateID candidateStateID, std::vector<SparseVert
   return true;
 }
 
-bool SparseDB::checkAddConnectivity(StateID candidateStateID, std::vector<SparseVertex> &visibleNeighborhood,
+bool SparseGraph::checkAddConnectivity(StateID candidateStateID, std::vector<SparseVertex> &visibleNeighborhood,
                                     SparseVertex &newVertex, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vCriteria_, "checkAddConnectivity() Does this node connect two disconnected components?");
@@ -1400,7 +1400,7 @@ bool SparseDB::checkAddConnectivity(StateID candidateStateID, std::vector<Sparse
   return true;
 }
 
-bool SparseDB::checkAddInterface(StateID candidateStateID, std::vector<SparseVertex> &graphNeighborhood,
+bool SparseGraph::checkAddInterface(StateID candidateStateID, std::vector<SparseVertex> &graphNeighborhood,
                                  std::vector<SparseVertex> &visibleNeighborhood, SparseVertex &newVertex,
                                  std::size_t indent)
 {
@@ -1497,7 +1497,7 @@ bool SparseDB::checkAddInterface(StateID candidateStateID, std::vector<SparseVer
   return false;
 }
 
-bool SparseDB::checkAddQuality(StateID candidateStateID, std::vector<SparseVertex> &graphNeighborhood,
+bool SparseGraph::checkAddQuality(StateID candidateStateID, std::vector<SparseVertex> &graphNeighborhood,
                                std::vector<SparseVertex> &visibleNeighborhood, base::State *workState,
                                SparseVertex &newVertex, std::size_t indent)
 {
@@ -1611,7 +1611,7 @@ bool SparseDB::checkAddQuality(StateID candidateStateID, std::vector<SparseVerte
   return added;
 }
 
-void SparseDB::visualizeCheckAddQuality(StateID candidateStateID, SparseVertex candidateRep)
+void SparseGraph::visualizeCheckAddQuality(StateID candidateStateID, SparseVertex candidateRep)
 {
   visual_->viz3DeleteAllMarkers();
 
@@ -1636,7 +1636,7 @@ void SparseDB::visualizeCheckAddQuality(StateID candidateStateID, SparseVertex c
   usleep(0.001 * 1000000);
 }
 
-bool SparseDB::checkAddPath(SparseVertex v, std::size_t indent)
+bool SparseGraph::checkAddPath(SparseVertex v, std::size_t indent)
 {
   BOLT_CYAN_DEBUG(indent, vQuality_, "checkAddPath() v = " << v);
   indent += 2;
@@ -1691,7 +1691,7 @@ bool SparseDB::checkAddPath(SparseVertex v, std::size_t indent)
   return spannerPropertyWasViolated;
 }
 
-void SparseDB::visualizeCheckAddPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
+void SparseGraph::visualizeCheckAddPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
                                      std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vQuality_, "visualizeCheckAddPath()");
@@ -1749,7 +1749,7 @@ void SparseDB::visualizeCheckAddPath(SparseVertex v, SparseVertex vp, SparseVert
   usleep(0.001 * 1000000);
 }
 
-bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
+bool SparseGraph::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
                               std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vQuality_, "addQualityPath()");
@@ -1920,7 +1920,7 @@ bool SparseDB::addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp,
   return true;
 }
 
-bool SparseDB::smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent)
+bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent)
 {
   BOLT_RED_DEBUG(indent, vQuality_ || 1, "smoothQualityPathOriginal()");
   indent += 2;
@@ -1952,7 +1952,7 @@ bool SparseDB::smoothQualityPathOriginal(geometric::PathGeometric *path, std::si
   return true;
 }
 
-bool SparseDB::smoothQualityPath(geometric::PathGeometric *path, std::size_t indent)
+bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vQuality_, "smoothQualityPath()");
   indent += 2;
@@ -2023,7 +2023,7 @@ bool SparseDB::smoothQualityPath(geometric::PathGeometric *path, std::size_t ind
   return true;
 }
 
-bool SparseDB::spannerTestOriginal(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
+bool SparseGraph::spannerTestOriginal(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
                                    std::size_t indent)
 {
   const bool verbose = vQuality_;
@@ -2053,7 +2053,7 @@ bool SparseDB::spannerTestOriginal(SparseVertex v, SparseVertex vp, SparseVertex
   return false;  // spanner property was NOT violated
 }
 
-bool SparseDB::spannerTestOuter(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
+bool SparseGraph::spannerTestOuter(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
                                 std::size_t indent)
 {
   // Computes all nodes which qualify as a candidate x for v, v', and v"
@@ -2090,7 +2090,7 @@ bool SparseDB::spannerTestOuter(SparseVertex v, SparseVertex vp, SparseVertex vp
   return false;  // spannerPropertyWasViolated = false
 }
 
-bool SparseDB::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
+bool SparseGraph::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
                                 std::size_t indent)
 {
   if (iData.hasInterface1() && iData.hasInterface2())
@@ -2168,7 +2168,7 @@ bool SparseDB::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVertex vp
   return false;  // spannerPropertyWasViolated = false
 }
 
-SparseVertex SparseDB::findGraphRepresentative(base::State *state, std::size_t indent)
+SparseVertex SparseGraph::findGraphRepresentative(base::State *state, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vQuality_, "findGraphRepresentative()");
 
@@ -2183,7 +2183,7 @@ SparseVertex SparseDB::findGraphRepresentative(base::State *state, std::size_t i
   BOLT_DEBUG(indent + 2, vQuality_, "Found " << graphNeighbors.size() << " nearest neighbors (graph rep) within "
                                                                          "SparseDelta " << sparseDelta_);
 
-  SparseVertex result = boost::graph_traits<SparseGraph>::null_vertex();
+  SparseVertex result = boost::graph_traits<SparseAdjList>::null_vertex();
 
   for (std::size_t i = 0; i < graphNeighbors.size(); ++i)
   {
@@ -2200,7 +2200,7 @@ SparseVertex SparseDB::findGraphRepresentative(base::State *state, std::size_t i
   return result;
 }
 
-void SparseDB::findCloseRepresentatives(base::State *workState, const StateID candidateStateID,
+void SparseGraph::findCloseRepresentatives(base::State *workState, const StateID candidateStateID,
                                         const SparseVertex candidateRep,
                                         std::map<SparseVertex, base::State *> &closeRepresentatives, std::size_t indent)
 {
@@ -2278,7 +2278,7 @@ void SparseDB::findCloseRepresentatives(base::State *workState, const StateID ca
     SparseVertex sampledStateRep = findGraphRepresentative(sampledState, indent + 6);
 
     // Check if sample is not visible to any other node (it should be visible in all likelihood)
-    if (sampledStateRep == boost::graph_traits<SparseGraph>::null_vertex())
+    if (sampledStateRep == boost::graph_traits<SparseAdjList>::null_vertex())
     {
       BOLT_DEBUG(indent + 4, vQuality_, "Sampled state has no representative (is null) ");
 
@@ -2327,7 +2327,7 @@ void SparseDB::findCloseRepresentatives(base::State *workState, const StateID ca
   }  // for each supporting representative
 }
 
-bool SparseDB::updatePairPoints(SparseVertex candidateRep, const base::State *candidateState,
+bool SparseGraph::updatePairPoints(SparseVertex candidateRep, const base::State *candidateState,
                                 SparseVertex nearSampledRep, const base::State *nearSampledState, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vQuality_, "updatePairPoints()");
@@ -2348,7 +2348,7 @@ bool SparseDB::updatePairPoints(SparseVertex candidateRep, const base::State *ca
   return updated;
 }
 
-void SparseDB::getAdjVerticesOfV1UnconnectedToV2(SparseVertex v1, SparseVertex v2,
+void SparseGraph::getAdjVerticesOfV1UnconnectedToV2(SparseVertex v1, SparseVertex v2,
                                                  std::vector<SparseVertex> &adjVerticesUnconnected, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vQuality_, "getAdjVerticesOfV1UnconnectedToV2()");
@@ -2362,7 +2362,7 @@ void SparseDB::getAdjVerticesOfV1UnconnectedToV2(SparseVertex v1, SparseVertex v
   BOLT_DEBUG(indent + 2, vQuality_, "adjVerticesUnconnected size: " << adjVerticesUnconnected.size());
 }
 
-double SparseDB::maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent)
+double SparseGraph::maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vQuality_, "maxSpannerPath()");
   indent += 2;
@@ -2431,7 +2431,7 @@ double SparseDB::maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vp
   return maxDist;
 }
 
-VertexPair SparseDB::index(SparseVertex vp, SparseVertex vpp)
+VertexPair SparseGraph::index(SparseVertex vp, SparseVertex vpp)
 {
   if (vp < vpp)
     return VertexPair(vp, vpp);
@@ -2442,13 +2442,13 @@ VertexPair SparseDB::index(SparseVertex vp, SparseVertex vpp)
   return VertexPair(0, 0);  // prevent compiler warnings
 }
 
-InterfaceData &SparseDB::getData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent)
+InterfaceData &SparseGraph::getData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vQuality_, "getData() " << v << ", " << vp << ", " << vpp);
   return interfaceDataProperty_[v][index(vp, vpp)];
 }
 
-bool SparseDB::distanceCheck(SparseVertex v, const base::State *q, SparseVertex vp, const base::State *qp,
+bool SparseGraph::distanceCheck(SparseVertex v, const base::State *q, SparseVertex vp, const base::State *qp,
                              SparseVertex vpp, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vQuality_, "distanceCheck()");
@@ -2529,14 +2529,14 @@ bool SparseDB::distanceCheck(SparseVertex v, const base::State *q, SparseVertex 
   return updated;
 }
 
-void SparseDB::abandonLists(base::State *state)
+void SparseGraph::clearInterfaceData(base::State *state)
 {
   std::vector<SparseVertex> graphNeighbors;
   const std::size_t threadID = 0;
 
   // Search
   queryStates_[threadID] = state;
-  nn_->nearestR(queryVertices_[threadID], sparseDelta_, graphNeighbors);
+  nn_->nearestR(queryVertices_[threadID], 2.0 * sparseDelta_, graphNeighbors);
   queryStates_[threadID] = nullptr;
 
   // For each of the vertices
@@ -2551,13 +2551,13 @@ void SparseDB::abandonLists(base::State *state)
   }
 }
 
-void SparseDB::clearEdgesNearVertex(SparseVertex vertex)
+void SparseGraph::clearEdgesNearVertex(SparseVertex vertex)
 {
   // Optionally disable this feature
   if (!useClearEdgesNearVertex_)
     return;
 
-  // TODO(davetcoleman): combine this with abandonLists and ensure that all interface data is equally cleared
+  // TODO(davetcoleman): combine this with clearInterfaceData and ensure that all interface data is equally cleared
   // but do not clear out nearby edges if a non-quality-path vertex is added
   std::vector<SparseVertex> graphNeighbors;
 
@@ -2578,7 +2578,7 @@ void SparseDB::clearEdgesNearVertex(SparseVertex vertex)
     displayDatabase(true, indent);
 }
 
-void SparseDB::findGraphNeighbors(StateID candidateStateID, std::vector<SparseVertex> &graphNeighborhood,
+void SparseGraph::findGraphNeighbors(StateID candidateStateID, std::vector<SparseVertex> &graphNeighborhood,
                                   std::vector<SparseVertex> &visibleNeighborhood, std::size_t threadID,
                                   std::size_t indent)
 {
@@ -2614,7 +2614,7 @@ void SparseDB::findGraphNeighbors(StateID candidateStateID, std::vector<SparseVe
                                                             << visibleNeighborhood.size());
 }
 
-bool SparseDB::checkRemoveCloseVertices(SparseVertex v1, std::size_t indent)
+bool SparseGraph::checkRemoveCloseVertices(SparseVertex v1, std::size_t indent)
 {
   // This feature can be optionally disabled
   if (!useCheckRemoveCloseVertices_)
@@ -2711,7 +2711,7 @@ bool SparseDB::checkRemoveCloseVertices(SparseVertex v1, std::size_t indent)
   }
 
   // Remove all interface data for old state
-  abandonLists(getVertexStateNonConst(v2));
+  clearInterfaceData(getVertexStateNonConst(v2));
 
   // Connect new vertex to old vertex's connected neighbors
   foreach (SparseEdge edge, boost::out_edges(v2, g_))
@@ -2745,7 +2745,7 @@ bool SparseDB::checkRemoveCloseVertices(SparseVertex v1, std::size_t indent)
   return true;
 }
 
-void SparseDB::visualizeRemoveCloseVertices(SparseVertex v1, SparseVertex v2)
+void SparseGraph::visualizeRemoveCloseVertices(SparseVertex v1, SparseVertex v2)
 {
   visual_->viz6DeleteAllMarkers();
   visual_->viz6State(getVertexState(v1), tools::LARGE, tools::GREEN, 0);
@@ -2754,7 +2754,7 @@ void SparseDB::visualizeRemoveCloseVertices(SparseVertex v1, SparseVertex v2)
   usleep(0.001 * 1000000);
 }
 
-std::size_t SparseDB::getDisjointSetsCount(bool verbose)
+std::size_t SparseGraph::getDisjointSetsCount(bool verbose)
 {
   std::size_t numSets = 0;
   foreach (SparseVertex v, boost::vertices(g_))
@@ -2774,7 +2774,7 @@ std::size_t SparseDB::getDisjointSetsCount(bool verbose)
   return numSets;
 }
 
-void SparseDB::getDisjointSets(DisjointSetsParentKey &disjointSets)
+void SparseGraph::getDisjointSets(DisjointSetsParentKey &disjointSets)
 {
   OMPL_INFORM("Get disjoint sets...");
   disjointSets.clear();
@@ -2783,7 +2783,7 @@ void SparseDB::getDisjointSets(DisjointSetsParentKey &disjointSets)
   disjointSets_.compress_sets(boost::vertices(g_).first, boost::vertices(g_).second);
 
   // Count size of each disjoint set and group its containing vertices
-  typedef boost::graph_traits<SparseGraph>::vertex_iterator VertexIterator;
+  typedef boost::graph_traits<SparseAdjList>::vertex_iterator VertexIterator;
   for (VertexIterator v = boost::vertices(g_).first; v != boost::vertices(g_).second; ++v)
   {
     // Do not count the search vertex within the sets
@@ -2794,7 +2794,7 @@ void SparseDB::getDisjointSets(DisjointSetsParentKey &disjointSets)
   }
 }
 
-void SparseDB::printDisjointSets(DisjointSetsParentKey &disjointSets)
+void SparseGraph::printDisjointSets(DisjointSetsParentKey &disjointSets)
 {
   OMPL_INFORM("Print disjoint sets");
   for (DisjointSetsParentKey::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
@@ -2806,7 +2806,7 @@ void SparseDB::printDisjointSets(DisjointSetsParentKey &disjointSets)
   }
 }
 
-void SparseDB::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
+void SparseGraph::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
 {
   OMPL_INFORM("Visualizing disjoint sets");
 
@@ -2860,7 +2860,7 @@ void SparseDB::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
 
       // Visualize this subgraph that is disconnected
       // Loop through every every vertex and check if its part of this group
-      typedef boost::graph_traits<SparseGraph>::vertex_iterator VertexIterator;
+      typedef boost::graph_traits<SparseAdjList>::vertex_iterator VertexIterator;
       for (VertexIterator v2 = boost::vertices(g_).first; v2 != boost::vertices(g_).second; ++v2)
       {
         if (boost::get(boost::get(boost::vertex_predecessor, g_), *v2) == v1)
@@ -2889,7 +2889,7 @@ void SparseDB::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
   }
 }
 
-std::size_t SparseDB::checkConnectedComponents()
+std::size_t SparseGraph::checkConnectedComponents()
 {
   // Check how many disjoint sets are in the sparse graph (should be none)
   std::size_t numSets = getDisjointSetsCount();
@@ -2901,22 +2901,22 @@ std::size_t SparseDB::checkConnectedComponents()
   return numSets;
 }
 
-bool SparseDB::sameComponent(SparseVertex v1, SparseVertex v2)
+bool SparseGraph::sameComponent(SparseVertex v1, SparseVertex v2)
 {
   return boost::same_component(v1, v2, disjointSets_);
 }
 
-StateID SparseDB::addState(base::State *state)
+StateID SparseGraph::addState(base::State *state)
 {
   return denseCache_->addState(state);
 }
 
-SparseVertex SparseDB::addVertex(base::State *state, const VertexType &type, std::size_t indent)
+SparseVertex SparseGraph::addVertex(base::State *state, const VertexType &type, std::size_t indent)
 {
   return addVertex(addState(state), type, indent);
 }
 
-SparseVertex SparseDB::addVertex(StateID stateID, const VertexType &type, std::size_t indent)
+SparseVertex SparseGraph::addVertex(StateID stateID, const VertexType &type, std::size_t indent)
 {
   // Create vertex
   SparseVertex v = boost::add_vertex(g_);
@@ -2933,7 +2933,7 @@ SparseVertex SparseDB::addVertex(StateID stateID, const VertexType &type, std::s
 
   // Clear all nearby interface data whenever a new vertex is added
   if (useFourthCriteria_)
-    abandonLists(denseCache_->getStateNonConst(stateID));
+    clearInterfaceData(denseCache_->getStateNonConst(stateID));
 
   // Connected component tracking
   disjointSets_.make_set(v);
@@ -2983,7 +2983,7 @@ SparseVertex SparseDB::addVertex(StateID stateID, const VertexType &type, std::s
   return v;
 }
 
-void SparseDB::visualizeVertex(SparseVertex v, const VertexType &type)
+void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
 {
   tools::colors color;
   tools::sizes size;
@@ -3026,7 +3026,7 @@ void SparseDB::visualizeVertex(SparseVertex v, const VertexType &type)
   visual_->viz1State(getVertexState(v), size, color, 0);
 }
 
-void SparseDB::removeVertex(SparseVertex v)
+void SparseGraph::removeVertex(SparseVertex v)
 {
   // Remove from nearest neighbor
   nn_->remove(v);
@@ -3047,7 +3047,7 @@ void SparseDB::removeVertex(SparseVertex v)
   // boost::remove_vertex(v, g_);
 }
 
-void SparseDB::debugNN()
+void SparseGraph::debugNN()
 {
   // Show contents of GNAT
   std::cout << std::endl;
@@ -3057,7 +3057,7 @@ void SparseDB::debugNN()
   std::cout << std::endl;
 }
 
-SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent)
+SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent)
 {
   BOLT_CYAN_DEBUG(indent, vAdd_, "addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
 
@@ -3124,7 +3124,7 @@ SparseEdge SparseDB::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, st
   return e;
 }
 
-edgeColors SparseDB::convertEdgeTypeToColor(EdgeType edgeType)
+edgeColors SparseGraph::convertEdgeTypeToColor(EdgeType edgeType)
 {
   switch (edgeType)
   {
@@ -3147,34 +3147,34 @@ edgeColors SparseDB::convertEdgeTypeToColor(EdgeType edgeType)
   return eORANGE;  // dummy
 }
 
-base::State *&SparseDB::getQueryStateNonConst(SparseVertex v)
+base::State *&SparseGraph::getQueryStateNonConst(SparseVertex v)
 {
   return queryStates_[v];
 }
 
-base::State *&SparseDB::getVertexStateNonConst(SparseVertex v)
+base::State *&SparseGraph::getVertexStateNonConst(SparseVertex v)
 {
   BOOST_ASSERT_MSG(v >= queryVertices_.size(), "Attempted to request state of query vertex using wrong function");
   return denseCache_->getStateNonConst(stateCacheProperty_[v]);
 }
 
-const base::State *SparseDB::getVertexState(SparseVertex v) const
+const base::State *SparseGraph::getVertexState(SparseVertex v) const
 {
   BOOST_ASSERT_MSG(v >= queryVertices_.size(), "Attempted to request state of query vertex using wrong function");
   return denseCache_->getState(stateCacheProperty_[v]);
 }
 
-const base::State *SparseDB::getState(StateID stateID) const
+const base::State *SparseGraph::getState(StateID stateID) const
 {
   return denseCache_->getState(stateID);
 }
 
-const StateID SparseDB::getStateID(SparseVertex v) const
+const StateID SparseGraph::getStateID(SparseVertex v) const
 {
   return stateCacheProperty_[v];
 }
 
-void SparseDB::displayDatabase(bool showVertices, std::size_t indent)
+void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
 {
   BOLT_CYAN_DEBUG(indent, vCriteria_, "Displaying Sparse database");
   indent += 2;
@@ -3269,7 +3269,7 @@ void SparseDB::displayDatabase(bool showVertices, std::size_t indent)
   usleep(0.001 * 1000000);
 }
 
-double SparseDB::distanceFunction(const SparseVertex a, const SparseVertex b) const
+double SparseGraph::distanceFunction(const SparseVertex a, const SparseVertex b) const
 {
   // Special case: query vertices store their states elsewhere
   if (a < numThreads_)
@@ -3288,17 +3288,17 @@ double SparseDB::distanceFunction(const SparseVertex a, const SparseVertex b) co
   return si_->distance(getVertexState(a), getVertexState(b));
 }
 
-double SparseDB::getSecondarySparseDelta()
+double SparseGraph::getSecondarySparseDelta()
 {
   return sparseDelta_ * 1.25;
 }
 
-bool SparseDB::hasEdge(SparseVertex v1, SparseVertex v2)
+bool SparseGraph::hasEdge(SparseVertex v1, SparseVertex v2)
 {
   return boost::edge(v1, v2, g_).second;
 }
 
-void SparseDB::visualizeInterfaces(SparseVertex v, std::size_t indent)
+void SparseGraph::visualizeInterfaces(SparseVertex v, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vQuality_, "visualizeInterfaces()");
 
@@ -3346,7 +3346,7 @@ void SparseDB::visualizeInterfaces(SparseVertex v, std::size_t indent)
   usleep(0.01 * 1000000);
 }
 
-void SparseDB::visualizeAllInterfaces(std::size_t indent)
+void SparseGraph::visualizeAllInterfaces(std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vQuality_, "visualizeAllInterfaces()");
 
@@ -3378,7 +3378,7 @@ void SparseDB::visualizeAllInterfaces(std::size_t indent)
   usleep(0.01 * 1000000);
 }
 
-std::pair<std::size_t, std::size_t> SparseDB::getInterfaceStateStorageSize()
+std::pair<std::size_t, std::size_t> SparseGraph::getInterfaceStateStorageSize()
 {
   std::size_t numStates = 0;
   std::size_t numMissingInterfaces = 0;
@@ -3410,7 +3410,7 @@ std::pair<std::size_t, std::size_t> SparseDB::getInterfaceStateStorageSize()
   return std::pair<std::size_t, std::size_t>(numStates, numMissingInterfaces);
 }
 
-SparseVertex SparseDB::getSparseRepresentative(base::State *state)
+SparseVertex SparseGraph::getSparseRepresentative(base::State *state)
 {
   std::vector<SparseVertex> graphNeighbors;
   const std::size_t threadID = 0;
@@ -3429,7 +3429,7 @@ SparseVertex SparseDB::getSparseRepresentative(base::State *state)
   return graphNeighbors[0];
 }
 
-bool SparseDB::sufficientClearance(base::State *state)
+bool SparseGraph::sufficientClearance(base::State *state)
 {
   // Check if new vertex has enough clearance
   double dist = si_->getStateValidityChecker()->clearance(state);

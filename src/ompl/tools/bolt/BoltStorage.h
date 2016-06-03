@@ -68,7 +68,7 @@ namespace bolt
 
 /// @cond IGNORE
 OMPL_CLASS_FORWARD(BoltStorage);
-OMPL_CLASS_FORWARD(SparseDB);
+OMPL_CLASS_FORWARD(SparseGraph);
 /// @endcond
 
 /** \class ompl::tools::bolt::BoltStoragePtr
@@ -137,7 +137,7 @@ public:
   };
 
   /** \brief Constructor */
-  BoltStorage(const base::SpaceInformationPtr &si, SparseDB *sparseDB);
+  BoltStorage(const base::SpaceInformationPtr &si, SparseGraph *sparseDB);
 
   void save(const std::string& filePath);
 
@@ -162,7 +162,7 @@ public:
   /// \brief The space information instance for this data.
   base::SpaceInformationPtr si_;
 
-  SparseDB *sparseDB_;
+  SparseGraph *sparseDB_;
 
   /** \brief Based on number of threads system is using */
   std::size_t numQueryVertices_;

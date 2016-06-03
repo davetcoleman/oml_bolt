@@ -37,7 +37,7 @@
 */
 
 // OMPL
-#include <ompl/tools/bolt/SparseDB.h>
+#include <ompl/tools/bolt/SparseGraph.h>
 
 // Boost
 #include <boost/serialization/map.hpp>
@@ -60,8 +60,8 @@ namespace bolt
 
 static const boost::uint32_t BOLT_DENSE_CACHE_MARKER = 0x1044414D; // unknown value
 
-DenseCache::DenseCache(base::SpaceInformationPtr si, SparseDB *sparseDB, VisualizerPtr visual)
-  : si_(si), sparseDB_(sparseDB), visual_(visual)
+DenseCache::DenseCache(base::SpaceInformationPtr si, SparseGraph *sparseGraph, VisualizerPtr visual)
+  : si_(si), sparseGraph_(sparseGraph), visual_(visual)
 {
   resetCounters();
 
@@ -359,7 +359,7 @@ base::State* &DenseCache::getStateNonConst(StateID stateID)
 
 bool DenseCache::checkMotionWithCacheVertex(const SparseVertex &v1, const SparseVertex &v2, const std::size_t &threadID)
 {
-  return checkMotionWithCache(sparseDB_->stateCacheProperty_[v1], sparseDB_->stateCacheProperty_[v2], threadID);
+  return checkMotionWithCache(sparseGraph_->stateCacheProperty_[v1], sparseGraph_->stateCacheProperty_[v2], threadID);
 }
 
 bool DenseCache::checkMotionWithCache(const StateID &stateID1, const StateID &stateID2, const std::size_t &threadID)

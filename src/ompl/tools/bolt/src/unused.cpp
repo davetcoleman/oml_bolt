@@ -15,8 +15,8 @@
   */
 
 
-    bool checkAsymptoticOptimal(const DenseVertex& denseV, std::size_t coutIndent);
-    bool checkAddPath(DenseVertex q, const std::vector<DenseVertex>& neigh, std::size_t coutIndent);
+    bool checkAsymptoticOptimal(const PlanningVertex& denseV, std::size_t coutIndent);
+    bool checkAddPath(PlanningVertex q, const std::vector<PlanningVertex>& neigh, std::size_t coutIndent);
     void computeVPP(SparseVertex v, SparseVertex vp, std::vector<SparseVertex>& VPPs);
     void computeX(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::vector<SparseVertex>& Xs);
     bool addPathToSpanner(const DensePath& densePath, SparseVertex vp, SparseVertex vpp);
@@ -26,12 +26,12 @@
   bool findSparseRepresentatives();
 
 
-bool SparseDB::findSparseRepresentatives()
+bool SparseGraph::findSparseRepresentatives()
 {
   bool verbose = false;
 
   OMPL_INFORM("Calculating representative nodes for each dense verte");
-  foreach (DenseVertex denseV, boost::vertices(denseDB_->g_))
+  foreach (PlanningVertex denseV, boost::vertices(denseDB_->g_))
   {
     std::vector<SparseVertex> graphNeighborhood;
     base::State *state = getDenseState(denseV);
@@ -96,13 +96,13 @@ bool SparseDB::findSparseRepresentatives()
   return true;
 }
 
-bool SparseDB::checkAsymptoticOptimal(const DenseVertex &denseV, std::size_t coutIndent)
+bool SparseGraph::checkAsymptoticOptimal(const PlanningVertex &denseV, std::size_t coutIndent)
 {
     if (fourthCheckVerbose_)
         std::cout << std::string(coutIndent, ' ') << "checkAsymptoticOptimal()" << std::endl;
 
     // Storage for the interface neighborhood, populated by getInterfaceNeighborhood()
-    std::vector<DenseVertex> interfaceNeighborhood;
+    std::vector<PlanningVertex> interfaceNeighborhood;
 
     // Check to see if Vertex is on an interface
     getInterfaceNeighborhood(denseV, interfaceNeighborhood, coutIndent + 4);
@@ -126,10 +126,10 @@ bool SparseDB::checkAsymptoticOptimal(const DenseVertex &denseV, std::size_t cou
     return false;
 }
 
-bool SparseDB::checkAddPath(DenseVertex q, const std::vector<DenseVertex> &neigh, std::size_t coutIndent)
+bool SparseGraph::checkAddPath(PlanningVertex q, const std::vector<PlanningVertex> &neigh, std::size_t coutIndent)
 {
     if (fourthCheckVerbose_)
-        std::cout << std::string(coutIndent, ' ') << "checkAddPath() DenseVertex: " << q << std::endl;
+        std::cout << std::string(coutIndent, ' ') << "checkAddPath() PlanningVertex: " << q << std::endl;
 
     bool spannerPropertyViolated = false;
 
@@ -138,7 +138,7 @@ bool SparseDB::checkAddPath(DenseVertex q, const std::vector<DenseVertex> &neigh
 
     // Extract the representatives of neigh => n_rep
     std::set<SparseVertex> neighborReps;
-    foreach (DenseVertex qp, neigh)
+    foreach (PlanningVertex qp, neigh)
         neighborReps.insert(denseDB_->representativesProperty_[qp]);
 
     // Feedback
@@ -183,7 +183,7 @@ bool SparseDB::checkAddPath(DenseVertex q, const std::vector<DenseVertex> &neigh
             }
 
             DensePath bestDPath;
-            DenseVertex best_qpp = boost::graph_traits<DenseGraph>::null_vertex();
+            PlanningVertex best_qpp = boost::graph_traits<DenseGraph>::null_vertex();
             double d_min = std::numeric_limits<double>::infinity();  // Insanely big number
             // For each vpp in vpps
             for (std::size_t j = 0; j < VPPs.size() && !spannerPropertyViolated; ++j)
@@ -193,7 +193,7 @@ bool SparseDB::checkAddPath(DenseVertex q, const std::vector<DenseVertex> &neigh
 
                 SparseVertex vpp = VPPs[j];
                 // For each q", which are stored interface nodes on v for i(vpp,v)
-                foreach (DenseVertex qpp, interfaceListsProperty_[v].interfaceHash[vpp])
+                foreach (PlanningVertex qpp, interfaceListsProperty_[v].interfaceHash[vpp])
                 {
                     if (fourthCheckVerbose_)
                         std::cout << std::string(coutIndent + 8, ' ') << "for interfaceHsh " << qpp << std::endl;
@@ -238,8 +238,8 @@ bool SparseDB::checkAddPath(DenseVertex q, const std::vector<DenseVertex> &neigh
                 if (s_max > stretchFactor_ * d_min)
                 {
                     // Need to augment this path with the appropriate neighbor information
-                    DenseVertex na = getInterfaceNeighbor(q, vp);
-                    DenseVertex nb = getInterfaceNeighbor(best_qpp, vpp);
+                    PlanningVertex na = getInterfaceNeighbor(q, vp);
+                    PlanningVertex nb = getInterfaceNeighbor(best_qpp, vpp);
 
                     bestDPath.push_front(getDenseState(na));
                     bestDPath.push_back(getDenseState(nb));
@@ -260,7 +260,7 @@ bool SparseDB::checkAddPath(DenseVertex q, const std::vector<DenseVertex> &neigh
     return spannerPropertyViolated;
 }
 
-void SparseDB::computeVPP(SparseVertex v, SparseVertex vp, std::vector<SparseVertex> &VPPs)
+void SparseGraph::computeVPP(SparseVertex v, SparseVertex vp, std::vector<SparseVertex> &VPPs)
 {
     foreach (SparseVertex cvpp, boost::adjacent_vertices(v, g_))
         if (cvpp != vp)
@@ -268,7 +268,7 @@ void SparseDB::computeVPP(SparseVertex v, SparseVertex vp, std::vector<SparseVer
                 VPPs.push_back(cvpp);
 }
 
-void SparseDB::computeX(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::vector<SparseVertex> &Xs)
+void SparseGraph::computeX(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::vector<SparseVertex> &Xs)
 {
     Xs.clear();
     foreach (SparseVertex cx, boost::adjacent_vertices(vpp, g_))
@@ -278,7 +278,7 @@ void SparseDB::computeX(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::
     Xs.push_back(vpp);
 }
 
-bool SparseDB::addPathToSpanner(const DensePath &densePath, SparseVertex vp, SparseVertex vpp)
+bool SparseGraph::addPathToSpanner(const DensePath &densePath, SparseVertex vp, SparseVertex vpp)
 {
     // First, check to see that the path has length
     if (densePath.size() <= 1)
@@ -319,7 +319,7 @@ bool SparseDB::addPathToSpanner(const DensePath &densePath, SparseVertex vp, Spa
     return true;
 }
 
-void SparseDB::connectSparsePoints(SparseVertex v, SparseVertex vp)
+void SparseGraph::connectSparsePoints(SparseVertex v, SparseVertex vp)
 {
     OMPL_ERROR("connectSparsePoints");
     exit(-1);
@@ -330,11 +330,11 @@ void SparseDB::connectSparsePoints(SparseVertex v, SparseVertex vp)
     // sparseDJSets_.union_set(v, vp);
 }
 
-DenseVertex SparseDB::getInterfaceNeighbor(DenseVertex q, SparseVertex rep)
+PlanningVertex SparseGraph::getInterfaceNeighbor(PlanningVertex q, SparseVertex rep)
 {
-    foreach (DenseVertex vp, boost::adjacent_vertices(q, g_))
+    foreach (PlanningVertex vp, boost::adjacent_vertices(q, g_))
         if (denseDB_->representativesProperty_[vp] == rep)
             if (distanceFunction(q, vp) <= denseDelta_)
                 return vp;
-    throw Exception("SparseDB", "Vertex has no interface neighbor with given representative");
+    throw Exception("SparseGraph", "Vertex has no interface neighbor with given representative");
 }

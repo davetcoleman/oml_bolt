@@ -40,7 +40,7 @@
 #include <ompl/geometric/planners/PlannerIncludes.h>
 #include <ompl/geometric/PathGeometric.h>
 #include <ompl/geometric/PathSimplifier.h>
-#include <ompl/tools/bolt/SparseDB.h>
+#include <ompl/tools/bolt/SparseGraph.h>
 #include <ompl/tools/debug/Visualizer.h>
 
 // Boost
@@ -63,7 +63,7 @@ namespace bolt
 /// @cond IGNORE
 /** \brief Forward declaration of ompl::base::BoltRetrieveRepair */
 OMPL_CLASS_FORWARD(BoltRetrieveRepair);
-OMPL_CLASS_FORWARD(SparseDB);
+OMPL_CLASS_FORWARD(SparseGraph);
 /// @endcond
 
 /** \class ompl::base::BoltRetrieveRepairPtr
@@ -87,7 +87,7 @@ class BoltRetrieveRepair : public base::Planner
 {
 public:
   /** \brief Constructor */
-  BoltRetrieveRepair(const base::SpaceInformationPtr &si, const SparseDBPtr &sparseDB, VisualizerPtr visual);
+  BoltRetrieveRepair(const base::SpaceInformationPtr &si, const SparseGraphPtr &sparseDB, VisualizerPtr visual);
 
   virtual ~BoltRetrieveRepair(void);
 
@@ -124,7 +124,7 @@ public:
   /**
    * \brief Pass a pointer of the database from the bolt framework
    */
-  void setExperienceDB(const SparseDBPtr &sparseDB);
+  void setExperienceDB(const SparseGraphPtr &sparseDB);
 
   /** \brief Setup function */
   virtual void setup(void);
@@ -197,7 +197,7 @@ public:
 
   //bool astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath);
 
-  SparseDBPtr getSparseDB()
+  SparseGraphPtr getSparseGraph()
   {
     return sparseDB_;
   }
@@ -220,7 +220,7 @@ protected:
   void freeMemory(void);
 
   /** \brief The database of motions to search through */
-  SparseDBPtr sparseDB_;
+  SparseGraphPtr sparseDB_;
 
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;

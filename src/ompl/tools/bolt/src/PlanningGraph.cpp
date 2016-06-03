@@ -33,12 +33,11 @@
  *********************************************************************/
 
 /* Author: Dave Coleman <dave@dav.ee>
-   Desc:   Experience database for storing and reusing past path plans
+   Desc:   Dynamic graph for storing copies of a sparse graph along with cartesian task dimensions
 */
 
 // OMPL
-#include <ompl/tools/bolt/DenseDB.h>
-#include <ompl/tools/bolt/Discretizer.h>
+#include <ompl/tools/bolt/PlanningGraph.h>
 #include <ompl/base/ScopedState.h>
 #include <ompl/util/Time.h>
 #include <ompl/util/Console.h>
@@ -77,19 +76,19 @@ BOOST_CONCEPT_ASSERT(
 
 // CustomAstarVisitor methods ////////////////////////////////////////////////////////////////////////////
 
-BOOST_CONCEPT_ASSERT((boost::AStarVisitorConcept<otb::DenseDB::CustomAstarVisitor, otb::DenseGraph>));
+BOOST_CONCEPT_ASSERT((boost::AStarVisitorConcept<otb::PlanningGraph::CustomAstarVisitor, otb::PlanningAdjList>));
 
-otb::DenseDB::CustomAstarVisitor::CustomAstarVisitor(PlanningVertex goal, DenseDB *parent) : goal_(goal), parent_(parent)
+otb::PlanningGraph::CustomAstarVisitor::CustomAstarVisitor(PlanningVertex goal, PlanningGraph *parent) : goal_(goal), parent_(parent)
 {
 }
 
-void otb::DenseDB::CustomAstarVisitor::discover_vertex(PlanningVertex v, const DenseGraph &) const
+void otb::PlanningGraph::CustomAstarVisitor::discover_vertex(PlanningVertex v, const PlanningAdjList &) const
 {
   if (parent_->visualizeAstar_)
     parent_->getVisual()->viz4State(parent_->stateProperty_[v], tools::SMALL, tools::GREEN, 1);
 }
 
-void otb::DenseDB::CustomAstarVisitor::examine_vertex(PlanningVertex v, const DenseGraph &) const
+void otb::PlanningGraph::CustomAstarVisitor::examine_vertex(PlanningVertex v, const PlanningAdjList &) const
 {
   if (parent_->visualizeAstar_)
   {
@@ -110,7 +109,7 @@ namespace tools
 {
 namespace bolt
 {
-DenseDB::DenseDB(base::SpaceInformationPtr si, VisualizerPtr visual)
+PlanningGraph::PlanningGraph(base::SpaceInformationPtr si, VisualizerPtr visual)
   : si_(si)
   , visual_(visual)
   // Property accessors of edges
@@ -129,25 +128,17 @@ DenseDB::DenseDB(base::SpaceInformationPtr si, VisualizerPtr visual)
   // Initialize collision cache
   denseCache_.reset(new DenseCache(si_, this, visual_));
 
-  // Initialize sparse database
-  sparseDB_.reset(new SparseGraph(si_, this, visual_, denseCache_));
-
   // Initialize nearest neighbor datastructure
   nn_.reset(new NearestNeighborsGNAT<PlanningVertex>());
-  nn_->setDistanceFunction(boost::bind(&DenseDB::distanceFunction, this, _1, _2));
-
-  // Initialize the discretize grid tool
-  discretizer_.reset(new Discretizer(si_, this, denseCache_, visual_));
+  nn_->setDistanceFunction(boost::bind(&PlanningGraph::distanceFunction, this, _1, _2));
 }
 
-DenseDB::~DenseDB(void)
+PlanningGraph::~PlanningGraph(void)
 {
-  if (graphUnsaved_)
-    std::cout << "The database is being unloaded with unsaved experiences" << std::endl;
   freeMemory();
 }
 
-void DenseDB::freeMemory()
+void PlanningGraph::freeMemory()
 {
   foreach (PlanningVertex v, boost::vertices(g_))
   {
@@ -164,19 +155,19 @@ void DenseDB::freeMemory()
   sampler_.reset();
 }
 
-bool DenseDB::setup()
+bool PlanningGraph::setup()
 {
   if (!sampler_)
     sampler_ = si_->allocValidStateSampler();
 
-  sparseDB_->setup();
+  sparseGraph_->setup();
 
   return true;
 }
 
-bool DenseDB::load()
+bool PlanningGraph::load()
 {
-  OMPL_INFORM("DenseDB: load()");
+  OMPL_INFORM("PlanningGraph: load()");
 
   // Error checking
   if (getNumEdges() > queryVertices_.size() ||
@@ -240,7 +231,7 @@ bool DenseDB::load()
   return true;
 }
 
-bool DenseDB::saveIfChanged()
+bool PlanningGraph::saveIfChanged()
 {
   if (graphUnsaved_)
   {
@@ -251,7 +242,7 @@ bool DenseDB::saveIfChanged()
   return true;
 }
 
-bool DenseDB::save()
+bool PlanningGraph::save()
 {
   if (!graphUnsaved_)
     OMPL_WARN("No need to save because graphUnsaved_ is false, but saving anyway because requested");
@@ -259,7 +250,7 @@ bool DenseDB::save()
   // Disabled
   if (!savingEnabled_)
   {
-    OMPL_INFORM("Not saving because option disabled for DenseDB");
+    OMPL_INFORM("Not saving because option disabled for PlanningGraph");
     return false;
   }
 
@@ -290,18 +281,12 @@ bool DenseDB::save()
   return true;
 }
 
-bool DenseDB::generateGrid()
-{
-  std::cout << "generateGrid called ------------- " << std::endl;
-  return discretizer_->generateGrid();
-}
-
-bool DenseDB::postProcessPath(og::PathGeometric &solutionPath)
+bool PlanningGraph::postProcessPath(og::PathGeometric &solutionPath)
 {
   // Prevent inserting into database
   if (!savingEnabled_)
   {
-    OMPL_WARN("DenseDB: Saving is disabled so not adding path");
+    OMPL_WARN("PlanningGraph: Saving is disabled so not adding path");
     return false;
   }
 
@@ -319,7 +304,7 @@ bool DenseDB::postProcessPath(og::PathGeometric &solutionPath)
   std::vector<PlanningVertex> visibleNeighborhood;
   std::size_t coutIndent = 0;
   const std::size_t numThreads = 0;
-  findGraphNeighbors(currentPathState, graphNeighborhood, visibleNeighborhood, sparseDB_->sparseDelta_, numThreads,
+  findGraphNeighbors(currentPathState, graphNeighborhood, visibleNeighborhood, sparseGraph_->sparseDelta_, numThreads,
                      coutIndent);
 
   std::vector<PlanningVertex> roadmapPath;
@@ -364,13 +349,10 @@ bool DenseDB::postProcessPath(og::PathGeometric &solutionPath)
   // Update edge weights based on this newly created path
   updateEdgeWeights(roadmapPath);
 
-  // Record this new addition
-  graphUnsaved_ = true;
-
   return true;
 }
 
-bool DenseDB::postProcessPathWithNeighbors(og::PathGeometric &solutionPath,
+bool PlanningGraph::postProcessPathWithNeighbors(og::PathGeometric &solutionPath,
                                            const std::vector<PlanningVertex> &visibleNeighborhood, bool recurseVerbose,
                                            std::vector<PlanningVertex> &roadmapPath)
 {
@@ -414,7 +396,7 @@ bool DenseDB::postProcessPathWithNeighbors(og::PathGeometric &solutionPath,
   return allValid;
 }
 
-bool DenseDB::updateEdgeWeights(const std::vector<PlanningVertex> &roadmapPath)
+bool PlanningGraph::updateEdgeWeights(const std::vector<PlanningVertex> &roadmapPath)
 {
   for (std::size_t vertexID = 1; vertexID < roadmapPath.size(); ++vertexID)
   {
@@ -466,7 +448,7 @@ bool DenseDB::updateEdgeWeights(const std::vector<PlanningVertex> &roadmapPath)
   return true;
 }
 
-bool DenseDB::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<PlanningVertex> &roadmapPath,
+bool PlanningGraph::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<PlanningVertex> &roadmapPath,
                                    std::size_t currVertexIndex, const PlanningVertex &prevGraphVertex, bool &allValid,
                                    bool verbose)
 {
@@ -633,7 +615,7 @@ bool DenseDB::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<Pla
   return false;  // this loop found a valid connection, but lower recursive loop did not
 }
 
-bool DenseDB::astarSearch(const PlanningVertex start, const PlanningVertex goal, std::vector<PlanningVertex> &vertexPath)
+bool PlanningGraph::astarSearch(const PlanningVertex start, const PlanningVertex goal, std::vector<PlanningVertex> &vertexPath)
 {
   // Hold a list of the shortest path parent to each vertex
   PlanningVertex *vertexPredecessors = new PlanningVertex[getNumVertices()];
@@ -664,9 +646,9 @@ bool DenseDB::astarSearch(const PlanningVertex start, const PlanningVertex goal,
     boost::astar_search(
         g_,     // graph
         start,  // start state
-                // boost::bind(&DenseDB::distanceFunction2, this, _1, goal),  // the heuristic
-        boost::bind(&DenseDB::distanceFunction, this, _1, goal),  // the heuristic
-        // boost::bind(&DenseDB::distanceFunctionTasks, this, _1, goal),  // the heuristic
+                // boost::bind(&PlanningGraph::distanceFunction2, this, _1, goal),  // the heuristic
+        boost::bind(&PlanningGraph::distanceFunction, this, _1, goal),  // the heuristic
+        // boost::bind(&PlanningGraph::distanceFunctionTasks, this, _1, goal),  // the heuristic
         // ability to disable edges (set cost to inifinity):
         boost::weight_map(PlanningVertexWeightMap(g_, edgeCollisionStateProperty_, popularityBias_, popularityBiasEnabled_))
             .predecessor_map(vertexPredecessors)
@@ -737,7 +719,7 @@ bool DenseDB::astarSearch(const PlanningVertex start, const PlanningVertex goal,
   return foundGoal;
 }
 
-void DenseDB::computeDensePath(const PlanningVertex start, const PlanningVertex goal, DensePath &path)
+void PlanningGraph::computeDensePath(const PlanningVertex start, const PlanningVertex goal, DensePath &path)
 {
   path.clear();
 
@@ -747,7 +729,7 @@ void DenseDB::computeDensePath(const PlanningVertex start, const PlanningVertex 
   {
     boost::astar_search(g_,                                                            // graph
                         start,                                                         // start state
-                        boost::bind(&DenseDB::distanceFunctionTasks, this, _1, goal),  // the heuristic
+                        boost::bind(&PlanningGraph::distanceFunctionTasks, this, _1, goal),  // the heuristic
                         boost::predecessor_map(prev).visitor(CustomAstarVisitor(goal, this)));
   }
   catch (FoundGoalException &)
@@ -765,17 +747,17 @@ void DenseDB::computeDensePath(const PlanningVertex start, const PlanningVertex 
   */
 }
 
-void DenseDB::debugVertex(const ompl::base::PlannerDataVertex &vertex)
+void PlanningGraph::debugVertex(const ompl::base::PlannerDataVertex &vertex)
 {
   debugState(vertex.getState());
 }
 
-void DenseDB::debugState(const ompl::base::State *state)
+void PlanningGraph::debugState(const ompl::base::State *state)
 {
   si_->printState(state, std::cout);
 }
 
-double DenseDB::distanceFunction(const PlanningVertex a, const PlanningVertex b) const
+double PlanningGraph::distanceFunction(const PlanningVertex a, const PlanningVertex b) const
 {
   // const double dist = si_->distance(stateProperty_[a], stateProperty_[b]);
   // std::cout << "getting distance from " << a << " to " << b << " of value " << dist << std::endl;
@@ -783,7 +765,7 @@ double DenseDB::distanceFunction(const PlanningVertex a, const PlanningVertex b)
   return si_->distance(stateProperty_[a], stateProperty_[b]);
 }
 
-double DenseDB::distanceFunction2(const PlanningVertex a, const PlanningVertex b) const
+double PlanningGraph::distanceFunction2(const PlanningVertex a, const PlanningVertex b) const
 {
   // const double dist = si_->getStateSpace()->distance2(stateProperty_[a], stateProperty_[b]);
   // std::cout << "getting distance from " << a << " to " << b << " of value " << dist << std::endl;
@@ -791,17 +773,17 @@ double DenseDB::distanceFunction2(const PlanningVertex a, const PlanningVertex b
   return si_->getStateSpace()->distance2(stateProperty_[a], stateProperty_[b]);
 }
 
-std::size_t DenseDB::getTaskLevel(const PlanningVertex &v) const
+std::size_t PlanningGraph::getTaskLevel(const PlanningVertex &v) const
 {
   return si_->getStateSpace()->getLevel(stateProperty_[v]);
 }
 
-std::size_t DenseDB::getTaskLevel(const base::State *state) const
+std::size_t PlanningGraph::getTaskLevel(const base::State *state) const
 {
   return si_->getStateSpace()->getLevel(state);
 }
 
-void DenseDB::initializeQueryState()
+void PlanningGraph::initializeQueryState()
 {
   std::size_t numThreads = boost::thread::hardware_concurrency();
 
@@ -824,14 +806,14 @@ void DenseDB::initializeQueryState()
   }
 }
 
-void DenseDB::addVertexFromFile(BoltStorage::BoltVertexData v)
+void PlanningGraph::addVertexFromFile(BoltStorage::BoltVertexData v)
 {
   VertexType type = static_cast<VertexType>(v.type_);
   // PlanningVertex vNew =
   addVertex(v.state_, type);
 }
 
-void DenseDB::addEdgeFromFile(BoltStorage::BoltEdgeData e)
+void PlanningGraph::addEdgeFromFile(BoltStorage::BoltEdgeData e)
 {
   const PlanningVertex v1 = e.endpoints_.first;
   const PlanningVertex v2 = e.endpoints_.second;
@@ -845,13 +827,13 @@ void DenseDB::addEdgeFromFile(BoltStorage::BoltEdgeData e)
   addEdge(v1, v2, e.weight_);
 }
 
-void DenseDB::clearEdgeCollisionStates()
+void PlanningGraph::clearEdgeCollisionStates()
 {
   foreach (const PlanningVertex e, boost::edges(g_))
     edgeCollisionStateProperty_[e] = NOT_CHECKED;  // each edge has an unknown state
 }
 
-void DenseDB::displayDatabase()
+void PlanningGraph::displayDatabase()
 {
   OMPL_INFORM("Displaying database");
 
@@ -928,7 +910,7 @@ void DenseDB::displayDatabase()
   visual_->viz1Trigger();
 }
 
-void DenseDB::normalizeGraphEdgeWeights()
+void PlanningGraph::normalizeGraphEdgeWeights()
 {
   bool verbose = false;
 
@@ -974,7 +956,7 @@ void DenseDB::normalizeGraphEdgeWeights()
   }
 }
 
-otb::PlanningVertex DenseDB::addVertex(base::State *state, const VertexType &type)
+otb::PlanningVertex PlanningGraph::addVertex(base::State *state, const VertexType &type)
 {
   // Create vertex
   PlanningVertex v = boost::add_vertex(g_);
@@ -999,7 +981,7 @@ otb::PlanningVertex DenseDB::addVertex(base::State *state, const VertexType &typ
   return v;
 }
 
-otb::PlanningVertex DenseDB::addEdge(const PlanningVertex &v1, const PlanningVertex &v2, const double weight,
+otb::PlanningVertex PlanningGraph::addEdge(const PlanningVertex &v1, const PlanningVertex &v2, const double weight,
                                 const EdgeCollisionState collisionState)
 {
   // Error check
@@ -1023,7 +1005,7 @@ otb::PlanningVertex DenseDB::addEdge(const PlanningVertex &v1, const PlanningVer
   return e;
 }
 
-void DenseDB::cleanupTemporaryVerticies()
+void PlanningGraph::cleanupTemporaryVerticies()
 {
   const bool verbose = false;
 
@@ -1045,7 +1027,7 @@ void DenseDB::cleanupTemporaryVerticies()
   OMPL_INFORM("Finished cleaning up temp verticies");
 }
 
-void DenseDB::removeVertex(PlanningVertex v)
+void PlanningGraph::removeVertex(PlanningVertex v)
 {
   const bool verbose = false;
 
@@ -1066,7 +1048,7 @@ void DenseDB::removeVertex(PlanningVertex v)
   boost::remove_vertex(v, g_);
 }
 
-void DenseDB::findGraphNeighbors(base::State *state, std::vector<PlanningVertex> &graphNeighborhood,
+void PlanningGraph::findGraphNeighbors(base::State *state, std::vector<PlanningVertex> &graphNeighborhood,
                                  std::vector<PlanningVertex> &visibleNeighborhood, double searchRadius,
                                  std::size_t threadID, std::size_t coutIndent)
 {
@@ -1080,7 +1062,7 @@ void DenseDB::findGraphNeighbors(base::State *state, std::vector<PlanningVertex>
   stateProperty_[queryVertices_[threadID]] = nullptr;
 }
 
-void DenseDB::findGraphNeighbors(const PlanningVertex &denseV, std::vector<PlanningVertex> &graphNeighborhood,
+void PlanningGraph::findGraphNeighbors(const PlanningVertex &denseV, std::vector<PlanningVertex> &graphNeighborhood,
                                  std::vector<PlanningVertex> &visibleNeighborhood, double searchRadius,
                                  std::size_t coutIndent)
 {
@@ -1105,7 +1087,7 @@ void DenseDB::findGraphNeighbors(const PlanningVertex &denseV, std::vector<Plann
               << " | Visible neighborhood: " << visibleNeighborhood.size() << std::endl;
 }
 
-void DenseDB::viz1Edge(PlanningVertex &e)
+void PlanningGraph::viz1Edge(PlanningVertex &e)
 {
   const PlanningVertex &v1 = boost::source(e, g_);
   const PlanningVertex &v2 = boost::target(e, g_);
@@ -1114,7 +1096,7 @@ void DenseDB::viz1Edge(PlanningVertex &e)
   visual_->viz1Edge(stateProperty_[v1], stateProperty_[v2], edgeWeightProperty_[e]);
 }
 
-void DenseDB::checkStateType()
+void PlanningGraph::checkStateType()
 {
   std::size_t count = 0;
   foreach (const PlanningVertex v, boost::vertices(g_))
@@ -1139,7 +1121,7 @@ void DenseDB::checkStateType()
   OMPL_INFORM("All states checked for task level");
 }
 
-void DenseDB::connectNewVertex(PlanningVertex v1)
+void PlanningGraph::connectNewVertex(PlanningVertex v1)
 {
   bool verbose = false;
 
@@ -1152,7 +1134,7 @@ void DenseDB::connectNewVertex(PlanningVertex v1)
   // Connect to nearby vertices
   std::vector<PlanningVertex> graphNeighborhood;
   std::size_t findNearestKNeighbors = Discretizer::getEdgesPerVertex(si_);
-  OMPL_INFORM("DenseDB.connectNewVertex(): Finding %u nearest neighbors for new vertex", findNearestKNeighbors);
+  OMPL_INFORM("PlanningGraph.connectNewVertex(): Finding %u nearest neighbors for new vertex", findNearestKNeighbors);
   const std::size_t numSameVerticiesFound = 1;  // add 1 to the end because the NN tree always returns itself
 
   // Search
@@ -1222,7 +1204,7 @@ void DenseDB::connectNewVertex(PlanningVertex v1)
   graphUnsaved_ = true;
 }
 
-std::size_t DenseDB::getDisjointSetsCount(bool verbose)
+std::size_t PlanningGraph::getDisjointSetsCount(bool verbose)
 {
   std::size_t numSets = 0;
   foreach (PlanningVertex v, boost::vertices(g_))
@@ -1242,7 +1224,7 @@ std::size_t DenseDB::getDisjointSetsCount(bool verbose)
   return numSets;
 }
 
-std::size_t DenseDB::checkConnectedComponents()
+std::size_t PlanningGraph::checkConnectedComponents()
 {
   // Check how many disjoint sets are in the dense graph (should be none)
   std::size_t numSets = getDisjointSetsCount();
@@ -1254,12 +1236,12 @@ std::size_t DenseDB::checkConnectedComponents()
   return numSets;
 }
 
-bool DenseDB::sameComponent(const PlanningVertex &v1, const PlanningVertex &v2)
+bool PlanningGraph::sameComponent(const PlanningVertex &v1, const PlanningVertex &v2)
 {
   return boost::same_component(v1, v2, disjointSets_);
 }
 
-void DenseDB::removeInvalidVertices()
+void PlanningGraph::removeInvalidVertices()
 {
   OMPL_INFORM("Removing invalid vertices");
   bool actuallyRemove = true;
@@ -1268,7 +1250,7 @@ void DenseDB::removeInvalidVertices()
   if (actuallyRemove)
     OMPL_WARN("Actually deleting verticies and resetting edge cache");
 
-  typedef boost::graph_traits<DenseGraph>::vertex_iterator VertexIterator;
+  typedef boost::graph_traits<PlanningAdjList>::vertex_iterator VertexIterator;
   for (VertexIterator vertexIt = boost::vertices(g_).first; vertexIt != boost::vertices(g_).second; ++vertexIt)
   {
     if (*vertexIt <= queryVertices_.back())
@@ -1308,7 +1290,7 @@ void DenseDB::removeInvalidVertices()
   }
 }
 
-void DenseDB::getDisjointSets(DisjointSetsParentKey &disjointSets)
+void PlanningGraph::getDisjointSets(DisjointSetsParentKey &disjointSets)
 {
   OMPL_INFORM("Get disjoint sets...");
   disjointSets.clear();
@@ -1317,7 +1299,7 @@ void DenseDB::getDisjointSets(DisjointSetsParentKey &disjointSets)
   disjointSets_.compress_sets(boost::vertices(g_).first, boost::vertices(g_).second);
 
   // Count size of each disjoint set and group its containing vertices
-  typedef boost::graph_traits<DenseGraph>::vertex_iterator VertexIterator;
+  typedef boost::graph_traits<PlanningAdjList>::vertex_iterator VertexIterator;
   for (VertexIterator v = boost::vertices(g_).first; v != boost::vertices(g_).second; ++v)
   {
     // Do not count the search vertex within the sets
@@ -1328,7 +1310,7 @@ void DenseDB::getDisjointSets(DisjointSetsParentKey &disjointSets)
   }
 }
 
-void DenseDB::printDisjointSets(DisjointSetsParentKey &disjointSets)
+void PlanningGraph::printDisjointSets(DisjointSetsParentKey &disjointSets)
 {
   for (DisjointSetsParentKey::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
        iterator++)
@@ -1339,7 +1321,7 @@ void DenseDB::printDisjointSets(DisjointSetsParentKey &disjointSets)
   }
 }
 
-void DenseDB::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
+void PlanningGraph::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
 {
   OMPL_INFORM("Visualizing disjoint sets");
 
@@ -1389,7 +1371,7 @@ void DenseDB::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
 
       // Visualize this subgraph that is disconnected
       // Loop through every every vertex and check if its part of this group
-      typedef boost::graph_traits<DenseGraph>::vertex_iterator VertexIterator;
+      typedef boost::graph_traits<PlanningAdjList>::vertex_iterator VertexIterator;
       for (VertexIterator v2 = boost::vertices(g_).first; v2 != boost::vertices(g_).second; ++v2)
       {
         if (boost::get(boost::get(boost::vertex_predecessor, g_), *v2) == v1)
