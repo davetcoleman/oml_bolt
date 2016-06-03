@@ -61,8 +61,7 @@ namespace tools
 {
 namespace bolt
 {
-VertexDiscretizer::VertexDiscretizer(base::SpaceInformationPtr si, VisualizerPtr visual)
-  : si_(si), visual_(visual)
+VertexDiscretizer::VertexDiscretizer(base::SpaceInformationPtr si, VisualizerPtr visual) : si_(si), visual_(visual)
 {
   numThreads_ = boost::thread::hardware_concurrency();
 
@@ -91,7 +90,7 @@ VertexDiscretizer::~VertexDiscretizer()
 
 void VertexDiscretizer::freeMemory()
 {
-  for (base::State* state : candidateVertices_)
+  for (base::State *state : candidateVertices_)
   {
     si_->freeState(state);
   }
@@ -152,7 +151,7 @@ bool VertexDiscretizer::generateLattice(std::size_t indent)
 bool VertexDiscretizer::generateGrid(std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, verbose_, "VertexDiscretizer::generateGrid()");
-  indent+=2;
+  indent += 2;
 
   // Benchmark runtime
   time::point totalStartTime = time::now();
@@ -174,7 +173,8 @@ bool VertexDiscretizer::generateGrid(std::size_t indent)
     // Benchmark runtime
     vertexDuration = time::seconds(time::now() - startTime);
   }
-  BOLT_DEBUG(indent, verbose_, "Generated " << candidateVertices_.size() << " vertices in " << vertexDuration << " sec");
+  BOLT_DEBUG(indent, verbose_, "Generated " << candidateVertices_.size() << " vertices in " << vertexDuration << " se"
+                                                                                                                 "c");
 
   // Error check
   if (candidateVertices_.size() < 2)
@@ -199,7 +199,7 @@ bool VertexDiscretizer::generateGrid(std::size_t indent)
 void VertexDiscretizer::generateVertices(std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, verbose_, "VertexDiscretizer::generateVertices()");
-  indent+=2;
+  indent += 2;
 
   std::size_t dim = si_->getStateSpace()->getDimension();
 
@@ -261,14 +261,15 @@ void VertexDiscretizer::generateVertices(std::size_t indent)
       endJointValue = bounds.high[jointID];
     }
 
-    BOLT_DEBUG(indent + 2, verbose_, "Thread " << i << " will process Joint 0 values from " << startJointValue << " to " << endJointValue);
+    BOLT_DEBUG(indent + 2, verbose_, "Thread " << i << " will process Joint 0 values from " << startJointValue << " to "
+                                               << endJointValue);
 
     base::SpaceInformationPtr si(new base::SpaceInformation(si_->getStateSpace()));
     si->setStateValidityChecker(si_->getStateValidityChecker());
     si->setMotionValidator(si_->getMotionValidator());
 
-    threads[i] =
-        new boost::thread(boost::bind(&VertexDiscretizer::generateVerticesThread, this, i, startJointValue, endJointValue, si));
+    threads[i] = new boost::thread(
+        boost::bind(&VertexDiscretizer::generateVerticesThread, this, i, startJointValue, endJointValue, si));
 
     startJointValue = endJointValue + discretization_;
   }
@@ -282,7 +283,7 @@ void VertexDiscretizer::generateVertices(std::size_t indent)
 }
 
 void VertexDiscretizer::generateVerticesThread(std::size_t threadID, double startJointValue, double endJointValue,
-                                     base::SpaceInformationPtr si)
+                                               base::SpaceInformationPtr si)
 {
   std::size_t jointID = 0;
   ob::RealVectorBounds bounds = si->getStateSpace()->getBounds();
@@ -320,7 +321,8 @@ void VertexDiscretizer::generateVerticesThread(std::size_t threadID, double star
     {
       const double percent = (value - startJointValue) / (endJointValue - startJointValue) * 100.0;
       std::cout << "Vertex generation progress: " << std::setprecision(1) << percent
-                << " % Total vertices: " << (candidateVertices_.size() > 0 ? candidateVertices_.size() - 1 : 0) << std::endl;
+                << " % Total vertices: " << (candidateVertices_.size() > 0 ? candidateVertices_.size() - 1 : 0)
+                << std::endl;
     }
 
     // Set first joint value
@@ -345,7 +347,8 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
   BOOST_ASSERT_MSG(bounds.high[jointID] - bounds.low[jointID] > discretization_, "Bounds too small");
 
   // Loop through current joint
-  for (double value = bounds.low[jointID] + startingValueOffset_; value <= bounds.high[jointID]; value += discretization_)
+  for (double value = bounds.low[jointID] + startingValueOffset_; value <= bounds.high[jointID];
+       value += discretization_)
   {
     // User feedback on thread 0 for high dimension spaces
     if (jointID == 1 && threadID == 0 && si->getStateSpace()->getDimension() > 3)
@@ -361,10 +364,12 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
     // Check if we are at the end of the recursion
     if (verbose_)
     {
-      std::cout << "threadID " << threadID << " jointID " << jointID << " of " << maxDiscretizationLevel << " --- State: ";
+      std::cout << "threadID " << threadID << " jointID " << jointID << " of " << maxDiscretizationLevel << " --- "
+                                                                                                            "State: ";
       std::copy(values.begin(), values.end(), std::ostream_iterator<double>(std::cout, ", "));
       std::cout << std::endl;
-      std::cout << "value: " << value << " high: " << bounds.high[jointID] << " low: " << bounds.low[jointID] << " disc: " << discretization_ << " values.size() " << values.size() << std::endl;
+      std::cout << "value: " << value << " high: " << bounds.high[jointID] << " low: " << bounds.low[jointID]
+                << " disc: " << discretization_ << " values.size() " << values.size() << std::endl;
     }
 
     if (jointID < maxDiscretizationLevel)
@@ -396,7 +401,7 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
         {
           // Candidate node rejected
           visual_->viz1State(candidateState, tools::MEDIUM, tools::RED, 0);
-          visual_->vizTrigger(threadID+1);
+          visual_->vizTrigger(threadID + 1);
         }
         if (verbose_)
           std::cout << "   Rejected because of validity" << std::endl;
@@ -411,7 +416,7 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
         {
           // Candidate node rejected
           visual_->viz1State(candidateState, tools::MEDIUM, tools::RED, 0);
-          visual_->vizTrigger(threadID+1);
+          visual_->vizTrigger(threadID + 1);
         }
         if (verbose_)
           std::cout << "   Rejected because of clearance" << std::endl;
@@ -431,7 +436,7 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
       {
         visual_->viz1State(candidateState, MEDIUM, GREEN, 0);
         visual_->viz1Trigger();
-        usleep(0.001*1000000);
+        usleep(0.001 * 1000000);
       }
     }
   }

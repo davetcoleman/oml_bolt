@@ -78,7 +78,8 @@ BOOST_CONCEPT_ASSERT(
 
 BOOST_CONCEPT_ASSERT((boost::AStarVisitorConcept<otb::TaskGraph::CustomAstarVisitor, otb::TaskAdjList>));
 
-otb::TaskGraph::CustomAstarVisitor::CustomAstarVisitor(TaskVertex goal, TaskGraph *parent) : goal_(goal), parent_(parent)
+otb::TaskGraph::CustomAstarVisitor::CustomAstarVisitor(TaskVertex goal, TaskGraph *parent)
+  : goal_(goal), parent_(parent)
 {
 }
 
@@ -406,22 +407,21 @@ void TaskGraph::displayDatabase()
   visual_->viz1Trigger();
 }
 
-
 otb::TaskVertex TaskGraph::addVertex(base::State *state, const VertexType &type)
 {
   // Create vertex
   TaskVertex v = boost::add_vertex(g_);
 
   // Add properties
-  //typeProperty_[v] = type;
+  // typeProperty_[v] = type;
   stateProperty_[v] = state;
-  //representativesProperty_[v] = 0;  // which sparse vertex reps this dense vertex
+  // representativesProperty_[v] = 0;  // which sparse vertex reps this dense vertex
 
   // Connected component tracking
-  //disjointSets_.make_set(v);
+  // disjointSets_.make_set(v);
 
   // Add vertex to nearest neighbor structure
-  //nn_->add(v);
+  // nn_->add(v);
 
   // Track vertex for later removal if temporary
   // if (type == CARTESIAN)
@@ -433,7 +433,7 @@ otb::TaskVertex TaskGraph::addVertex(base::State *state, const VertexType &type)
 }
 
 otb::TaskEdge TaskGraph::addEdge(const TaskVertex &v1, const TaskVertex &v2, const double weight,
-                                const EdgeCollisionState collisionState)
+                                 const EdgeCollisionState collisionState)
 {
   // Error check
   BOOST_ASSERT_MSG(v1 <= getNumVertices(), "Vertex 1 out of range of possible verticies");
@@ -458,7 +458,7 @@ otb::TaskEdge TaskGraph::addEdge(const TaskVertex &v1, const TaskVertex &v2, con
 
 void TaskGraph::cleanupTemporaryVerticies()
 {
-  //const bool verbose = false;
+  // const bool verbose = false;
 
   if (tempVerticies_.empty())
   {
@@ -480,8 +480,8 @@ void TaskGraph::cleanupTemporaryVerticies()
 }
 
 void TaskGraph::findGraphNeighbors(base::State *state, std::vector<TaskVertex> &graphNeighborhood,
-                                 std::vector<TaskVertex> &visibleNeighborhood, double searchRadius,
-                                 std::size_t threadID, std::size_t coutIndent)
+                                   std::vector<TaskVertex> &visibleNeighborhood, double searchRadius,
+                                   std::size_t threadID, std::size_t coutIndent)
 {
   // Set a queryVertex to give us a TaskVertex
   stateProperty_[queryVertices_[threadID]] = state;
@@ -494,8 +494,8 @@ void TaskGraph::findGraphNeighbors(base::State *state, std::vector<TaskVertex> &
 }
 
 void TaskGraph::findGraphNeighbors(const TaskVertex &denseV, std::vector<TaskVertex> &graphNeighborhood,
-                                 std::vector<TaskVertex> &visibleNeighborhood, double searchRadius,
-                                 std::size_t coutIndent)
+                                   std::vector<TaskVertex> &visibleNeighborhood, double searchRadius,
+                                   std::size_t coutIndent)
 {
   bool verbose = false;
   if (verbose)
@@ -554,7 +554,6 @@ bool TaskGraph::sameComponent(const TaskVertex &v1, const TaskVertex &v2)
 {
   return boost::same_component(v1, v2, disjointSets_);
 }
-
 
 void TaskGraph::getDisjointSets(DisjointSetsParentKey &disjointSets)
 {

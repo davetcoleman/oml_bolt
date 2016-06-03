@@ -1,30 +1,29 @@
-  /** \brief Compute the heuristic distance between the current node and the next goal */
-  double distanceFunctionTasks(const TaskVertex a, const TaskVertex b) const;
+/** \brief Compute the heuristic distance between the current node and the next goal */
+double distanceFunctionTasks(const TaskVertex a, const TaskVertex b) const;
 
-  /** \brief Clone the graph to have second and third layers for task planning then free space planning */
-  void generateTaskSpace();
+/** \brief Clone the graph to have second and third layers for task planning then free space planning */
+void generateTaskSpace();
 
-  /** \brief Get k number of neighbors near a state at a certain level that have valid motions */
-  void getNeighborsAtLevel(const base::State* origState, const std::size_t level, const std::size_t kNeighbors,
-                           std::vector<TaskVertex>& neighbors);
+/** \brief Get k number of neighbors near a state at a certain level that have valid motions */
+void getNeighborsAtLevel(const base::State *origState, const std::size_t level, const std::size_t kNeighbors,
+                         std::vector<TaskVertex> &neighbors);
 
-  /** \brief Error checking function to ensure solution has correct task path/level changes */
-  bool checkTaskPathSolution(geometric::PathGeometric& path, base::State* start, base::State* goal);
+/** \brief Error checking function to ensure solution has correct task path/level changes */
+bool checkTaskPathSolution(geometric::PathGeometric &path, base::State *start, base::State *goal);
 
-  /**
-   * \brief Helper for connecting both sides of a cartesian path into a dual level graph
-   * \param fromState - the endpoint (start or goal) we are connecting from the cartesian path to the graph
-   * \param level - what task level we are connecting to - either 0 or 2 (bottom layer or top layer)
-   * \param minConnectorVertex - the vertex on the main graph that has the shortest path to connecting to the
-   * cartesian path
-   * \return true on success
-   */
-  bool connectStateToNeighborsAtLevel(const TaskVertex& fromVertex, const std::size_t level,
-                                      TaskVertex& minConnectorVertex);
+/**
+ * \brief Helper for connecting both sides of a cartesian path into a dual level graph
+ * \param fromState - the endpoint (start or goal) we are connecting from the cartesian path to the graph
+ * \param level - what task level we are connecting to - either 0 or 2 (bottom layer or top layer)
+ * \param minConnectorVertex - the vertex on the main graph that has the shortest path to connecting to the
+ * cartesian path
+ * \return true on success
+ */
+bool connectStateToNeighborsAtLevel(const TaskVertex &fromVertex, const std::size_t level,
+                                    TaskVertex &minConnectorVertex);
 
-  /** \brief Testing code for integrating Decartes */
-  bool addCartPath(std::vector<base::State*> path);
-
+/** \brief Testing code for integrating Decartes */
+bool addCartPath(std::vector<base::State *> path);
 
 double DenseDB::distanceFunctionTasks(const TaskVertex a, const TaskVertex b) const
 {

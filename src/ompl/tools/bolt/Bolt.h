@@ -188,7 +188,6 @@ public:
   void benchmarkPerformance();
 
 protected:
-
   /**  The maintained experience planner instance */
   BoltRetrieveRepairPtr boltPlanner_;
 

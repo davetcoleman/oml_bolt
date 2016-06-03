@@ -88,7 +88,6 @@ class SparseGraph
   friend class SparseCriteria;
 
 public:
-
   /** \brief Constructor needs the state space used for planning.
    */
   SparseGraph(base::SpaceInformationPtr si, VisualizerPtr visual);
@@ -172,7 +171,8 @@ public:
    *  \param vertexPath
    *  \return true if candidate solution found
    */
-  bool astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex>& vertexPath, double &distance, std::size_t indent);
+  bool astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex>& vertexPath,
+                   double& distance, std::size_t indent);
 
   /** \brief Distance between two states with special bias using popularity */
   double astarHeuristic(const SparseVertex a, const SparseVertex b) const;
@@ -237,17 +237,17 @@ public:
 
   /** \brief Disjoint sets analysis tools */
   std::size_t getDisjointSetsCount(bool verbose = false);
-  void getDisjointSets(DisjointSetsMap &disjointSets);
-  void printDisjointSets(DisjointSetsMap &disjointSets);
-  void visualizeDisjointSets(DisjointSetsMap &disjointSets);
+  void getDisjointSets(DisjointSetsMap& disjointSets);
+  void printDisjointSets(DisjointSetsMap& disjointSets);
+  void visualizeDisjointSets(DisjointSetsMap& disjointSets);
   std::size_t checkConnectedComponents();
   bool sameComponent(SparseVertex v1, SparseVertex v2);
 
   /** \brief Add a state to the DenseCache */
-  StateID addState(base::State *state);
+  StateID addState(base::State* state);
 
   /** \brief Add vertices to graph */
-  SparseVertex addVertex(base::State *state, const VertexType &type, std::size_t indent);
+  SparseVertex addVertex(base::State* state, const VertexType& type, std::size_t indent);
   SparseVertex addVertex(StateID stateID, const VertexType& type, std::size_t indent);
 
   /** \brief Remove vertex from graph */
@@ -257,7 +257,7 @@ public:
   void removeDeletedVertices(std::size_t indent);
 
   /** \brief Display in viewer */
-  void visualizeVertex(SparseVertex v, const VertexType &type);
+  void visualizeVertex(SparseVertex v, const VertexType& type);
 
   /** \brief Add edge to graph */
   SparseEdge addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent);
@@ -269,7 +269,7 @@ public:
   edgeColors convertEdgeTypeToColor(EdgeType edgeType);
 
   /** \brief Get the state of a vertex used for querying - i.e. vertices 0-11 for 12 thread system */
-  base::State *&getQueryStateNonConst(SparseVertex v);
+  base::State*& getQueryStateNonConst(SparseVertex v);
 
   /** \brief Shortcut function for getting the state of a vertex */
   base::State*& getVertexStateNonConst(SparseVertex v);
@@ -303,7 +303,6 @@ public:
   void debugNN();
 
 protected:
-
   /** \brief Short name of this class */
   const std::string name_ = "SparseGraph";
 
@@ -375,8 +374,7 @@ protected:
   int numSamplesAddedForInterface_ = 0;
   int numSamplesAddedForQuality_ = 0;
 
-public: // user settings from other applications
-
+public:  // user settings from other applications
   /** \brief Allow the database to save to file (new experiences) */
   bool savingEnabled_ = true;
 
@@ -389,7 +387,7 @@ public: // user settings from other applications
 
   /** \brief Change verbosity levels */
   bool vVisualize_ = false;
-  bool vAdd_ = false; // message when adding edges and vertices
+  bool vAdd_ = false;  // message when adding edges and vertices
   bool vSearch_ = false;
 
   /** \brief Run with extra safety checks */
@@ -440,7 +438,7 @@ public:
    * \throw FoundGoalException if \a u is the goal
    */
   void examine_vertex(SparseVertex v, const SparseAdjList& g) const;
-}; // end SparseGraph
+};  // end SparseGraph
 
 }  // namespace bolt
 }  // namespace tools

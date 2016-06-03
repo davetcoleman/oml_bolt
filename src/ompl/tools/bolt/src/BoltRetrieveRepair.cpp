@@ -62,9 +62,7 @@ namespace bolt
 {
 BoltRetrieveRepair::BoltRetrieveRepair(const base::SpaceInformationPtr &si, const SparseGraphPtr &sparseGraph,
                                        VisualizerPtr visual)
-  : base::Planner(si, "Bolt_Retrieve_Repair")
-  , sparseGraph_(sparseGraph)
-  , visual_(visual)
+  : base::Planner(si, "Bolt_Retrieve_Repair"), sparseGraph_(sparseGraph), visual_(visual)
 {
   specs_.approximateSolutions = false;
   specs_.directed = false;
@@ -198,11 +196,9 @@ bool BoltRetrieveRepair::simplifyPath(og::PathGeometric &path, const base::Plann
   time::point simplifyStart = time::now();
   std::size_t numStates = path.getStateCount();
 
-
   // Dave method:
-  //std::size_t indent = 0;
-  //sparseGraph_->smoothQualityPath(&path, indent);
-
+  // std::size_t indent = 0;
+  // sparseGraph_->smoothQualityPath(&path, indent);
 
   path_simplifier_->simplify(path, ptc);
   double simplifyTime = time::seconds(time::now() - simplifyStart);
@@ -303,7 +299,6 @@ bool BoltRetrieveRepair::getPathOffGraph(const base::State *start, const base::S
     bool feedbackStartFailed;
     bool result = getPathOnGraph(startVertexCandidateNeighbors_, goalVertexCandidateNeighbors_, start, goal,
                                  geometricSolution, ptc, /*debug*/ false, feedbackStartFailed);
-
 
     // Error check
     if (!result)
@@ -675,7 +670,7 @@ bool BoltRetrieveRepair::findGraphNeighbors(const base::State *state, std::vecto
   // Filter neighbors based on level
   if (requiredLevel >= 0)
   {
-    //removeVerticesNotOnLevel(graphNeighborhood, requiredLevel);
+    // removeVerticesNotOnLevel(graphNeighborhood, requiredLevel);
   }
 
   // Check if no neighbors found
@@ -707,7 +702,8 @@ bool BoltRetrieveRepair::findGraphNeighbors(const base::State *state, std::vecto
 //     {
 //       if (verbose_)
 //         std::cout << "      Skipping neighbor " << nearVertex << ", i=" << i
-//                   << ", because wrong level: " << sparseGraph_->getTaskLevel(nearVertex) << ", desired level: " << level
+//                   << ", because wrong level: " << sparseGraph_->getTaskLevel(nearVertex) << ", desired level: " <<
+//                   level
 //                   << std::endl;
 //       graphNeighborhood.erase(graphNeighborhood.begin() + i);
 //       i--;

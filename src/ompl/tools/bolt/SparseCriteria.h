@@ -278,7 +278,6 @@ protected:
   double ignoreEdgesSmallerThan_ = 12.7;  // 2D
 
 public:
-
   /** \brief SPARS parameter for dense graph connection distance as a fraction of max. extent */
   double denseDeltaFraction_ = 0.05;
 

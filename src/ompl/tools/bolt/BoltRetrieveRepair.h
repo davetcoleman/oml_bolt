@@ -195,7 +195,7 @@ public:
   /** \brief Test if the passed in random state can connect to a nearby vertex in the graph */
   bool canConnect(const base::State *randomState, const base::PlannerTerminationCondition &ptc);
 
-  //bool astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath);
+  // bool astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath);
 
   SparseGraphPtr getSparseGraph()
   {
@@ -239,7 +239,6 @@ protected:
   std::vector<bolt::SparseVertex> goalVertexCandidateNeighbors_;
 
 public:
-
   /** \brief Output user feedback to console */
   bool verbose_ = true;
 

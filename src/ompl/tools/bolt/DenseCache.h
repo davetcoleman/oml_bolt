@@ -61,7 +61,7 @@ namespace bolt
 OMPL_CLASS_FORWARD(DenseCache);
 OMPL_CLASS_FORWARD(SparseGraph);
 
-typedef base::State* CachedState;
+typedef base::State *CachedState;
 typedef std::vector<CachedState> StateCache;
 typedef std::pair<StateID, StateID> CachedEdge;
 typedef std::map<CachedEdge, bool> EdgeCacheMap;
@@ -97,8 +97,8 @@ public:
   StateID addState(base::State *state);
 
   /** \brief Get a state from the cache */
-  const base::State* getState(StateID stateID) const;
-  base::State* &getStateNonConst(StateID stateID);
+  const base::State *getState(StateID stateID) const;
+  base::State *&getStateNonConst(StateID stateID);
 
   /** \brief Returns true if motion is valid, false if in collision. Checks cache first and also stores result  */
   bool checkMotionWithCacheVertex(const SparseVertex &v1, const SparseVertex &v2, const std::size_t &threadID);
@@ -128,7 +128,6 @@ public:
   void print();
 
 private:
-
   /* \brief Information stored at the beginning of the DenseCache archive */
   struct Header
   {
@@ -203,7 +202,6 @@ private:
   std::size_t prevNumCachedStates_ = 0;
 
 public:
-
   /** \brief Force all collision checks to be performed from scratch */
   bool disableCache_ = false;
 

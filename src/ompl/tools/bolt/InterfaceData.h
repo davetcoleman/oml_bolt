@@ -49,11 +49,9 @@ namespace tools
 {
 namespace bolt
 {
-
-class InterfaceData // TODO move this into separate file?
+class InterfaceData  // TODO move this into separate file?
 {
 public:
-
   /** \brief Constructor */
   InterfaceData()
     : interface1Inside_(nullptr)
@@ -222,20 +220,21 @@ public:
   }
 
 private:
-
   // Note: interface1 is between this vertex v and the vertex with the lower index v'
   // Note: interface2 is between this vertex v and the vertex with the higher index v''
 
-  base::State* interface1Inside_; // Lies inside the visibility region of the vertex and supports its interface
-  base::State* interface1Outside_; // Lies outside the visibility region of the vertex and supports its interface (sigma)
+  base::State* interface1Inside_;   // Lies inside the visibility region of the vertex and supports its interface
+  base::State* interface1Outside_;  // Lies outside the visibility region of the vertex and supports its interface
+                                    // (sigma)
 
-  base::State* interface2Inside_; // Lies inside the visibility region of the vertex and supports its interface.
-  base::State* interface2Outside_; // Lies outside the visibility region of the vertex and supports its interface (sigma)
+  base::State* interface2Inside_;   // Lies inside the visibility region of the vertex and supports its interface.
+  base::State* interface2Outside_;  // Lies outside the visibility region of the vertex and supports its interface
+                                    // (sigma)
 
   /** \brief Last known distance between the two interfaces supported by points_ and sigmas. */
   double lastDistance_;
 
-}; // end class InterfaceData
+};  // end class InterfaceData
 
 }  // namespace bolt
 }  // namespace tools

@@ -167,7 +167,7 @@ void Bolt::visualize()
     }
   }
 
-  geometric::PathGeometric *solutionPath = static_cast<geometric::PathGeometric*>(pdef_->getSolutionPath().get());
+  geometric::PathGeometric *solutionPath = static_cast<geometric::PathGeometric *>(pdef_->getSolutionPath().get());
 
   // Show smoothed & interpolated path
   visual_->viz6Path(solutionPath, /*style*/ 1, tools::BLUE);
@@ -181,7 +181,7 @@ void Bolt::visualize()
 bool Bolt::checkOptimalityGuarantees(std::size_t indent)
 {
   geometric::PathGeometric *rawPath = boltPlanner_->getOriginalSolutionPath().get();
-  geometric::PathGeometric *smoothedPath = static_cast<geometric::PathGeometric*>(pdef_->getSolutionPath().get());
+  geometric::PathGeometric *smoothedPath = static_cast<geometric::PathGeometric *>(pdef_->getSolutionPath().get());
 
   double optimalLength = smoothedPath->length();
   double sparseLength = rawPath->length();
@@ -190,20 +190,20 @@ bool Bolt::checkOptimalityGuarantees(std::size_t indent)
 
   BOLT_DEBUG(indent, 1, "-----------------------------------------");
   BOLT_DEBUG(indent, 1, "Checking Asymptotic Optimality Guarantees");
-  BOLT_DEBUG(indent+2, 1, "Raw Path Length:         " << sparseLength);
-  BOLT_DEBUG(indent+2, 1, "Smoothed Path Length:    " << optimalLength);
-  BOLT_DEBUG(indent+2, 1, "Theoretical Path Length: " << theoryLength);
-  BOLT_DEBUG(indent+2, 1, "Stretch Factor t:        " << sparseCriteria_->getStretchFactor());
-  BOLT_DEBUG(indent+2, 1, "Sparse Delta:            " << sparseCriteria_->getSparseDelta());
+  BOLT_DEBUG(indent + 2, 1, "Raw Path Length:         " << sparseLength);
+  BOLT_DEBUG(indent + 2, 1, "Smoothed Path Length:    " << optimalLength);
+  BOLT_DEBUG(indent + 2, 1, "Theoretical Path Length: " << theoryLength);
+  BOLT_DEBUG(indent + 2, 1, "Stretch Factor t:        " << sparseCriteria_->getStretchFactor());
+  BOLT_DEBUG(indent + 2, 1, "Sparse Delta:            " << sparseCriteria_->getSparseDelta());
 
   if (sparseLength >= theoryLength)
   {
-    BOLT_RED_DEBUG(indent+2, 1, "Asymptotic optimality guarantee VIOLATED");
+    BOLT_RED_DEBUG(indent + 2, 1, "Asymptotic optimality guarantee VIOLATED");
     return false;
   }
   else
-    BOLT_GREEN_DEBUG(indent+2, 1, "Asymptotic optimality guarantee maintained");
-  BOLT_YELLOW_DEBUG(indent+2, 1, "Percent of max allowed:  " << percentOfMaxAllows << " %");
+    BOLT_GREEN_DEBUG(indent + 2, 1, "Asymptotic optimality guarantee maintained");
+  BOLT_YELLOW_DEBUG(indent + 2, 1, "Percent of max allowed:  " << percentOfMaxAllows << " %");
   BOLT_DEBUG(indent, 1, "-----------------------------------------");
 
   visual_->waitForUserFeedback("review results");
@@ -244,45 +244,45 @@ void Bolt::logResults()
       exit(-1);
       break;
     case base::PlannerStatus::EXACT_SOLUTION:
+    {
+      og::PathGeometric solutionPath = og::SimpleSetup::getSolutionPath();  // copied so that it is non-const
+
+      std::cout << ANSI_COLOR_BLUE;
+      std::cout << "Bolt Finished - solution found in " << std::setprecision(5) << planTime_ << " seconds with "
+                << solutionPath.getStateCount() << " states" << std::endl;
+      std::cout << ANSI_COLOR_RESET;
+
+      // Show in Rviz
+      visualize();
+
+      // Error check for repeated states
+      if (!checkRepeatedStates(solutionPath))
+        exit(-1);
+
+      // Check optimality
+      if (!checkOptimalityGuarantees())
+        exit(-1);
+
+      // Stats
+      stats_.numSolutionsFromRecall_++;
+
+      // Make sure solution has at least 2 states
+      if (solutionPath.getStateCount() < 2)
       {
-        og::PathGeometric solutionPath = og::SimpleSetup::getSolutionPath();  // copied so that it is non-const
+        OMPL_INFORM("NOT saving to database because solution is less than 2 states long");
+        stats_.numSolutionsTooShort_++;
 
-        std::cout << ANSI_COLOR_BLUE;
-        std::cout << "Bolt Finished - solution found in " << std::setprecision(5) << planTime_ << " seconds with "
-                  << solutionPath.getStateCount() << " states" << std::endl;
-        std::cout << ANSI_COLOR_RESET;
-
-        // Show in Rviz
-        visualize();
-
-        // Error check for repeated states
-        if (!checkRepeatedStates(solutionPath))
-          exit(-1);
-
-        // Check optimality
-        if (!checkOptimalityGuarantees())
-          exit(-1);
-
-        // Stats
-        stats_.numSolutionsFromRecall_++;
-
-        // Make sure solution has at least 2 states
-        if (solutionPath.getStateCount() < 2)
-        {
-          OMPL_INFORM("NOT saving to database because solution is less than 2 states long");
-          stats_.numSolutionsTooShort_++;
-
-          // Logging
-          log.isSaved = "less_2_states";
-          log.tooShort = true;
-        }
-        else
-        {
-          // Queue the solution path for future insertion into experience database (post-processing)
-          queuedSolutionPaths_.push_back(solutionPath);
-        }
+        // Logging
+        log.isSaved = "less_2_states";
+        log.tooShort = true;
       }
-      break;
+      else
+      {
+        // Queue the solution path for future insertion into experience database (post-processing)
+        queuedSolutionPaths_.push_back(solutionPath);
+      }
+    }
+    break;
     default:
       OMPL_ERROR("Unknown status type: %u", lastStatus_);
       stats_.numSolutionsFailed_++;
@@ -323,8 +323,8 @@ base::PlannerStatus Bolt::solve(double time)
 
 bool Bolt::setFilePath(const std::string &filePath)
 {
-  sparseGraph_->getDenseCache()->setFilePath(filePath+".cache");
-  sparseGraph_->setFilePath(filePath+".ompl");
+  sparseGraph_->getDenseCache()->setFilePath(filePath + ".cache");
+  sparseGraph_->setFilePath(filePath + ".ompl");
   return true;
 }
 
@@ -357,9 +357,9 @@ bool Bolt::loadOrGenerate()
   // Load from file or generate new grid
   if (!sparseGraph_->isEmpty())
   {
-    BOLT_YELLOW_DEBUG(indent, 1, "Database already loaded, vertices: " << sparseGraph_->getNumVertices()
-                      << ", edges: " << sparseGraph_->getNumEdges()
-                      << ", queryV: " << sparseGraph_->getNumQueryVertices());
+    BOLT_YELLOW_DEBUG(indent, 1, "Database already loaded, vertices: "
+                                     << sparseGraph_->getNumVertices() << ", edges: " << sparseGraph_->getNumEdges()
+                                     << ", queryV: " << sparseGraph_->getNumQueryVertices());
 
     return true;
   }
@@ -405,12 +405,14 @@ void Bolt::printLogs(std::ostream &out) const
   out << "    Timedout:                    " << stats_.numSolutionsTimedout_ << std::endl;
   out << "    Approximate:                 " << stats_.numSolutionsApproximate_ << std::endl;
   out << "  SparseGraph                       " << std::endl;
-  out << "    Vertices:                    " << sparseGraph_->getNumVertices() << " (" << vertPercent << "%)" << std::endl;
+  out << "    Vertices:                    " << sparseGraph_->getNumVertices() << " (" << vertPercent << "%)"
+      << std::endl;
   out << "    Edges:                       " << sparseGraph_->getNumEdges() << " (" << edgePercent << "%)" << std::endl;
   out << "    Regenerations:               " << sparseCriteria_->numGraphGenerations_ << std::endl;
   out << "    Disjoint Samples Added:      " << sparseCriteria_->numRandSamplesAdded_ << std::endl;
   out << "    Sparse Delta:                " << sparseCriteria_->getSparseDelta() << std::endl;
-  out << "  Average planning time:         " << std::setprecision(4) << stats_.getAveragePlanningTime() << " seconds" << std::endl;
+  out << "  Average planning time:         " << std::setprecision(4) << stats_.getAveragePlanningTime() << " seconds"
+      << std::endl;
   out << "  Average insertion time:        " << stats_.getAverageInsertionTime() << " seconds" << std::endl;
   out << std::endl;
 }
@@ -521,7 +523,8 @@ void Bolt::benchmarkPerformance()
   }
   // Benchmark runtime
   OMPL_INFORM("  isValid() took %f seconds (%f per run)", totalDurationValid, totalDurationValid / benchmarkRuns);
-  OMPL_INFORM("  sampleUniform() took %f seconds (%f per run)", totalDurationSampler, totalDurationSampler / benchmarkRuns);
+  OMPL_INFORM("  sampleUniform() took %f seconds (%f per run)", totalDurationSampler,
+              totalDurationSampler / benchmarkRuns);
   OMPL_INFORM("  Percent valid: %f", validCount / double(benchmarkRuns) * 100);
   std::cout << "-------------------------------------------------------" << std::endl;
   std::cout << std::endl;

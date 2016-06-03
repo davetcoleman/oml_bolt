@@ -41,7 +41,6 @@
 #include <ompl/tools/bolt/SparseCriteria.h>
 #include <ompl/util/Console.h>
 #include <ompl/datastructures/NearestNeighborsGNAT.h>
-#include <ompl/base/spaces/RealVectorStateSpace.h>  // TODO: remove, this is not space agnostic
 #include <ompl/base/DiscreteMotionValidator.h>
 
 // Boost
@@ -52,11 +51,6 @@
 #include <boost/function.hpp>
 #include <boost/bind.hpp>
 #include <boost/thread.hpp>
-
-// TODO remove
-#include <boost/serialization/list.hpp>
-#include <boost/serialization/utility.hpp>
-#include <boost/serialization/access.hpp>
 
 // C++
 #include <limits>
@@ -72,7 +66,6 @@ namespace og = ompl::geometric;
 namespace ot = ompl::tools;
 namespace otb = ompl::tools::bolt;
 namespace ob = ompl::base;
-
 
 namespace ompl
 {
@@ -107,8 +100,6 @@ SparseGraph::SparseGraph(base::SpaceInformationPtr si, VisualizerPtr visual)
   // Initialize nearest neighbor datastructure
   nn_.reset(new NearestNeighborsGNAT<SparseVertex>());
   nn_->setDistanceFunction(boost::bind(&otb::SparseGraph::distanceFunction, this, _1, _2));
-
-
 }
 
 SparseGraph::~SparseGraph()
@@ -262,7 +253,7 @@ bool SparseGraph::save()
 }
 
 bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath,
-                           double &distance, std::size_t indent)
+                              double &distance, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vSearch_, "astarSearch()");
   indent += 2;
@@ -287,8 +278,8 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
   {
     double popularityBias = 0;
     bool popularityBiasEnabled = false;
-    boost::astar_search(g_,                                                           // graph
-                        start,                                                        // start state
+    boost::astar_search(g_,                                                              // graph
+                        start,                                                           // start state
                         boost::bind(&otb::SparseGraph::astarHeuristic, this, _1, goal),  // the heuristic
                         // ability to disable edges (set cost to inifinity):
                         boost::weight_map(SparseEdgeWeightMap(g_, edgeCollisionStatePropertySparse_, popularityBias,
@@ -304,7 +295,7 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
     // the custom exception from CustomAstarVisitor
     BOLT_DEBUG(indent, vSearch_, "AStar found solution. Distance to goal: " << vertexDistances[goal]);
     BOLT_DEBUG(indent, vSearch_, "Number nodes opened: " << numNodesOpened_
-                                                           << ", Number nodes closed: " << numNodesClosed_);
+                                                         << ", Number nodes closed: " << numNodesClosed_);
 
     if (isinf(vertexDistances[goal]))  // TODO(davetcoleman): test that this works
     {
@@ -326,15 +317,9 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
       }
 
       // Add the start state to the path, unless this path is just one vertex long and the start==goal
-      if (v != goal)  // TODO explain this because i don't understand
+      if (v != goal)
       {
         vertexPath.push_back(v);
-      }
-      else  // TODO remove this
-      {
-        std::cout << "vertex path is one vertex long? " << std::endl;
-        std::cout << "this should be deleted " << std::endl;
-        exit(-1);
       }
 
       foundGoal = true;
@@ -381,7 +366,8 @@ double SparseGraph::astarHeuristic(const SparseVertex a, const SparseVertex b) c
   //   const double percentMaxExtent = (maxExtent_ * percentMaxExtentUnderestimate_);  // TODO(davetcoleman): cache
   //   double popularityComponent = percentMaxExtent * (vertexPopularity_[a] / 100.0);
 
-  //   std::cout << "astarHeuristic - dist: " << std::setprecision(4) << dist << ", popularity: " << vertexPopularity_[a]
+  //   std::cout << "astarHeuristic - dist: " << std::setprecision(4) << dist << ", popularity: " <<
+  //   vertexPopularity_[a]
   //             << ", max extent: " << maxExtent_ << ", percentMaxExtent: " << percentMaxExtent
   //             << ", popularityComponent: " << popularityComponent;
   //   dist = std::max(0.0, dist - popularityComponent);
@@ -391,13 +377,15 @@ double SparseGraph::astarHeuristic(const SparseVertex a, const SparseVertex b) c
   //   const double percentDist = (dist * percentMaxExtentUnderestimate_);  // TODO(davetcoleman): cache
   //   double popularityComponent = percentDist * (vertexPopularity_[a] / 100.0);
 
-  //   std::cout << "astarHeuristic - dist: " << std::setprecision(4) << dist << ", popularity: " << vertexPopularity_[a]
+  //   std::cout << "astarHeuristic - dist: " << std::setprecision(4) << dist << ", popularity: " <<
+  //   vertexPopularity_[a]
   //             << ", percentDist: " << percentDist << ", popularityComponent: " << popularityComponent;
   //   dist = std::max(0.0, dist - popularityComponent);
   // }
   // else if (false)  // method 3
   // {
-  //   std::cout << "astarHeuristic - dist: " << std::setprecision(4) << dist << ", popularity: " << vertexPopularity_[a]
+  //   std::cout << "astarHeuristic - dist: " << std::setprecision(4) << dist << ", popularity: " <<
+  //   vertexPopularity_[a]
   //             << ", vertexPopularity_[a] / 100.0: " << vertexPopularity_[a] / 100.0
   //             << ", percentMaxExtentUnderestimate_: " << percentMaxExtentUnderestimate_;
   //   // if ((vertexPopularity_[a] / 100.0) < (1 - percentMaxExtentUnderestimate_))
@@ -616,8 +604,7 @@ void SparseGraph::getDisjointSets(DisjointSetsMap &disjointSets)
 void SparseGraph::printDisjointSets(DisjointSetsMap &disjointSets)
 {
   OMPL_INFORM("Print disjoint sets");
-  for (DisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
-       iterator++)
+  for (DisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end(); iterator++)
   {
     const SparseVertex v = iterator->first;
     const std::size_t freq = iterator->second.size();
@@ -632,8 +619,7 @@ void SparseGraph::visualizeDisjointSets(DisjointSetsMap &disjointSets)
   // Find the disjoint set that is the 'main' large one
   std::size_t maxDisjointSetSize = 0;
   SparseVertex maxDisjointSetParent;
-  for (DisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
-       iterator++)
+  for (DisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end(); iterator++)
   {
     const SparseVertex v = iterator->first;
     const std::size_t freq = iterator->second.size();
@@ -647,8 +633,7 @@ void SparseGraph::visualizeDisjointSets(DisjointSetsMap &disjointSets)
   OMPL_INFORM("The largest disjoint set is of size %u and parent vertex %u", maxDisjointSetSize, maxDisjointSetParent);
 
   // Display size of disjoint sets and visualize small ones
-  for (DisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
-       iterator++)
+  for (DisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end(); iterator++)
   {
     const SparseVertex v1 = iterator->first;
     const std::size_t freq = iterator->second.size();
@@ -808,9 +793,6 @@ void SparseGraph::removeVertex(SparseVertex v)
   // Remove from nearest neighbor
   nn_->remove(v);
 
-  // Debug
-  // debugNN();
-
   // Delete state from denseDB
   vertexStateProperty_[v] = 0;  // 0 means delete
 
@@ -851,7 +833,7 @@ void SparseGraph::removeDeletedVertices(std::size_t indent)
     }
     else  // only proceed if no deletion happened
     {
-      //BOLT_DEBUG(indent, verbose, "Checking SparseVertex " << *v << " stateID: " << getStateID(*v));
+      // BOLT_DEBUG(indent, verbose, "Checking SparseVertex " << *v << " stateID: " << getStateID(*v));
       v++;
     }
   }
@@ -925,7 +907,8 @@ void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
 
   // Show visibility region around vertex
   if (visualizeDatabaseCoverage_)
-    visual_->viz1State(getVertexState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseCriteria_->sparseDelta_);
+    visual_->viz1State(getVertexState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
+                       sparseCriteria_->sparseDelta_);
 
   // Show vertex
   visual_->viz1State(getVertexState(v), size, color, 0);
@@ -1253,7 +1236,8 @@ double get(const ompl::tools::bolt::SparseEdgeWeightMap &m, const ompl::tools::b
 }
 }
 
-BOOST_CONCEPT_ASSERT((boost::ReadablePropertyMapConcept<ompl::tools::bolt::SparseEdgeWeightMap, ompl::tools::bolt::SparseEdge>));
+BOOST_CONCEPT_ASSERT(
+    (boost::ReadablePropertyMapConcept<ompl::tools::bolt::SparseEdgeWeightMap, ompl::tools::bolt::SparseEdge>));
 
 // CustomAstarVisitor methods ////////////////////////////////////////////////////////////////////////////
 

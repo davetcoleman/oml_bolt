@@ -259,7 +259,7 @@ public:
 
   /** \brief Helper for creating/loading graph edges */
   TaskEdge addEdge(const TaskVertex& v1, const TaskVertex& v2, const double weight,
-                    const EdgeCollisionState collisionState = NOT_CHECKED);
+                   const EdgeCollisionState collisionState = NOT_CHECKED);
 
   /** \brief Get whether to bias search using popularity of edges */
   bool getPopularityBiasEnabled()
@@ -279,7 +279,8 @@ public:
    * \param countIndent - debugging tool
    */
   void findGraphNeighbors(base::State* state, std::vector<TaskVertex>& graphNeighborhood,
-                          std::vector<TaskVertex>& visibleNeighborhood, double searchRadius, std::size_t threadID, std::size_t coutIndent);
+                          std::vector<TaskVertex>& visibleNeighborhood, double searchRadius, std::size_t threadID,
+                          std::size_t coutIndent);
 
   void findGraphNeighbors(const TaskVertex& denseV, std::vector<TaskVertex>& graphNeighborhood,
                           std::vector<TaskVertex>& visibleNeighborhood, double searchRadius, std::size_t coutIndent);
@@ -319,9 +320,9 @@ public:
   bool sameComponent(const TaskVertex& v1, const TaskVertex& v2);
 
   /** \brief Get all the different conencted components in the graph, and print to console or visualize */
-  void getDisjointSets(DisjointSetsParentKey &disjointSets);
-  void printDisjointSets(DisjointSetsParentKey &disjointSets);
-  void visualizeDisjointSets(DisjointSetsParentKey &disjointSets);
+  void getDisjointSets(DisjointSetsParentKey& disjointSets);
+  void printDisjointSets(DisjointSetsParentKey& disjointSets);
+  void visualizeDisjointSets(DisjointSetsParentKey& disjointSets);
 
   std::size_t getNumQueryVertices()
   {
@@ -384,7 +385,6 @@ protected:
   bool graphUnsaved_ = false;
 
 public:
-
   /** \brief Are we task planning i.e. for hybrid cartesian paths? */
   bool useTaskTask_ = false;
 
@@ -415,4 +415,4 @@ public:
 }  // namespace tools
 }  // namespace ompl
 
-#endif // OMPL_TOOLS_BOLT_PLANNING_GRAPH_
+#endif  // OMPL_TOOLS_BOLT_PLANNING_GRAPH_

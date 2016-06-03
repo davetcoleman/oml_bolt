@@ -54,12 +54,13 @@ namespace tools
 {
 namespace bolt
 {
-BoltStorage::BoltStorage(const base::SpaceInformationPtr &si, SparseGraph *sparseGraph) : si_(si), sparseGraph_(sparseGraph)
+BoltStorage::BoltStorage(const base::SpaceInformationPtr &si, SparseGraph *sparseGraph)
+  : si_(si), sparseGraph_(sparseGraph)
 {
   numQueryVertices_ = boost::thread::hardware_concurrency();
 }
 
-void BoltStorage::save(const std::string& filePath)
+void BoltStorage::save(const std::string &filePath)
 {
   std::ofstream out(filePath.c_str(), std::ios::binary);
 
@@ -137,11 +138,11 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
 
     // Feedback
     if ((++count) % feedbackFrequency == 0)
-      std::cout << std::fixed << std::setprecision(0) << (count / double(sparseGraph_->getNumVertices())) * 100.0 << "% "
-                << std::flush;
+      std::cout << std::fixed << std::setprecision(0) << (count / double(sparseGraph_->getNumVertices())) * 100.0
+                << "% " << std::flush;
   }
-  BOOST_ASSERT_MSG(errorCheckNumQueryVertices == numQueryVertices_,
-                   "There should be the same number of query vertex as threads that were skipped while saving");
+  BOOST_ASSERT_MSG(errorCheckNumQueryVertices == numQueryVertices_, "There should be the same number of query vertex "
+                                                                    "as threads that were skipped while saving");
 
   std::cout << std::endl;
 }
@@ -179,7 +180,7 @@ void BoltStorage::saveEdges(boost::archive::binary_oarchive &oa)
   std::cout << std::endl;
 }
 
-bool BoltStorage::load(const std::string& filePath)
+bool BoltStorage::load(const std::string &filePath)
 {
   OMPL_INFORM("------------------------------------------------");
   OMPL_INFORM("BoltStorage: Loading Sparse Graph");

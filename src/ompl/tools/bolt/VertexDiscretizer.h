@@ -118,7 +118,9 @@ public:
     double clearanceSearchDistance = si_->getStateValidityChecker()->getClearanceSearchDistance();
     if (clearanceSearchDistance < clearance_)
     {
-      OMPL_WARN("Desired clearance between vertices and obstacles (%f) is greater than the search distance (%f), will not work properly", clearance_, clearanceSearchDistance);
+      OMPL_WARN("Desired clearance between vertices and obstacles (%f) is greater than the search distance (%f), will "
+                "not work properly",
+                clearance_, clearanceSearchDistance);
     }
   }
 

@@ -64,5 +64,4 @@
 #define BOLT_CYAN_DEBUG(indent, flag, stream) BOLT_COLOR_DEBUG(indent, flag, stream, ANSI_COLOR_CYAN);
 // clang-format on
 
-
 #endif  // OMPL_TOOLS_BOLT_DEBUG_H

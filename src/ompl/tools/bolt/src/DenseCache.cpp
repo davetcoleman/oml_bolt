@@ -57,8 +57,7 @@ namespace tools
 {
 namespace bolt
 {
-
-static const boost::uint32_t BOLT_DENSE_CACHE_MARKER = 0x1044414D; // unknown value
+static const boost::uint32_t BOLT_DENSE_CACHE_MARKER = 0x1044414D;  // unknown value
 
 DenseCache::DenseCache(base::SpaceInformationPtr si, SparseGraph *sparseGraph, VisualizerPtr visual)
   : si_(si), sparseGraph_(sparseGraph), visual_(visual)
@@ -92,7 +91,7 @@ void DenseCache::initialize()
   resetCounters();
 
   // Estimate the size of the state cache
-  stateCache_.reserve(30000); // based on experiments in 2D
+  stateCache_.reserve(30000);  // based on experiments in 2D
 
   // Add zeroth state - which indicates a deleted/NULL vertex
   addState(si_->allocState());
@@ -204,7 +203,8 @@ bool DenseCache::load()
 
   if (!collisionCheckDenseCache_.empty())
   {
-    OMPL_ERROR("Collision check cache has %u edges and is not empty, unable to load.", collisionCheckDenseCache_.size());
+    OMPL_ERROR("Collision check cache has %u edges and is not empty, unable to load.",
+               collisionCheckDenseCache_.size());
     return false;
   }
 
@@ -224,7 +224,7 @@ bool DenseCache::load()
   }
 
   // Reset first state (id=0)
-  stateCache_.clear(); // remove the null state id=0, because this should have already been saved to file
+  stateCache_.clear();  // remove the null state id=0, because this should have already been saved to file
 
   try
   {
@@ -263,7 +263,7 @@ bool DenseCache::load()
   in.close();
 
   // This is really slow
-  //errorCheckData();
+  // errorCheckData();
 
   // Benchmark runtime
   double duration = time::seconds(time::now() - startTime);
@@ -351,13 +351,13 @@ StateID DenseCache::addState(base::State *state)
   return id;
 }
 
-const base::State* DenseCache::getState(StateID stateID) const
+const base::State *DenseCache::getState(StateID stateID) const
 {
   // TODO: thread safety?
   return stateCache_[stateID];
 }
 
-base::State* &DenseCache::getStateNonConst(StateID stateID)
+base::State *&DenseCache::getStateNonConst(StateID stateID)
 {
   // TODO: thread safety?
   return stateCache_[stateID];
@@ -377,8 +377,10 @@ bool DenseCache::checkMotionWithCache(const StateID &stateID1, const StateID &st
   CachedEdge &edge = keys_[threadID];
 
   // Error check
-  //BOOST_ASSERT_MSG(stateID1 >= numThreads_, "stateID1: The queryVertex_ should not be checked within the DenseCache, because it is subject to change");
-  //BOOST_ASSERT_MSG(stateID2 >= numThreads_, "stateID2: The queryVertex_ should not be checked within the DenseCache, because it is subject to change");
+  // BOOST_ASSERT_MSG(stateID1 >= numThreads_, "stateID1: The queryVertex_ should not be checked within the DenseCache,
+  // because it is subject to change");
+  // BOOST_ASSERT_MSG(stateID2 >= numThreads_, "stateID2: The queryVertex_ should not be checked within the DenseCache,
+  // because it is subject to change");
 
   // Create edge to search for - only store pairs in one direction
   if (stateID1 < stateID2)
@@ -399,7 +401,7 @@ bool DenseCache::checkMotionWithCache(const StateID &stateID1, const StateID &st
     totalCollisionChecks_[threadID]++;
   }
 
-  if (result) // Cache available
+  if (result)  // Cache available
   {
     totalCollisionChecksFromCache_[threadID]++;
     return lb->second;
@@ -483,10 +485,10 @@ void DenseCache::errorCheckData()
 {
   OMPL_INFORM("Error checking dense cache...");
   std::size_t counter = 0;
-  for (EdgeCacheMap::const_iterator iterator = collisionCheckDenseCache_.begin(); iterator != collisionCheckDenseCache_.end();
-       iterator++)
+  for (EdgeCacheMap::const_iterator iterator = collisionCheckDenseCache_.begin();
+       iterator != collisionCheckDenseCache_.end(); iterator++)
   {
-    std::pair<StateID,StateID> thing = iterator->first;
+    std::pair<StateID, StateID> thing = iterator->first;
     StateID &stateID1 = thing.first;
     StateID &stateID2 = thing.second;
     bool cachedResult = iterator->second;

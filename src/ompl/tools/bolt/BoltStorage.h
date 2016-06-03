@@ -139,7 +139,7 @@ public:
   /** \brief Constructor */
   BoltStorage(const base::SpaceInformationPtr &si, SparseGraph *sparseGraph);
 
-  void save(const std::string& filePath);
+  void save(const std::string &filePath);
 
   void save(std::ostream &out);
 
@@ -149,7 +149,7 @@ public:
   /// \brief Serialize and store all edges in \e pd to the binary archive.
   void saveEdges(boost::archive::binary_oarchive &oa);
 
-  bool load(const std::string& filePath);
+  bool load(const std::string &filePath);
 
   bool load(std::istream &in);
 

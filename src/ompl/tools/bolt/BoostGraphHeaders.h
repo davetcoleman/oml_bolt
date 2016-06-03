@@ -122,7 +122,7 @@ struct vertex_task_mirror_t
 
 struct vertex_interface_data_t
 {
-    typedef boost::vertex_property_tag kind;
+  typedef boost::vertex_property_tag kind;
 };
 
 struct vertex_sparse_rep_t
@@ -287,7 +287,7 @@ typedef boost::graph_traits<TaskAdjList>::vertex_descriptor TaskVertex;
 typedef boost::graph_traits<TaskAdjList>::edge_descriptor TaskEdge;
 
 /** \brief Internal representation of a dense path */
-//typedef std::deque<base::State*> DensePath;
+// typedef std::deque<base::State*> DensePath;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 // Typedefs for property maps
@@ -360,7 +360,7 @@ public:
    * \param graph         Graph to use
    */
   TaskEdgeWeightMap(const TaskAdjList& graph, const TaskEdgeCollisionStateMap& collisionStates,
-                     const double& popularityBias, const bool popularityBiasEnabled)
+                    const double& popularityBias, const bool popularityBiasEnabled)
     : g_(graph)
     , collisionStates_(collisionStates)
     , popularityBias_(popularityBias)
@@ -483,7 +483,6 @@ typedef boost::disjoint_sets<boost::property_map<SparseAdjList, boost::vertex_ra
 // Ability to copy the disjoint sets data into a hashtable
 typedef std::map<SparseVertex, std::vector<SparseVertex> > DisjointSetsMap;
 
-
 ////////////////////////////////////////////////////////////////////////////////////////
 /**
  * Thrown to stop the A* search when finished.
@@ -492,11 +491,8 @@ class FoundGoalException
 {
 };
 
-
 }  // namespace bolt
 }  // namespace tools
 }  // namespace ompl
-
-
 
 #endif  // OMPL_TOOLS_BOLT_BOOST_GRAPH_HEADERS_

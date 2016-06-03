@@ -15,18 +15,22 @@
 #include <boost/graph/properties.hpp>
 #include <ompl/tools/boost/detail/disjoint_sets.hpp>
 
-namespace boost {
-
-struct my_find_with_path_halving {
+namespace boost
+{
+struct my_find_with_path_halving
+{
   template <class ParentPA, class Vertex>
-  Vertex operator()(ParentPA p, Vertex v) {
+  Vertex operator()(ParentPA p, Vertex v)
+  {
     return detail::my_find_representative_with_path_halving(p, v);
   }
 };
 
-struct my_find_with_full_path_compression {
+struct my_find_with_full_path_compression
+{
   template <class ParentPA, class Vertex>
-  Vertex operator()(ParentPA p, Vertex v){
+  Vertex operator()(ParentPA p, Vertex v)
+  {
     return detail::my_find_representative_with_full_compression(p, v);
   }
 };
@@ -43,19 +47,23 @@ struct my_find_with_full_path_compression {
 // RankPA and a ParentPA. The RankPA must map Vertex to some Integral type
 // (preferably the size_type associated with Vertex). The ParentPA
 // must map Vertex to Vertex.
-template <class RankPA, class ParentPA,
-    class FindCompress = my_find_with_full_path_compression
-          >
-class my_disjoint_sets {
+template <class RankPA, class ParentPA, class FindCompress = my_find_with_full_path_compression>
+class my_disjoint_sets
+{
   typedef my_disjoint_sets self;
 
-  inline my_disjoint_sets() {}
-public:
-  inline my_disjoint_sets(RankPA r, ParentPA p)
-    : rank(r), parent(p) {}
+  inline my_disjoint_sets()
+  {
+  }
 
-  inline my_disjoint_sets(const self& c)
-    : rank(c.rank), parent(c.parent) {}
+public:
+  inline my_disjoint_sets(RankPA r, ParentPA p) : rank(r), parent(p)
+  {
+  }
+
+  inline my_disjoint_sets(const self& c) : rank(c.rank), parent(c.parent)
+  {
+  }
 
   // Make Set -- Create a singleton set containing vertex x
   template <class Element>
@@ -77,7 +85,6 @@ public:
     // }
     // else // Not representative of its own set
     // {
-
 
     // }
   }
@@ -108,7 +115,7 @@ public:
   inline std::size_t count_sets(ElementIterator first, ElementIterator last)
   {
     std::size_t count = 0;
-    for ( ; first != last; ++first)
+    for (; first != last; ++first)
       if (get(parent, *first) == *first)
         ++count;
     return count;
@@ -127,30 +134,25 @@ public:
     for (; first != last; ++first)
       detail::my_find_representative_with_full_compression(parent, *first);
   }
+
 protected:
   RankPA rank;
   ParentPA parent;
   FindCompress rep;
 };
 
-
-
-
-template <class ID = identity_property_map,
-          class InverseID = identity_property_map,
-            class FindCompress = my_find_with_full_path_compression
-          >
-  class my_disjoint_sets_with_storage
+template <class ID = identity_property_map, class InverseID = identity_property_map,
+          class FindCompress = my_find_with_full_path_compression>
+class my_disjoint_sets_with_storage
 {
   typedef typename property_traits<ID>::value_type Index;
   typedef std::vector<Index> ParentContainer;
   typedef std::vector<unsigned char> RankContainer;
+
 public:
   typedef typename ParentContainer::size_type size_type;
 
-  my_disjoint_sets_with_storage(size_type n = 0,
-                             ID id_ = ID(),
-                             InverseID inv = InverseID())
+  my_disjoint_sets_with_storage(size_type n = 0, ID id_ = ID(), InverseID inv = InverseID())
     : id(id_), id_to_vertex(inv), rank(n, 0), parent(n)
   {
     for (Index i = 0; i < n; ++i)
@@ -158,36 +160,35 @@ public:
   }
   // note this is not normally needed
   template <class Element>
-    inline void
-  make_set(Element x) {
-    parent[x] = x;
-    rank[x]   = 0;
-  }
-  template <class Element>
-    inline void
-  link(Element x, Element y)
+  inline void make_set(Element x)
   {
-    extend_sets(x,y);
-    detail::my_link_sets(&parent[0], &rank[0],
-                      get(id,x), get(id,y), rep);
+    parent[x] = x;
+    rank[x] = 0;
   }
   template <class Element>
-    inline void
-  union_set(Element x, Element y) {
+  inline void link(Element x, Element y)
+  {
+    extend_sets(x, y);
+    detail::my_link_sets(&parent[0], &rank[0], get(id, x), get(id, y), rep);
+  }
+  template <class Element>
+  inline void union_set(Element x, Element y)
+  {
     Element rx = find_set(x);
     Element ry = find_set(y);
     link(rx, ry);
   }
   template <class Element>
-  inline Element find_set(Element x) {
-    return id_to_vertex[rep(&parent[0], get(id,x))];
+  inline Element find_set(Element x)
+  {
+    return id_to_vertex[rep(&parent[0], get(id, x))];
   }
 
   template <class ElementIterator>
   inline std::size_t count_sets(ElementIterator first, ElementIterator last)
   {
     std::size_t count = 0;
-    for ( ; first != last; ++first)
+    for (; first != last; ++first)
       if (parent[*first] == *first)
         ++count;
     return count;
@@ -204,20 +205,21 @@ public:
   inline void compress_sets(ElementIterator first, ElementIterator last)
   {
     for (; first != last; ++first)
-      detail::my_find_representative_with_full_compression(&parent[0],
-                                                        *first);
+      detail::my_find_representative_with_full_compression(&parent[0], *first);
   }
 
-  const ParentContainer& parents() { return parent; }
+  const ParentContainer& parents()
+  {
+    return parent;
+  }
 
 protected:
-
   template <class Element>
-    inline void
-  extend_sets(Element x, Element y)
+  inline void extend_sets(Element x, Element y)
   {
-    Index needed = get(id,x) > get(id,y) ? get(id,x) + 1 : get(id,y) + 1;
-    if (needed > parent.size()) {
+    Index needed = get(id, x) > get(id, y) ? get(id, x) + 1 : get(id, y) + 1;
+    if (needed > parent.size())
+    {
       rank.insert(rank.end(), needed - rank.size(), 0);
       for (Index k = parent.size(); k < needed; ++k)
         parent.push_back(k);
@@ -231,6 +233,6 @@ protected:
   FindCompress rep;
 };
 
-} // namespace boost
+}  // namespace boost
 
-#endif // OMPL_BOOST_DISJOINT_SETS_HPP
+#endif  // OMPL_BOOST_DISJOINT_SETS_HPP
