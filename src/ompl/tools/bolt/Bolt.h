@@ -41,6 +41,7 @@
 #include <ompl/tools/experience/ExperienceSetup.h>  // the parent class
 
 #include <ompl/tools/bolt/SparseGraph.h>
+#include <ompl/tools/bolt/TaskGraph.h>
 #include <ompl/tools/bolt/SparseCriteria.h>
 #include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/BoltRetrieveRepair.h>
@@ -180,6 +181,7 @@ public:
 
   /** \brief Hook for getting access to sparse db */
   SparseGraphPtr getSparseGraph();
+  TaskGraphPtr getTaskGraph();
   SparseCriteriaPtr getSparseCriteria();
 
   /** \brief Allow accumlated experiences to be processed */
@@ -196,6 +198,9 @@ protected:
 
   /** \brief Generator of sparse vertices and edges */
   SparseCriteriaPtr sparseCriteria_;
+
+  /** \brief Graph used for combining multiple layers of sparse graph */
+  TaskGraphPtr taskGraph_;
 
   /** \brief Accumulated experiences to be later added to experience database */
   std::vector<geometric::PathGeometric> queuedSolutionPaths_;

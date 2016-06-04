@@ -79,6 +79,9 @@ void Bolt::initialize()
   // Give the sparse graph reference to the criteria, because sometimes it needs data from there
   sparseGraph_->setSparseCriteria(sparseCriteria_);
 
+  // Load the task graph used for combining multiple layers of sparse graph
+  taskGraph_.reset(new TaskGraph(sparseGraph_));
+
   // Load the Retrieve repair database. We do it here so that setRepairPlanner() works
   boltPlanner_ = BoltRetrieveRepairPtr(new BoltRetrieveRepair(si_, sparseGraph_, visual_));
 
@@ -437,6 +440,11 @@ void Bolt::convertPlannerData(const ob::PlannerDataPtr plannerData, og::PathGeom
 SparseGraphPtr Bolt::getSparseGraph()
 {
   return sparseGraph_;
+}
+
+TaskGraphPtr Bolt::getTaskGraph()
+{
+  return taskGraph_;
 }
 
 SparseCriteriaPtr Bolt::getSparseCriteria()

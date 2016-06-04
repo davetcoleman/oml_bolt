@@ -234,6 +234,8 @@ private:
   /** \brief Last known distance between the two interfaces supported by points_ and sigmas. */
   double lastDistance_;
 
+  // TODO: Remember when iData has failed to shortcut prexisting shorcut because came up with same lastDistance
+
 };  // end class InterfaceData
 
 }  // namespace bolt
