@@ -264,8 +264,9 @@ typedef boost::property_map<SparseAdjList, edge_collision_state_t>::type SparseE
 typedef boost::property<vertex_state_cache_t, VertexIndexType, // State
         boost::property<boost::vertex_predecessor_t, VertexIndexType, // Disjoint Sets
         boost::property<boost::vertex_rank_t, VertexIndexType, // Disjoint Sets
+        boost::property<vertex_type_t, VertexType, // Task Type
         boost::property<vertex_task_mirror_t, VertexIndexType // Link to corresponding free space TaskVertex, if one exists
-        > > > > TaskVertexProperties;
+        > > > > > TaskVertexProperties;
 // clang-format on
 
 /** Wrapper for the double assigned to an edge as its weight property. */
@@ -478,10 +479,20 @@ public:
  * \brief Sparse disjoint sets structure
  */
 typedef boost::disjoint_sets<boost::property_map<SparseAdjList, boost::vertex_rank_t>::type,
-                             boost::property_map<SparseAdjList, boost::vertex_predecessor_t>::type> DisjointSetType;
+                             boost::property_map<SparseAdjList, boost::vertex_predecessor_t>::type> SparseDisjointSetType;
 
 // Ability to copy the disjoint sets data into a hashtable
-typedef std::map<SparseVertex, std::vector<SparseVertex> > DisjointSetsMap;
+typedef std::map<SparseVertex, std::vector<SparseVertex> > SparseDisjointSetsMap;
+
+////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * \brief Task disjoint sets structure
+ */
+typedef boost::disjoint_sets<boost::property_map<TaskAdjList, boost::vertex_rank_t>::type,
+                             boost::property_map<TaskAdjList, boost::vertex_predecessor_t>::type> TaskDisjointSetType;
+
+// Ability to copy the disjoint sets data into a hashtable
+typedef std::map<TaskVertex, std::vector<TaskVertex> > TaskDisjointSetsMap;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 /**

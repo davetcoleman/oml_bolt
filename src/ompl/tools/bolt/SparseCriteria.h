@@ -225,11 +225,11 @@ protected:
   /** \brief Short name of this class */
   const std::string name_ = "SparseCriteria";
 
-  /** \brief The created space information */
-  base::SpaceInformationPtr si_;
-
   /** \brief Sparse graph main datastructure that this class operates on */
   SparseGraphPtr sg_;
+
+  /** \brief The created space information */
+  base::SpaceInformationPtr si_;
 
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;

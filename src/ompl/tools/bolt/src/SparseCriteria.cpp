@@ -61,9 +61,9 @@ namespace bolt
 SparseCriteria::SparseCriteria(SparseGraphPtr sg) : sg_(sg)
 {
   // Copy the pointers of various components
-  denseCache_ = sg->getDenseCache();
-  si_ = sg->getSpaceInformation();
-  visual_ = sg->getVisual();
+  denseCache_ = sg_->getDenseCache();
+  si_ = sg_->getSpaceInformation();
+  visual_ = sg_->getVisual();
 
   // Initialize discretizer
   vertexDiscretizer_.reset(new VertexDiscretizer(si_, visual_));
@@ -196,7 +196,7 @@ void SparseCriteria::createSPARS()
     addRandomSamples(indent);
   }
 
-  if (!sg_->visualizeSparsGraph_)
+  if (!sg_->visualizeSparseGraph_)
     sg_->displayDatabase(true, indent);
 
   // Cleanup removed vertices
@@ -243,7 +243,7 @@ void SparseCriteria::createSPARS()
   BOLT_DEBUG(indent, 1, "    Missing interfaces:      " << interfaceStats.second);
   BOLT_DEBUG(indent, 1, "-----------------------------------------");
 
-  if (!sg_->visualizeSparsGraph_)
+  if (!sg_->visualizeSparseGraph_)
     sg_->displayDatabase(true, indent);
 
   OMPL_INFORM("Finished creating sparse database");
@@ -333,7 +333,7 @@ void SparseCriteria::createSPARSOuterLoop()
     double duration = time::seconds(time::now() - startTime);
 
     // Visualize
-    if (visualizeSparsGraph_)
+    if (visualizeSparseGraph_)
       visual_->viz1Trigger();
 
     std::cout << "Succeeded in inserting " << sucessfulInsertions << " vertices on the " << loopAttempt
@@ -361,11 +361,11 @@ void SparseCriteria::createSPARSOuterLoop()
   }
 
   // If we haven't animated the creation, just show it all at once
-  if (!visualizeSparsGraph_)
+  if (!visualizeSparseGraph_)
   {
     sg_->displayDatabase(true, indent+4);
   }
-  else if (sg_->visualizeSparsGraphSpeed_ < std::numeric_limits<double>::epsilon())
+  else if (sg_->visualizeSparseGraphSpeed_ < std::numeric_limits<double>::epsilon())
   {
     visual_->viz1Trigger();
     usleep(0.001 * 1000000);
@@ -396,7 +396,7 @@ bool SparseCriteria::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInser
                 << "% Cache size: " << denseCache_->getEdgeCacheSize()
                 << " Cache usage: " << denseCache_->getPercentCachedCollisionChecks() << "%" << std::endl;
       std::cout << ANSI_COLOR_RESET;
-      if (sg_->visualizeSparsGraph_)
+      if (sg_->visualizeSparseGraph_)
         visual_->viz1Trigger();
     }
 
@@ -411,7 +411,7 @@ bool SparseCriteria::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInser
       // std::cout << "Failed AGAIN to add state to roadmap------" << std::endl;
 
       // Visualize the failed vertex as a small red dot
-      if (sg_->visualizeSparsGraph_ && false)
+      if (sg_->visualizeSparseGraph_ && false)
       {
         visual_->viz1State(denseCache_->getState(vertexIt->stateID_), tools::SMALL, tools::RED, 0);
       }
@@ -1909,7 +1909,7 @@ bool SparseCriteria::checkRemoveCloseVertices(SparseVertex v1, std::size_t inden
   numVerticesMoved_++;
 
   // Only display database if enabled
-  if (sg_->visualizeSparsGraph_ && sg_->visualizeSparsGraphSpeed_ > std::numeric_limits<double>::epsilon())
+  if (sg_->visualizeSparseGraph_ && sg_->visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
     sg_->displayDatabase(true, indent + 4);
 
   if (visualizeRemoveCloseVertices_)

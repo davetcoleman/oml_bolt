@@ -36,23 +36,23 @@
    Desc:   Near-asypmotically optimal roadmap datastructure
 */
 
-#ifndef OMPL_TOOLS_BOLT_SPARSE_GRAPH_
-#define OMPL_TOOLS_BOLT_SPARSE_GRAPH_
+#ifndef OMPL_TOOLS_BOLT_TASK_GRAPH_
+#define OMPL_TOOLS_BOLT_TASK_GRAPH_
 
 #include <ompl/base/StateSpace.h>
 #include <ompl/geometric/PathGeometric.h>
 #include <ompl/geometric/PathSimplifier.h>
-
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/datastructures/NearestNeighbors.h>
 
 // Bolt
-#include <ompl/tools/debug/Visualizer.h>
+#include <ompl/tools/bolt/SparseGraph.h>
 #include <ompl/tools/bolt/BoostGraphHeaders.h>
 #include <ompl/tools/bolt/DenseCache.h>
 #include <ompl/tools/bolt/Debug.h>
 #include <ompl/tools/bolt/VertexDiscretizer.h>
 #include <ompl/tools/bolt/BoltStorage.h>
+#include <ompl/tools/debug/Visualizer.h>
 
 // Boost
 #include <boost/function.hpp>
@@ -69,45 +69,37 @@ namespace tools
 namespace bolt
 {
 /**
-   @anchor SparseGraph
+   @anchor TaskGraph
    @par Near-asypmotically optimal roadmap datastructure
 */
 
 /// @cond IGNORE
-OMPL_CLASS_FORWARD(SparseGraph);
-OMPL_CLASS_FORWARD(SparseCriteria);
+OMPL_CLASS_FORWARD(TaskGraph);
 /// @endcond
 
-/** \class ompl::tools::bolt::::SparseGraphPtr
-    \brief A boost shared pointer wrapper for ompl::tools::SparseGraph */
+/** \class ompl::tools::bolt::::TaskGraphPtr
+    \brief A boost shared pointer wrapper for ompl::tools::TaskGraph */
 
 /** \brief Near-asypmotically optimal roadmap datastructure */
-class SparseGraph
+class TaskGraph
 {
   friend class BoltRetrieveRepair;
-  friend class SparseCriteria;
 
 public:
   /** \brief Constructor needs the state space used for planning.
    */
-  SparseGraph(base::SpaceInformationPtr si, VisualizerPtr visual);
+  TaskGraph(SparseGraphPtr sg);
 
   /** \brief Deconstructor */
-  virtual ~SparseGraph(void);
-
-  /** \brief Give the sparse graph reference to the criteria, because sometimes it needs data from there */
-  void setSparseCriteria(SparseCriteriaPtr sparseCriteria)
-  {
-    sparseCriteria_ = sparseCriteria;
-  }
+  virtual ~TaskGraph(void);
 
   /** \brief Retrieve the computed roadmap. */
-  const SparseAdjList& getGraph() const
+  const TaskAdjList& getGraph() const
   {
     return g_;
   }
 
-  SparseAdjList getGraphNonConst()
+  TaskAdjList getGraphNonConst()
   {
     return g_;
   }
@@ -134,35 +126,8 @@ public:
   /** \brief Initialize database */
   bool setup();
 
-  /** \brief Clear data on why vertices and edges were added by optimality criteria */
-  void clearStatistics();
-
   /** \brief Check that the query vertex is initialized (used for internal nearest neighbor searches) */
   void initializeQueryState();
-
-  /** \brief Set the file path to load/save to/from */
-  void setFilePath(const std::string& filePath)
-  {
-    filePath_ = filePath;
-  }
-
-  /**
-   * \brief Load database from file
-   * \return true if file loaded successfully
-   */
-  bool load();
-
-  /**
-   * \brief Save loaded database to file, except skips saving if no paths have been added
-   * \return true if file saved successfully
-   */
-  bool saveIfChanged();
-
-  /**
-   * \brief Save loaded database to file
-   * \return true if file saved successfully
-   */
-  bool save();
 
   /** \brief Given two milestones from the same connected component, construct a path connecting them and set it as
    * the solution
@@ -171,20 +136,21 @@ public:
    *  \param vertexPath
    *  \return true if candidate solution found
    */
-  bool astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex>& vertexPath,
+  bool astarSearch(const TaskVertex start, const TaskVertex goal, std::vector<TaskVertex>& vertexPath,
                    double& distance, std::size_t indent);
 
   /** \brief Distance between two states with special bias using popularity */
-  double astarHeuristic(const SparseVertex a, const SparseVertex b) const;
+  double astarHeuristic(const TaskVertex a, const TaskVertex b) const;
 
   /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
-  double distanceFunction(const SparseVertex a, const SparseVertex b) const;
+  double distanceFunction(const TaskVertex a, const TaskVertex b) const;
 
   /** \brief Custom A* visitor statistics */
   void recordNodeOpened()  // discovered
   {
     numNodesOpened_++;
   }
+
   void recordNodeClosed()  // examined
   {
     numNodesClosed_++;
@@ -195,31 +161,26 @@ public:
     return queryVertices_.size();
   }
 
-  /** \brief Get the number of vertices in the sparse roadmap. */
+  /** \brief Get the number of vertices in the task roadmap. */
   unsigned int getNumVertices() const
   {
     return boost::num_vertices(g_);
   }
 
-  /** \brief Get the number of edges in the sparse roadmap. */
+  /** \brief Get the number of edges in the task roadmap. */
   unsigned int getNumEdges() const
   {
     return boost::num_edges(g_);
   }
 
-  VertexType getVertexTypeProperty(SparseVertex v) const
+  VertexType getVertexTypeProperty(TaskVertex v) const
   {
     return vertexTypeProperty_[v];
   }
 
-  double getEdgeWeightProperty(SparseEdge e) const
+  double getEdgeWeightProperty(TaskEdge e) const
   {
     return edgeWeightProperty_[e];
-  }
-
-  EdgeType getEdgeTypeProperty(SparseEdge e) const
-  {
-    return edgeTypeProperty_[e];
   }
 
   /** \brief Determine if no nodes or edges have been added to the graph except query vertices */
@@ -237,64 +198,45 @@ public:
 
   /** \brief Disjoint sets analysis tools */
   std::size_t getDisjointSetsCount(bool verbose = false);
-  void getDisjointSets(SparseDisjointSetsMap& disjointSets);
-  void printDisjointSets(SparseDisjointSetsMap& disjointSets);
-  void visualizeDisjointSets(SparseDisjointSetsMap& disjointSets);
+  void getDisjointSets(TaskDisjointSetsMap& disjointSets);
+  void printDisjointSets(TaskDisjointSetsMap& disjointSets);
+  void visualizeDisjointSets(TaskDisjointSetsMap& disjointSets);
   std::size_t checkConnectedComponents();
-  bool sameComponent(SparseVertex v1, SparseVertex v2);
+  bool sameComponent(TaskVertex v1, TaskVertex v2);
 
   /** \brief Add a state to the DenseCache */
   StateID addState(base::State* state);
 
   /** \brief Add vertices to graph */
-  SparseVertex addVertex(base::State* state, const VertexType& type, std::size_t indent);
-  SparseVertex addVertex(StateID stateID, const VertexType& type, std::size_t indent);
+  TaskVertex addVertex(base::State* state, const VertexType& type, std::size_t indent);
+  TaskVertex addVertex(StateID stateID, const VertexType& type, std::size_t indent);
 
   /** \brief Remove vertex from graph */
-  void removeVertex(SparseVertex v);
+  void removeVertex(TaskVertex v);
 
   /** \brief Cleanup graph because we leave deleted vertices in graph during construction */
   void removeDeletedVertices(std::size_t indent);
 
   /** \brief Display in viewer */
-  void visualizeVertex(SparseVertex v, const VertexType& type);
+  void visualizeVertex(TaskVertex v, const VertexType& type);
 
   /** \brief Add edge to graph */
-  SparseEdge addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent);
+  TaskEdge addEdge(TaskVertex v1, TaskVertex v2, EdgeType type, std::size_t indent);
 
   /** \brief Check graph for edge existence */
-  bool hasEdge(SparseVertex v1, SparseVertex v2);
-
-  /** \brief Helper for choosing an edge's display color based on type of edge */
-  edgeColors convertEdgeTypeToColor(EdgeType edgeType);
+  bool hasEdge(TaskVertex v1, TaskVertex v2);
 
   /** \brief Get the state of a vertex used for querying - i.e. vertices 0-11 for 12 thread system */
-  base::State*& getQueryStateNonConst(SparseVertex v);
+  base::State*& getQueryStateNonConst(TaskVertex v);
 
   /** \brief Shortcut function for getting the state of a vertex */
-  base::State*& getVertexStateNonConst(SparseVertex v);
-  const base::State* getVertexState(SparseVertex v) const;
+  base::State*& getVertexStateNonConst(TaskVertex v);
+  const base::State* getVertexState(TaskVertex v) const;
   const base::State* getState(StateID stateID) const;
-  const StateID getStateID(SparseVertex v) const;
+  const StateID getStateID(TaskVertex v) const;
 
-  /** \brief Used for creating a voronoi diagram */
-  SparseVertex getSparseRepresentative(base::State* state);
-
-  /** \brief When a new guard is added at state, finds all guards who must abandon their interface information and
-   * delete that information */
-  void clearInterfaceData(base::State* st);
-
-  /** \brief When a quality path is added with new vertices, remove all edges near the new vertex */
-  void clearEdgesNearVertex(SparseVertex vertex);
-
-  /** \brief Show in visualizer the sparse graph */
+  /** \brief Show in visualizer the task graph */
   void displayDatabase(bool showVertices = false, std::size_t indent = 0);
-
-  /** \brief Rectifies indexing order for accessing the vertex data */
-  VertexPair interfaceDataIndex(SparseVertex vp, SparseVertex vpp);
-
-  /** \brief Retrieves the Vertex data associated with v,vp,vpp */
-  InterfaceData& getInterfaceData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent);
 
   /** \brief Print info to console */
   void debugState(const ompl::base::State* state);
@@ -304,7 +246,10 @@ public:
 
 protected:
   /** \brief Short name of this class */
-  const std::string name_ = "SparseGraph";
+  const std::string name_ = "TaskGraph";
+
+  /** \brief Sparse graph main datastructure that this class operates on */
+  SparseGraphPtr sg_;
 
   /** \brief The created space information */
   base::SpaceInformationPtr si_;
@@ -312,51 +257,39 @@ protected:
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;
 
-  /** \brief Class for deciding which vertices and edges get added */
-  SparseCriteriaPtr sparseCriteria_;
-
   /** \brief Speed up collision checking by saving redundant checks and using file storage */
   DenseCachePtr denseCache_;
 
   /** \brief Nearest neighbors data structure */
-  std::shared_ptr<NearestNeighbors<SparseVertex> > nn_;
+  std::shared_ptr<NearestNeighbors<TaskVertex> > nn_;
 
   /** \brief Connectivity graph */
-  SparseAdjList g_;
+  TaskAdjList g_;
 
   /** \brief Vertices for performing nearest neighbor queries on multiple threads */
-  std::vector<SparseVertex> queryVertices_;
+  std::vector<TaskVertex> queryVertices_;
   std::vector<base::State*> queryStates_;
 
   /** \brief Access to the weights of each Edge */
-  boost::property_map<SparseAdjList, boost::edge_weight_t>::type edgeWeightProperty_;
-
-  /** \brief Access to the type (reason for being added in SPARS) of each Edge */
-  boost::property_map<SparseAdjList, edge_type_t>::type edgeTypeProperty_;
+  boost::property_map<TaskAdjList, boost::edge_weight_t>::type edgeWeightProperty_;
 
   /** \brief Access to the collision checking state of each Edge */
-  SparseEdgeCollisionStateMap edgeCollisionStatePropertySparse_;
+  TaskEdgeCollisionStateMap edgeCollisionStatePropertyTask_;
 
   /** \brief Access to the internal base::state at each Vertex */
-  boost::property_map<SparseAdjList, vertex_state_cache_t>::type vertexStateProperty_;
+  boost::property_map<TaskAdjList, vertex_state_cache_t>::type vertexStateProperty_;
 
   /** \brief Access to the SPARS vertex type for the vertices */
-  boost::property_map<SparseAdjList, vertex_type_t>::type vertexTypeProperty_;
+  boost::property_map<TaskAdjList, vertex_type_t>::type vertexTypeProperty_;
 
-  /** \brief Access to the interface pair information for the vertices */
-  boost::property_map<SparseAdjList, vertex_interface_data_t>::type vertexInterfaceProperty_;
-
-  /** \brief Access to the popularity of each node */
-  boost::property_map<SparseAdjList, vertex_popularity_t>::type vertexPopularity_;
+  /** \brief Access to  */
+  boost::property_map<TaskAdjList, vertex_task_mirror_t>::type vertexTaskMirrorProperty_;
 
   /** \brief Data structure that maintains the connected components */
-  SparseDisjointSetType disjointSets_;
+  TaskDisjointSetType disjointSets_;
 
   /** \brief A path simplifier used to simplify dense paths added to S */
   geometric::PathSimplifierPtr pathSimplifier_;
-
-  /** \brief Track where to load/save datastructures */
-  std::string filePath_;
 
   /** \brief Number of cores available on system */
   std::size_t numThreads_;
@@ -368,20 +301,10 @@ protected:
   /** \brief Track if the graph has been modified */
   bool graphUnsaved_ = false;
 
-  /** \brief For statistics */
-  int numSamplesAddedForCoverage_ = 0;
-  int numSamplesAddedForConnectivity_ = 0;
-  int numSamplesAddedForInterface_ = 0;
-  int numSamplesAddedForQuality_ = 0;
-
 public:  // user settings from other applications
-  /** \brief Allow the database to save to file (new experiences) */
-  bool savingEnabled_ = true;
-
-  /** \brief Various options for visualizing the algorithmns performance */
-  bool visualizeAstar_ = false;
 
   /** \brief Visualization speed of astar search, num of seconds to show each vertex */
+  bool visualizeAstar_ = false;
   double visualizeAstarSpeed_ = 0.1;
   bool visualizeQualityPathSimp_ = false;
 
@@ -393,14 +316,14 @@ public:  // user settings from other applications
   /** \brief Run with extra safety checks */
   bool superDebug_ = true;
 
-  /** \brief Show the sparse graph being generated */
-  bool visualizeSparseGraph_ = false;
-  double visualizeSparseGraphSpeed_ = 0.0;
+  /** \brief Show the task graph being generated */
+  bool visualizeTaskGraph_ = false;
+  double visualizeTaskGraphSpeed_ = 0.0;
   bool visualizeDatabaseVertices_ = true;
   bool visualizeDatabaseEdges_ = true;
   bool visualizeDatabaseCoverage_ = true;
 
-};  // end class SparseGraph
+};  // end class TaskGraph
 
 ////////////////////////////////////////////////////////////////////////////////////////
 /**
@@ -408,25 +331,25 @@ public:  // user settings from other applications
  * \implements AStarVisitorConcept
  * See http://www.boost.org/doc/libs/1_58_0/libs/graph/doc/AStarVisitor.html
  */
-class SparsestarVisitor : public boost::default_astar_visitor
+class TaskAstarVisitor : public boost::default_astar_visitor
 {
 private:
-  SparseVertex goal_;  // Goal Vertex of the search
-  SparseGraph* parent_;
+  TaskVertex goal_;  // Goal Vertex of the search
+  TaskGraph* parent_;
 
 public:
   /**
    * Construct a visitor for a given search.
    * \param goal  goal vertex of the search
    */
-  SparsestarVisitor(SparseVertex goal, SparseGraph* parent);
+  TaskAstarVisitor(TaskVertex goal, TaskGraph* parent);
 
   /**
    * \brief Invoked when a vertex is first discovered and is added to the OPEN list.
    * \param v current Vertex
    * \param g graph we are searching on
    */
-  void discover_vertex(SparseVertex v, const SparseAdjList& g) const;
+  void discover_vertex(TaskVertex v, const TaskAdjList& g) const;
 
   /**
    * \brief Check if we have arrived at the goal.
@@ -437,11 +360,11 @@ public:
    * \param g graph we are searching on
    * \throw FoundGoalException if \a u is the goal
    */
-  void examine_vertex(SparseVertex v, const SparseAdjList& g) const;
-};  // end SparseGraph
+  void examine_vertex(TaskVertex v, const TaskAdjList& g) const;
+};  // end TaskGraph
 
 }  // namespace bolt
 }  // namespace tools
 }  // namespace ompl
 
-#endif  // OMPL_TOOLS_BOLT_SPARSE_GRAPH_
+#endif  // OMPL_TOOLS_BOLT_TASK_GRAPH_

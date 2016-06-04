@@ -37,8 +37,7 @@
 */
 
 // OMPL
-#include <ompl/tools/bolt/SparseGraph.h>
-#include <ompl/tools/bolt/SparseCriteria.h>
+#include <ompl/tools/bolt/TaskGraph.h>
 #include <ompl/util/Console.h>
 #include <ompl/datastructures/NearestNeighborsGNAT.h>
 #include <ompl/base/DiscreteMotionValidator.h>
@@ -73,58 +72,51 @@ namespace tools
 {
 namespace bolt
 {
-SparseGraph::SparseGraph(base::SpaceInformationPtr si, VisualizerPtr visual)
-  : si_(si)
-  , visual_(visual)
+TaskGraph::TaskGraph(SparseGraphPtr sg)
+  : sg_(sg)
   // Property accessors of edges
   , edgeWeightProperty_(boost::get(boost::edge_weight, g_))
-  , edgeTypeProperty_(boost::get(edge_type_t(), g_))
-  , edgeCollisionStatePropertySparse_(boost::get(edge_collision_state_t(), g_))
+  , edgeCollisionStatePropertyTask_(boost::get(edge_collision_state_t(), g_))
   // Property accessors of vertices
   , vertexStateProperty_(boost::get(vertex_state_cache_t(), g_))
   , vertexTypeProperty_(boost::get(vertex_type_t(), g_))
-  , vertexInterfaceProperty_(boost::get(vertex_interface_data_t(), g_))
-  , vertexPopularity_(boost::get(vertex_popularity_t(), g_))
+  , vertexTaskMirrorProperty_(boost::get(vertex_task_mirror_t(), g_))
   // Disjoint set accessors
   , disjointSets_(boost::get(boost::vertex_rank, g_), boost::get(boost::vertex_predecessor, g_))
 {
   // Save number of threads available
   numThreads_ = boost::thread::hardware_concurrency();
 
-  // Initialize collision cache
-  denseCache_.reset(new DenseCache(si_, this, visual_));
+  // Copy the pointers of various components
+  denseCache_ = sg_->getDenseCache();
+  si_ = sg_->getSpaceInformation();
+  visual_ = sg_->getVisual();
 
   // Add search state
   initializeQueryState();
 
   // Initialize nearest neighbor datastructure
-  nn_.reset(new NearestNeighborsGNAT<SparseVertex>());
-  nn_->setDistanceFunction(boost::bind(&otb::SparseGraph::distanceFunction, this, _1, _2));
+  nn_.reset(new NearestNeighborsGNAT<TaskVertex>());
+  nn_->setDistanceFunction(boost::bind(&otb::TaskGraph::distanceFunction, this, _1, _2));
 
   if (superDebug_)
     OMPL_WARN("Superdebug mode is enabled - will run slower");
 }
 
-SparseGraph::~SparseGraph()
+TaskGraph::~TaskGraph()
 {
   freeMemory();
 }
 
-void SparseGraph::freeMemory()
+void TaskGraph::freeMemory()
 {
-  foreach (SparseVertex v, boost::vertices(g_))
-  {
-    foreach (InterfaceData &iData, vertexInterfaceProperty_[v] | boost::adaptors::map_values)
-      iData.clear(si_);
-  }
-
   g_.clear();
 
   if (nn_)
     nn_->clear();
 }
 
-bool SparseGraph::setup()
+bool TaskGraph::setup()
 {
   // Initialize path simplifier
   if (!pathSimplifier_)
@@ -136,15 +128,7 @@ bool SparseGraph::setup()
   return true;
 }
 
-void SparseGraph::clearStatistics()
-{
-  numSamplesAddedForCoverage_ = 0;
-  numSamplesAddedForConnectivity_ = 0;
-  numSamplesAddedForInterface_ = 0;
-  numSamplesAddedForQuality_ = 0;
-}
-
-void SparseGraph::initializeQueryState()
+void TaskGraph::initializeQueryState()
 {
   if (boost::num_vertices(g_) > 0)
   {
@@ -164,106 +148,15 @@ void SparseGraph::initializeQueryState()
   }
 }
 
-bool SparseGraph::load()
-{
-  // Load collision cache
-  denseCache_->load();
-
-  // Benchmark
-  time::point start = time::now();
-
-  BoltStorage storage_(si_, this);
-  if (!storage_.load(filePath_.c_str()))
-    return false;
-
-  // Benchmark
-  double duration = time::seconds(time::now() - start);
-
-  // Error check
-  if (!getNumVertices() || !getNumEdges())
-  {
-    OMPL_ERROR("Corrupted sparse graph loaded");
-    return false;
-  }
-
-  // Get the average vertex degree (number of connected edges)
-  double averageDegree = (getNumEdges() * 2) / static_cast<double>(getNumVertices());
-
-  // Check how many disjoint sets are in the sparse graph (should be none)
-  std::size_t numSets = checkConnectedComponents();
-
-  OMPL_INFORM("------------------------------------------------------");
-  OMPL_INFORM("Loaded graph stats:");
-  OMPL_INFORM("   Total vertices:         %u (including %u query vertices)", getNumVertices(), getNumQueryVertices());
-  OMPL_INFORM("   Total edges:            %u", getNumEdges());
-  OMPL_INFORM("   Average degree:         %f", averageDegree);
-  OMPL_INFORM("   Connected Components:   %u", numSets);
-  OMPL_INFORM("   Loading time:           %f", duration);
-  OMPL_INFORM("------------------------------------------------------");
-
-  // Nothing to save because was just loaded from file
-  graphUnsaved_ = false;
-
-  return true;
-}
-
-bool SparseGraph::saveIfChanged()
-{
-  if (graphUnsaved_)
-  {
-    return save();
-  }
-  else
-    OMPL_INFORM("Not saving because database has not changed");
-  return true;
-}
-
-bool SparseGraph::save()
-{
-  if (!graphUnsaved_)
-    OMPL_WARN("No need to save because graphUnsaved_ is false, but saving anyway because requested");
-
-  // Disabled
-  if (!savingEnabled_)
-  {
-    OMPL_INFORM("Not saving because option disabled for SparseGraph");
-    return false;
-  }
-
-  // Error checking
-  if (filePath_.empty())
-  {
-    OMPL_ERROR("Empty filename passed to save function");
-    return false;
-  }
-
-  // Benchmark
-  time::point start = time::now();
-
-  // Save
-  BoltStorage storage_(si_, this);
-  storage_.save(filePath_.c_str());
-
-  // Save collision cache
-  denseCache_->save();
-
-  // Benchmark
-  double loadTime = time::seconds(time::now() - start);
-  OMPL_INFORM("Saved database to file in %f sec", loadTime);
-
-  graphUnsaved_ = false;
-  return true;
-}
-
-bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath,
+bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::vector<TaskVertex> &vertexPath,
                               double &distance, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vSearch_, "astarSearch()");
   indent += 2;
 
   // Hold a list of the shortest path parent to each vertex
-  SparseVertex *vertexPredecessors = new SparseVertex[getNumVertices()];
-  // boost::vector_property_map<SparseVertex> vertexPredecessors(getNumVertices());
+  TaskVertex *vertexPredecessors = new TaskVertex[getNumVertices()];
+  // boost::vector_property_map<TaskVertex> vertexPredecessors(getNumVertices());
 
   bool foundGoal = false;
   double *vertexDistances = new double[getNumVertices()];
@@ -283,19 +176,19 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
     bool popularityBiasEnabled = false;
     boost::astar_search(g_,                                                              // graph
                         start,                                                           // start state
-                        boost::bind(&otb::SparseGraph::astarHeuristic, this, _1, goal),  // the heuristic
+                        boost::bind(&otb::TaskGraph::astarHeuristic, this, _1, goal),  // the heuristic
                         // ability to disable edges (set cost to inifinity):
-                        boost::weight_map(SparseEdgeWeightMap(g_, edgeCollisionStatePropertySparse_, popularityBias,
+                        boost::weight_map(TaskEdgeWeightMap(g_, edgeCollisionStatePropertyTask_, popularityBias,
                                                               popularityBiasEnabled))
                             .predecessor_map(vertexPredecessors)
                             .distance_map(&vertexDistances[0])
-                            .visitor(SparsestarVisitor(goal, this)));
+                            .visitor(TaskAstarVisitor(goal, this)));
   }
   catch (FoundGoalException &)
   {
     distance = vertexDistances[goal];
 
-    // the custom exception from SparsestarVisitor
+    // the custom exception from TaskAstarVisitor
     BOLT_DEBUG(indent, vSearch_, "AStar found solution. Distance to goal: " << vertexDistances[goal]);
     BOLT_DEBUG(indent, vSearch_, "Number nodes opened: " << numNodesOpened_
                                                          << ", Number nodes closed: " << numNodesClosed_);
@@ -312,7 +205,7 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
       vertexPath.clear();  // remove any old solutions
 
       // Trace back the shortest path in reverse and only save the states
-      SparseVertex v;
+      TaskVertex v;
       for (v = goal; v != vertexPredecessors[v]; v = vertexPredecessors[v])
       {
         vertexPath.push_back(v);
@@ -337,8 +230,8 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
     BOLT_DEBUG(indent + 2, vSearch_, "Show all predecessors");
     for (std::size_t i = numThreads_; i < getNumVertices(); ++i)  // skip vertex 0-11 because those are query vertices
     {
-      const SparseVertex v1 = i;
-      const SparseVertex v2 = vertexPredecessors[v1];
+      const TaskVertex v1 = i;
+      const TaskVertex v2 = vertexPredecessors[v1];
       if (v1 != v2)
       {
         // std::cout << "Edge " << v1 << " to " << v2 << std::endl;
@@ -356,7 +249,7 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
   return foundGoal;
 }
 
-double SparseGraph::astarHeuristic(const SparseVertex a, const SparseVertex b) const
+double TaskGraph::astarHeuristic(const TaskVertex a, const TaskVertex b) const
 {
   // Assume vertex 'a' is the one we care about its populariy
 
@@ -409,7 +302,7 @@ double SparseGraph::astarHeuristic(const SparseVertex a, const SparseVertex b) c
   return dist;
 }
 
-double SparseGraph::distanceFunction(const SparseVertex a, const SparseVertex b) const
+double TaskGraph::distanceFunction(const TaskVertex a, const TaskVertex b) const
 {
   // Special case: query vertices store their states elsewhere
   if (a < numThreads_)
@@ -428,19 +321,19 @@ double SparseGraph::distanceFunction(const SparseVertex a, const SparseVertex b)
   return si_->distance(getVertexState(a), getVertexState(b));
 }
 
-bool SparseGraph::isEmpty() const
+bool TaskGraph::isEmpty() const
 {
   assert(!(getNumVertices() < getNumQueryVertices()));
   return (getNumVertices() == getNumQueryVertices() && getNumEdges() == 0);
 }
 
-void SparseGraph::clearEdgeCollisionStates()
+void TaskGraph::clearEdgeCollisionStates()
 {
-  foreach (const SparseEdge e, boost::edges(g_))
-    edgeCollisionStatePropertySparse_[e] = NOT_CHECKED;  // each edge has an unknown state
+  foreach (const TaskEdge e, boost::edges(g_))
+    edgeCollisionStatePropertyTask_[e] = NOT_CHECKED;  // each edge has an unknown state
 }
 
-void SparseGraph::errorCheckDuplicateStates(std::size_t indent)
+void TaskGraph::errorCheckDuplicateStates(std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, true, "errorCheckDuplicateStates() - part of super debug");
   bool found = false;
@@ -461,7 +354,7 @@ void SparseGraph::errorCheckDuplicateStates(std::size_t indent)
     throw Exception(name_, "Duplicate state found");
 }
 
-bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent)
+bool TaskGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent)
 {
   BOLT_RED_DEBUG(indent, visualizeQualityPathSimp_, "smoothQualityPathOriginal()");
   indent += 2;
@@ -492,7 +385,7 @@ bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std:
   return true;
 }
 
-bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clearance, std::size_t indent)
+bool TaskGraph::smoothQualityPath(geometric::PathGeometric *path, double clearance, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, visualizeQualityPathSimp_, "smoothQualityPath()");
   indent += 2;
@@ -562,10 +455,10 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
   return true;
 }
 
-std::size_t SparseGraph::getDisjointSetsCount(bool verbose)
+std::size_t TaskGraph::getDisjointSetsCount(bool verbose)
 {
   std::size_t numSets = 0;
-  foreach (SparseVertex v, boost::vertices(g_))
+  foreach (TaskVertex v, boost::vertices(g_))
   {
     // Do not count the search vertex within the sets
     if (v <= queryVertices_.back())
@@ -582,7 +475,7 @@ std::size_t SparseGraph::getDisjointSetsCount(bool verbose)
   return numSets;
 }
 
-void SparseGraph::getDisjointSets(SparseDisjointSetsMap &disjointSets)
+void TaskGraph::getDisjointSets(TaskDisjointSetsMap &disjointSets)
 {
   disjointSets.clear();
 
@@ -590,7 +483,7 @@ void SparseGraph::getDisjointSets(SparseDisjointSetsMap &disjointSets)
   disjointSets_.compress_sets(boost::vertices(g_).first, boost::vertices(g_).second);
 
   // Count size of each disjoint set and group its containing vertices
-  typedef boost::graph_traits<SparseAdjList>::vertex_iterator VertexIterator;
+  typedef boost::graph_traits<TaskAdjList>::vertex_iterator VertexIterator;
   for (VertexIterator v = boost::vertices(g_).first; v != boost::vertices(g_).second; ++v)
   {
     // Do not count the search vertex within the sets
@@ -601,27 +494,27 @@ void SparseGraph::getDisjointSets(SparseDisjointSetsMap &disjointSets)
   }
 }
 
-void SparseGraph::printDisjointSets(SparseDisjointSetsMap &disjointSets)
+void TaskGraph::printDisjointSets(TaskDisjointSetsMap &disjointSets)
 {
   OMPL_INFORM("Print disjoint sets");
-  for (SparseDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end(); iterator++)
+  for (TaskDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end(); iterator++)
   {
-    const SparseVertex v = iterator->first;
+    const TaskVertex v = iterator->first;
     const std::size_t freq = iterator->second.size();
     std::cout << "  Parent: " << v << " frequency " << freq << std::endl;
   }
 }
 
-void SparseGraph::visualizeDisjointSets(SparseDisjointSetsMap &disjointSets)
+void TaskGraph::visualizeDisjointSets(TaskDisjointSetsMap &disjointSets)
 {
   OMPL_INFORM("Visualizing disjoint sets");
 
   // Find the disjoint set that is the 'main' large one
   std::size_t maxDisjointSetSize = 0;
-  SparseVertex maxDisjointSetParent;
-  for (SparseDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end(); iterator++)
+  TaskVertex maxDisjointSetParent;
+  for (TaskDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end(); iterator++)
   {
-    const SparseVertex v = iterator->first;
+    const TaskVertex v = iterator->first;
     const std::size_t freq = iterator->second.size();
 
     if (freq > maxDisjointSetSize)
@@ -633,9 +526,9 @@ void SparseGraph::visualizeDisjointSets(SparseDisjointSetsMap &disjointSets)
   OMPL_INFORM("The largest disjoint set is of size %u and parent vertex %u", maxDisjointSetSize, maxDisjointSetParent);
 
   // Display size of disjoint sets and visualize small ones
-  for (SparseDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end(); iterator++)
+  for (TaskDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end(); iterator++)
   {
-    const SparseVertex v1 = iterator->first;
+    const TaskVertex v1 = iterator->first;
     const std::size_t freq = iterator->second.size();
 
     // std::cout << std::endl;
@@ -664,7 +557,7 @@ void SparseGraph::visualizeDisjointSets(SparseDisjointSetsMap &disjointSets)
 
       // Visualize this subgraph that is disconnected
       // Loop through every every vertex and check if its part of this group
-      typedef boost::graph_traits<SparseAdjList>::vertex_iterator VertexIterator;
+      typedef boost::graph_traits<TaskAdjList>::vertex_iterator VertexIterator;
       for (VertexIterator v2 = boost::vertices(g_).first; v2 != boost::vertices(g_).second; ++v2)
       {
         if (boost::get(boost::get(boost::vertex_predecessor, g_), *v2) == v1)
@@ -672,10 +565,10 @@ void SparseGraph::visualizeDisjointSets(SparseDisjointSetsMap &disjointSets)
           visual_->viz4State(getVertexState(*v2), tools::LARGE, tools::RED, 0);
 
           // Show state's edges
-          foreach (SparseEdge edge, boost::out_edges(*v2, g_))
+          foreach (TaskEdge edge, boost::out_edges(*v2, g_))
           {
-            SparseVertex e_v1 = boost::source(edge, g_);
-            SparseVertex e_v2 = boost::target(edge, g_);
+            TaskVertex e_v1 = boost::source(edge, g_);
+            TaskVertex e_v2 = boost::target(edge, g_);
             visual_->viz4Edge(getVertexState(e_v1), getVertexState(e_v2), edgeWeightProperty_[edge]);
           }
           visual_->viz4Trigger();
@@ -693,51 +586,42 @@ void SparseGraph::visualizeDisjointSets(SparseDisjointSetsMap &disjointSets)
   }
 }
 
-std::size_t SparseGraph::checkConnectedComponents()
+std::size_t TaskGraph::checkConnectedComponents()
 {
-  // Check how many disjoint sets are in the sparse graph (should be none)
+  // Check how many disjoint sets are in the task graph (should be none)
   std::size_t numSets = getDisjointSetsCount();
   if (numSets > 1)
   {
-    OMPL_ERROR("More than 1 connected component is in the sparse graph: %u", numSets);
+    OMPL_ERROR("More than 1 connected component is in the task graph: %u", numSets);
   }
 
   return numSets;
 }
 
-bool SparseGraph::sameComponent(SparseVertex v1, SparseVertex v2)
+bool TaskGraph::sameComponent(TaskVertex v1, TaskVertex v2)
 {
   return boost::same_component(v1, v2, disjointSets_);
 }
 
-StateID SparseGraph::addState(base::State *state)
+StateID TaskGraph::addState(base::State *state)
 {
   return denseCache_->addState(state);
 }
 
-SparseVertex SparseGraph::addVertex(base::State *state, const VertexType &type, std::size_t indent)
+TaskVertex TaskGraph::addVertex(base::State *state, const VertexType &type, std::size_t indent)
 {
   return addVertex(addState(state), type, indent);
 }
 
-SparseVertex SparseGraph::addVertex(StateID stateID, const VertexType &type, std::size_t indent)
+TaskVertex TaskGraph::addVertex(StateID stateID, const VertexType &type, std::size_t indent)
 {
   // Create vertex
-  SparseVertex v = boost::add_vertex(g_);
+  TaskVertex v = boost::add_vertex(g_);
   BOLT_CYAN_DEBUG(indent, vAdd_, "addVertex(): v: " << v << ", stateID: " << stateID << " type " << type);
 
   // Add properties
   vertexTypeProperty_[v] = type;
   vertexStateProperty_[v] = stateID;
-  vertexPopularity_[v] = MAX_POPULARITY_WEIGHT;  // 100 means the vertex is very unpopular
-
-  // Debug
-  // std::cout << "New Vertex: " << v << " - stateID: " << stateID << " state: ";
-  // debugState(getState(stateID));
-
-  // Clear all nearby interface data whenever a new vertex is added
-  if (sparseCriteria_->useFourthCriteria_)
-    clearInterfaceData(denseCache_->getStateNonConst(stateID));
 
   // Connected component tracking
   disjointSets_.make_set(v);
@@ -745,50 +629,22 @@ SparseVertex SparseGraph::addVertex(StateID stateID, const VertexType &type, std
   // Add vertex to nearest neighbor structure
   nn_->add(v);
 
-  // Book keeping for what was added
-  switch (type)
-  {
-    case COVERAGE:
-      numSamplesAddedForCoverage_++;
-      break;
-    case CONNECTIVITY:
-      numSamplesAddedForConnectivity_++;
-      break;
-    case INTERFACE:
-      numSamplesAddedForInterface_++;
-      break;
-    case QUALITY:
-      numSamplesAddedForQuality_++;
-      break;
-    case DISCRETIZED:
-      break;
-    default:
-      OMPL_ERROR("Unknown VertexType type %u", type);
-  }
-
   // Visualize
-  if (visualizeSparseGraph_)
+  if (visualizeTaskGraph_)
   {
     visualizeVertex(v, type);
 
-    if (visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
+    if (visualizeTaskGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
       visual_->viz1Trigger();
-      usleep(visualizeSparseGraphSpeed_ * 1000000);
+      usleep(visualizeTaskGraphSpeed_ * 1000000);
     }
   }
-
-  if (sparseCriteria_->visualizeVoronoiDiagramAnimated_ ||
-      (sparseCriteria_->visualizeVoronoiDiagram_ && sparseCriteria_->useFourthCriteria_))
-    visual_->vizVoronoiDiagram();
-
-  // Enable saving
-  graphUnsaved_ = true;
 
   return v;
 }
 
-void SparseGraph::removeVertex(SparseVertex v)
+void TaskGraph::removeVertex(TaskVertex v)
 {
   // Remove from nearest neighbor
   nn_->remove(v);
@@ -808,7 +664,7 @@ void SparseGraph::removeVertex(SparseVertex v)
   // because that would invalidate the nearest neighbor tree
 }
 
-void SparseGraph::removeDeletedVertices(std::size_t indent)
+void TaskGraph::removeDeletedVertices(std::size_t indent)
 {
   bool verbose = true;
   BOLT_BLUE_DEBUG(indent, verbose, "removeDeletedVertices()");
@@ -818,7 +674,7 @@ void SparseGraph::removeDeletedVertices(std::size_t indent)
   std::size_t numRemoved = 0;
 
   // Iterate manually through graph
-  typedef boost::graph_traits<SparseAdjList>::vertex_iterator VertexIterator;
+  typedef boost::graph_traits<TaskAdjList>::vertex_iterator VertexIterator;
   for (VertexIterator v = boost::vertices(g_).first; v != boost::vertices(g_).second; /* manual */)
   {
     if (*v < numThreads_)  // Skip query vertices
@@ -829,14 +685,14 @@ void SparseGraph::removeDeletedVertices(std::size_t indent)
 
     if (getStateID(*v) == 0) // Found vertex to delete
     {
-      BOLT_DEBUG(indent + 2, verbose, "Removing SparseVertex " << *v << " stateID: " << getStateID(*v));
+      BOLT_DEBUG(indent + 2, verbose, "Removing TaskVertex " << *v << " stateID: " << getStateID(*v));
 
       boost::remove_vertex(*v, g_);
       numRemoved++;
     }
     else  // only proceed if no deletion happened
     {
-      // BOLT_DEBUG(indent, verbose, "Checking SparseVertex " << *v << " stateID: " << getStateID(*v));
+      // BOLT_DEBUG(indent, verbose, "Checking TaskVertex " << *v << " stateID: " << getStateID(*v));
       v++;
     }
   }
@@ -852,10 +708,10 @@ void SparseGraph::removeDeletedVertices(std::size_t indent)
   nn_->clear();
 
   // Reset disjoint sets
-  disjointSets_ = SparseDisjointSetType(boost::get(boost::vertex_rank, g_), boost::get(boost::vertex_predecessor, g_));
+  disjointSets_ = TaskDisjointSetType(boost::get(boost::vertex_rank, g_), boost::get(boost::vertex_predecessor, g_));
 
   // Reinsert vertices into nearest neighbor
-  foreach (SparseVertex v, boost::vertices(g_))
+  foreach (TaskVertex v, boost::vertices(g_))
   {
     if (v < numThreads_)  // Skip the query vertices
       continue;
@@ -865,15 +721,15 @@ void SparseGraph::removeDeletedVertices(std::size_t indent)
   }
 
   // Reinsert edges into disjoint sets
-  foreach (SparseEdge e, boost::edges(g_))
+  foreach (TaskEdge e, boost::edges(g_))
   {
-    SparseVertex v1 = boost::source(e, g_);
-    SparseVertex v2 = boost::target(e, g_);
+    TaskVertex v1 = boost::source(e, g_);
+    TaskVertex v2 = boost::target(e, g_);
     disjointSets_.union_set(v1, v2);
   }
 }
 
-void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
+void TaskGraph::visualizeVertex(TaskVertex v, const VertexType &type)
 {
   tools::colors color;
   tools::sizes size;
@@ -907,16 +763,11 @@ void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
       throw Exception(name_, "Unknown type");
   }
 
-  // Show visibility region around vertex
-  if (visualizeDatabaseCoverage_)
-    visual_->viz1State(getVertexState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
-                       sparseCriteria_->sparseDelta_);
-
   // Show vertex
   visual_->viz1State(getVertexState(v), size, color, 0);
 }
 
-SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent)
+TaskEdge TaskGraph::addEdge(TaskVertex v1, TaskVertex v2, EdgeType type, std::size_t indent)
 {
   BOLT_CYAN_DEBUG(indent, vAdd_, "addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
 
@@ -934,169 +785,76 @@ SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type,
   }
 
   // Create the new edge
-  SparseEdge e = (boost::add_edge(v1, v2, g_)).first;
+  TaskEdge e = (boost::add_edge(v1, v2, g_)).first;
 
   // Weight properties
   edgeWeightProperty_[e] = distanceFunction(v1, v2);
 
-  // Reason edge was added to spanner in SPARS
-  edgeTypeProperty_[e] = type;
-
   // Collision properties
-  edgeCollisionStatePropertySparse_[e] = NOT_CHECKED;
+  edgeCollisionStatePropertyTask_[e] = NOT_CHECKED;
 
   // Add the edge to the incrementeal connected components datastructure
   disjointSets_.union_set(v1, v2);
 
   // Visualize
-  if (visualizeSparseGraph_)
+  if (visualizeTaskGraph_)
   {
-    visual_->viz1Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
-    if (visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
+    visual_->viz1Edge(getVertexState(v1), getVertexState(v2), BLUE);
+    if (visualizeTaskGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
       visual_->viz1Trigger();
-      usleep(visualizeSparseGraphSpeed_ * 1000000);
+      usleep(visualizeTaskGraphSpeed_ * 1000000);
     }
 
     // Show each added edge for a blip
     if (false)
     {
       visual_->viz4DeleteAllMarkers();
-      visual_->viz4Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(eCONNECTIVITY));
+      visual_->viz4Edge(getVertexState(v1), getVertexState(v2), BLUE);
       visual_->viz4Trigger();
       usleep(0.001 * 1000000);
     }
   }
 
-  // Enable saving
-  graphUnsaved_ = true;
-
   return e;
 }
 
-bool SparseGraph::hasEdge(SparseVertex v1, SparseVertex v2)
+bool TaskGraph::hasEdge(TaskVertex v1, TaskVertex v2)
 {
   return boost::edge(v1, v2, g_).second;
 }
 
-edgeColors SparseGraph::convertEdgeTypeToColor(EdgeType edgeType)
-{
-  switch (edgeType)
-  {
-    case eCONNECTIVITY:
-      return eGREEN;
-      break;
-    case eINTERFACE:
-      return eYELLOW;
-      break;
-    case eQUALITY:
-      return eRED;
-      break;
-    case eCARTESIAN:
-      return eORANGE;
-      break;
-    default:
-      throw Exception(name_, "Unknown edge type");
-  }
-  return eORANGE;  // dummy return value
-}
-
-base::State *&SparseGraph::getQueryStateNonConst(SparseVertex v)
+base::State *&TaskGraph::getQueryStateNonConst(TaskVertex v)
 {
   BOOST_ASSERT_MSG(v < queryVertices_.size(), "Attempted to request state of regular vertex using query function");
   return queryStates_[v];
 }
 
-base::State *&SparseGraph::getVertexStateNonConst(SparseVertex v)
+base::State *&TaskGraph::getVertexStateNonConst(TaskVertex v)
 {
   BOOST_ASSERT_MSG(v >= queryVertices_.size(), "Attempted to request state of query vertex using wrong function");
   return denseCache_->getStateNonConst(vertexStateProperty_[v]);
 }
 
-const base::State *SparseGraph::getVertexState(SparseVertex v) const
+const base::State *TaskGraph::getVertexState(TaskVertex v) const
 {
   BOOST_ASSERT_MSG(v >= queryVertices_.size(), "Attempted to request state of query vertex using wrong function");
   return denseCache_->getState(vertexStateProperty_[v]);
 }
 
-const base::State *SparseGraph::getState(StateID stateID) const
+const base::State *TaskGraph::getState(StateID stateID) const
 {
   return denseCache_->getState(stateID);
 }
 
-const StateID SparseGraph::getStateID(SparseVertex v) const
+const StateID TaskGraph::getStateID(TaskVertex v) const
 {
   return vertexStateProperty_[v];
 }
 
-SparseVertex SparseGraph::getSparseRepresentative(base::State *state)
+void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
 {
-  std::vector<SparseVertex> graphNeighbors;
-  const std::size_t threadID = 0;
-  const std::size_t numNeighbors = 1;
-
-  // Search for nearest sparse vertex of the provided state - this vertex provides its coverage
-  queryStates_[threadID] = state;
-  nn_->nearestK(queryVertices_[threadID], numNeighbors, graphNeighbors);
-  queryStates_[threadID] = nullptr;
-
-  if (graphNeighbors.empty())
-  {
-    throw Exception(name_, "No neighbors found for sparse representative");
-  }
-  return graphNeighbors[0];
-}
-
-void SparseGraph::clearInterfaceData(base::State *state)
-{
-  std::vector<SparseVertex> graphNeighbors;
-  const std::size_t threadID = 0;
-
-  // Search
-  queryStates_[threadID] = state;
-  nn_->nearestR(queryVertices_[threadID], 2.0 * sparseCriteria_->sparseDelta_, graphNeighbors);
-  queryStates_[threadID] = nullptr;
-
-  // For each of the vertices
-  foreach (SparseVertex v, graphNeighbors)
-  {
-    foreach (VertexPair r, vertexInterfaceProperty_[v] | boost::adaptors::map_keys)
-    {
-      vertexInterfaceProperty_[v][r].clear(si_);
-    }
-  }
-}
-
-void SparseGraph::clearEdgesNearVertex(SparseVertex vertex)
-{
-  std::size_t indent = 0;
-
-  // Optionally disable this feature
-  if (!sparseCriteria_->useClearEdgesNearVertex_)
-    return;
-
-  // TODO(davetcoleman): combine this with clearInterfaceData and ensure that all interface data is equally cleared
-  // but do not clear out nearby edges if a non-quality-path vertex is added
-  std::vector<SparseVertex> graphNeighbors;
-
-  // Search
-  nn_->nearestR(vertex, sparseCriteria_->sparseDelta_, graphNeighbors);
-
-  // For each of the vertices
-  foreach (SparseVertex v, graphNeighbors)
-  {
-    // Remove all edges to and from vertex
-    boost::clear_vertex(v, g_);
-  }
-
-  // Only display database if enabled
-  if (visualizeSparseGraph_ && visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
-    displayDatabase(true, indent);
-}
-
-void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
-{
-  BOLT_CYAN_DEBUG(indent, vVisualize_, "Displaying Sparse database");
+  BOLT_CYAN_DEBUG(indent, vVisualize_, "Displaying Task database");
   indent += 2;
 
   // Error check
@@ -1116,15 +874,15 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
     std::size_t count = 1;
     std::size_t debugFrequency = MIN_FEEDBACK;
     if (getNumEdges() > MIN_FEEDBACK)
-      std::cout << "Displaying sparse edges: " << std::flush;
-    foreach (SparseEdge e, boost::edges(g_))
+      std::cout << "Displaying task edges: " << std::flush;
+    foreach (TaskEdge e, boost::edges(g_))
     {
       // Add edge
-      SparseVertex v1 = boost::source(e, g_);
-      SparseVertex v2 = boost::target(e, g_);
+      TaskVertex v1 = boost::source(e, g_);
+      TaskVertex v2 = boost::target(e, g_);
 
       // Visualize
-      visual_->viz1Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(edgeTypeProperty_[e]));
+      visual_->viz1Edge(getVertexState(v1), getVertexState(v2), BLUE);
 
       // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
@@ -1147,8 +905,8 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
     std::size_t count = 1;
     std::size_t debugFrequency = MIN_FEEDBACK;  // getNumVertices() / 10;
     if (getNumVertices() > MIN_FEEDBACK)
-      std::cout << "Displaying sparse vertices: " << std::flush;
-    foreach (SparseVertex v, boost::vertices(g_))
+      std::cout << "Displaying task vertices: " << std::flush;
+    foreach (TaskVertex v, boost::vertices(g_))
     {
       // Skip query vertices
       if (v < queryVertices_.size())
@@ -1189,34 +947,17 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
   usleep(0.001 * 1000000);
 }
 
-VertexPair SparseGraph::interfaceDataIndex(SparseVertex vp, SparseVertex vpp)
-{
-  if (vp < vpp)
-    return VertexPair(vp, vpp);
-  else if (vpp < vp)
-    return VertexPair(vpp, vp);
-
-  throw Exception(name_, "Trying to get an index where the pairs are the same point!");
-  return VertexPair(0, 0);  // prevent compiler warnings
-}
-
-InterfaceData &SparseGraph::getInterfaceData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent)
-{
-  //BOLT_BLUE_DEBUG(indent, sparseCriteria_->vQuality_, "getInterfaceData() " << v << ", " << vp << ", " << vpp);
-  return vertexInterfaceProperty_[v][interfaceDataIndex(vp, vpp)];
-}
-
-void SparseGraph::debugState(const ompl::base::State *state)
+void TaskGraph::debugState(const ompl::base::State *state)
 {
   si_->printState(state, std::cout);
 }
 
-void SparseGraph::debugNN()
+void TaskGraph::debugNN()
 {
   // Show contents of GNAT
   std::cout << std::endl;
   std::cout << "-------------------------------------------------------" << std::endl;
-  NearestNeighborsGNAT<SparseVertex> *gnat = dynamic_cast<NearestNeighborsGNAT<SparseVertex> *>(nn_.get());
+  NearestNeighborsGNAT<TaskVertex> *gnat = dynamic_cast<NearestNeighborsGNAT<TaskVertex> *>(nn_.get());
   std::cout << "GNAT: " << *gnat << std::endl;
   std::cout << std::endl;
 }
@@ -1225,28 +966,28 @@ void SparseGraph::debugNN()
 }  // namespace tools
 }  // namespace ompl
 
-// SparseEdgeWeightMap methods ////////////////////////////////////////////////////////////////////////////
+// TaskEdgeWeightMap methods ////////////////////////////////////////////////////////////////////////////
 
 namespace boost
 {
-double get(const ompl::tools::bolt::SparseEdgeWeightMap &m, const ompl::tools::bolt::SparseEdge &e)
+double get(const ompl::tools::bolt::TaskEdgeWeightMap &m, const ompl::tools::bolt::TaskEdge &e)
 {
   return m.get(e);
 }
 }
 
 BOOST_CONCEPT_ASSERT(
-    (boost::ReadablePropertyMapConcept<ompl::tools::bolt::SparseEdgeWeightMap, ompl::tools::bolt::SparseEdge>));
+    (boost::ReadablePropertyMapConcept<ompl::tools::bolt::TaskEdgeWeightMap, ompl::tools::bolt::TaskEdge>));
 
-// SparsestarVisitor methods ////////////////////////////////////////////////////////////////////////////
+// TaskAstarVisitor methods ////////////////////////////////////////////////////////////////////////////
 
-BOOST_CONCEPT_ASSERT((boost::AStarVisitorConcept<otb::SparsestarVisitor, otb::SparseAdjList>));
+BOOST_CONCEPT_ASSERT((boost::AStarVisitorConcept<otb::TaskAstarVisitor, otb::TaskAdjList>));
 
-otb::SparsestarVisitor::SparsestarVisitor(SparseVertex goal, SparseGraph *parent) : goal_(goal), parent_(parent)
+otb::TaskAstarVisitor::TaskAstarVisitor(TaskVertex goal, TaskGraph *parent) : goal_(goal), parent_(parent)
 {
 }
 
-void otb::SparsestarVisitor::discover_vertex(SparseVertex v, const SparseAdjList &) const
+void otb::TaskAstarVisitor::discover_vertex(TaskVertex v, const TaskAdjList &) const
 {
   // Statistics
   parent_->recordNodeOpened();
@@ -1255,7 +996,7 @@ void otb::SparsestarVisitor::discover_vertex(SparseVertex v, const SparseAdjList
     parent_->getVisual()->viz4State(parent_->getVertexState(v), tools::SMALL, tools::GREEN, 1);
 }
 
-void otb::SparsestarVisitor::examine_vertex(SparseVertex v, const SparseAdjList &) const
+void otb::TaskAstarVisitor::examine_vertex(TaskVertex v, const TaskAdjList &) const
 {
   // Statistics
   parent_->recordNodeClosed();
