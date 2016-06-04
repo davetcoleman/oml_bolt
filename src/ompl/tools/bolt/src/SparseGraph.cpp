@@ -100,6 +100,9 @@ SparseGraph::SparseGraph(base::SpaceInformationPtr si, VisualizerPtr visual)
   // Initialize nearest neighbor datastructure
   nn_.reset(new NearestNeighborsGNAT<SparseVertex>());
   nn_->setDistanceFunction(boost::bind(&otb::SparseGraph::distanceFunction, this, _1, _2));
+
+  if (superDebug_)
+    OMPL_WARN("Superdebug mode is enabled - will run slower");
 }
 
 SparseGraph::~SparseGraph()
@@ -299,8 +302,7 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
 
     if (isinf(vertexDistances[goal]))  // TODO(davetcoleman): test that this works
     {
-      BOLT_RED_DEBUG(indent, true, "Distance to goal is infinity");
-      exit(-1);
+      throw Exception(name_, "Distance to goal is infinity");
       foundGoal = false;
     }
     else
@@ -456,7 +458,7 @@ void SparseGraph::errorCheckDuplicateStates(std::size_t indent)
     }
   }
   if (found)
-    exit(-1);
+    throw Exception(name_, "Duplicate state found");
 }
 
 bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent)
@@ -485,8 +487,7 @@ bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std:
 
   if (!repairResult.second)  // Repairing was not successful
   {
-    BOLT_RED_DEBUG(indent + 2, true, "check and repair failed?");
-    exit(-1);
+    throw Exception(name_, "check and repair failed?");
   }
   return true;
 }
@@ -556,8 +557,7 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
 
   if (!repairResult.second)  // Repairing was not successful
   {
-    BOLT_RED_DEBUG(indent + 2, true, "check and repair failed?");
-    exit(-1);
+    throw Exception(name_, "check and repair failed?");
   }
   return true;
 }
@@ -797,13 +797,15 @@ void SparseGraph::removeVertex(SparseVertex v)
   vertexStateProperty_[v] = 0;  // 0 means delete
 
   // TODO: disjointSets is now inaccurate
+  // Our checkAddConnectivity() criteria is broken
+  // because we frequntly delete edges and nodes..
   // disjointSets_.remove_set(v);
 
   // Remove all edges to and from vertex
   boost::clear_vertex(v, g_);
 
-  // Remove vertex
-  // boost::remove_vertex(v, g_);
+  // We do not actually remove the vertex from the graph
+  // because that would invalidate the nearest neighbor tree
 }
 
 void SparseGraph::removeDeletedVertices(std::size_t indent)
@@ -814,17 +816,18 @@ void SparseGraph::removeDeletedVertices(std::size_t indent)
 
   // Remove all vertices that are set to 0
   std::size_t numRemoved = 0;
-  // foreach (SparseVertex v, boost::vertices(g_))
+
+  // Iterate manually through graph
   typedef boost::graph_traits<SparseAdjList>::vertex_iterator VertexIterator;
   for (VertexIterator v = boost::vertices(g_).first; v != boost::vertices(g_).second; /* manual */)
   {
-    if (*v < numThreads_)  // Skip the query vertices
+    if (*v < numThreads_)  // Skip query vertices
     {
       v++;
       continue;
     }
 
-    if (getStateID(*v) == 0)
+    if (getStateID(*v) == 0) // Found vertex to delete
     {
       BOLT_DEBUG(indent + 2, verbose, "Removing SparseVertex " << *v << " stateID: " << getStateID(*v));
 
@@ -901,8 +904,7 @@ void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
     case GOAL:
     case CARTESIAN:
     default:
-      OMPL_ERROR("Unknown type");
-      exit(-1);
+      throw Exception(name_, "Unknown type");
   }
 
   // Show visibility region around vertex
@@ -922,7 +924,7 @@ SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type,
   {
     BOOST_ASSERT_MSG(v1 <= getNumVertices(), "Vertex1 is larger than max vertex id");
     BOOST_ASSERT_MSG(v2 <= getNumVertices(), "Vertex2 is larger than max vertex id");
-    BOOST_ASSERT_MSG(v1 != v2, "Vertices are the same");
+    BOOST_ASSERT_MSG(v1 != v2, "Verticex IDs are the same");
     BOOST_ASSERT_MSG(!hasEdge(v1, v2), "There already exists an edge between two vertices requested");
     BOOST_ASSERT_MSG(hasEdge(v1, v2) == hasEdge(v2, v1), "There already exists an edge between two vertices requested, "
                                                          "other direction");
@@ -935,9 +937,9 @@ SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type,
   SparseEdge e = (boost::add_edge(v1, v2, g_)).first;
 
   // Weight properties
-  edgeWeightProperty_[e] = distanceFunction(v1, v2);  // TODO: use this value with astar
+  edgeWeightProperty_[e] = distanceFunction(v1, v2);
 
-  // Reason edge was added to spanner
+  // Reason edge was added to spanner in SPARS
   edgeTypeProperty_[e] = type;
 
   // Collision properties
@@ -994,14 +996,14 @@ edgeColors SparseGraph::convertEdgeTypeToColor(EdgeType edgeType)
       return eORANGE;
       break;
     default:
-      OMPL_ERROR("Unknown edge type");
-      exit(-1);
+      throw Exception(name_, "Unknown edge type");
   }
-  return eORANGE;  // dummy
+  return eORANGE;  // dummy return value
 }
 
 base::State *&SparseGraph::getQueryStateNonConst(SparseVertex v)
 {
+  BOOST_ASSERT_MSG(v < queryVertices_.size(), "Attempted to request state of regular vertex using query function");
   return queryStates_[v];
 }
 
@@ -1033,15 +1035,14 @@ SparseVertex SparseGraph::getSparseRepresentative(base::State *state)
   const std::size_t threadID = 0;
   const std::size_t numNeighbors = 1;
 
-  // Search
+  // Search for nearest sparse vertex of the provided state - this vertex provides its coverage
   queryStates_[threadID] = state;
   nn_->nearestK(queryVertices_[threadID], numNeighbors, graphNeighbors);
   queryStates_[threadID] = nullptr;
 
   if (graphNeighbors.empty())
   {
-    std::cout << "no neighbors found for sparse representative " << std::endl;
-    exit(-1);
+    throw Exception(name_, "No neighbors found for sparse representative");
   }
   return graphNeighbors[0];
 }
@@ -1057,19 +1058,19 @@ void SparseGraph::clearInterfaceData(base::State *state)
   queryStates_[threadID] = nullptr;
 
   // For each of the vertices
-  std::size_t deletions = 0;
   foreach (SparseVertex v, graphNeighbors)
   {
     foreach (VertexPair r, vertexInterfaceProperty_[v] | boost::adaptors::map_keys)
     {
       vertexInterfaceProperty_[v][r].clear(si_);
-      deletions++;
     }
   }
 }
 
 void SparseGraph::clearEdgesNearVertex(SparseVertex vertex)
 {
+  std::size_t indent = 0;
+
   // Optionally disable this feature
   if (!sparseCriteria_->useClearEdgesNearVertex_)
     return;
@@ -1087,8 +1088,6 @@ void SparseGraph::clearEdgesNearVertex(SparseVertex vertex)
     // Remove all edges to and from vertex
     boost::clear_vertex(v, g_);
   }
-
-  std::size_t indent = 0;
 
   // Only display database if enabled
   if (visualizeSparsGraph_ && visualizeSparsGraphSpeed_ > std::numeric_limits<double>::epsilon())
@@ -1115,7 +1114,7 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
   {
     // Loop through each edge
     std::size_t count = 1;
-    std::size_t debugFrequency = MIN_FEEDBACK;  // std::max(2, static_cast<int>(getNumEdges() / 10));
+    std::size_t debugFrequency = MIN_FEEDBACK;
     if (getNumEdges() > MIN_FEEDBACK)
       std::cout << "Displaying sparse edges: " << std::flush;
     foreach (SparseEdge e, boost::edges(g_))
@@ -1158,7 +1157,6 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
       // Skip deleted vertices
       if (vertexStateProperty_[v] == 0)
       {
-        // BOLT_DEBUG(indent, true, "Skipping/not visualizing deleted vertex: " << v);
         continue;
       }
 
@@ -1169,15 +1167,16 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
         continue;
       }
 
+      // Visualize
       visualizeVertex(v, vertexTypeProperty_[v]);
 
-      // Prevent cache from getting too big
+      // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
       {
         std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumVertices()) * 100.0
                   << "% " << std::flush;
         visual_->viz1Trigger();
-        usleep(0.01 * 1000000);
+        //usleep(0.01 * 1000000);
       }
       count++;
     }
@@ -1203,7 +1202,7 @@ VertexPair SparseGraph::interfaceDataIndex(SparseVertex vp, SparseVertex vpp)
 
 InterfaceData &SparseGraph::getInterfaceData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent)
 {
-  BOLT_BLUE_DEBUG(indent, sparseCriteria_->vQuality_, "getInterfaceData() " << v << ", " << vp << ", " << vpp);
+  //BOLT_BLUE_DEBUG(indent, sparseCriteria_->vQuality_, "getInterfaceData() " << v << ", " << vp << ", " << vpp);
   return vertexInterfaceProperty_[v][interfaceDataIndex(vp, vpp)];
 }
 
