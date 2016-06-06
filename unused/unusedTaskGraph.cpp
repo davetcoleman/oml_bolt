@@ -86,15 +86,15 @@ otb::TaskGraph::CustomAstarVisitor::CustomAstarVisitor(TaskVertex goal, TaskGrap
 void otb::TaskGraph::CustomAstarVisitor::discover_vertex(TaskVertex v, const TaskAdjList &) const
 {
   if (parent_->visualizeAstar_)
-    parent_->getVisual()->viz4State(parent_->getVertexState(v), tools::SMALL, tools::GREEN, 1);
+    parent_->getVisual()->viz4()->state(parent_->getVertexState(v), tools::SMALL, tools::GREEN, 1);
 }
 
 void otb::TaskGraph::CustomAstarVisitor::examine_vertex(TaskVertex v, const TaskAdjList &) const
 {
   if (parent_->visualizeAstar_)
   {
-    parent_->getVisual()->viz4State(parent_->getVertexState(v), tools::MEDIUM, tools::BLACK, 1);
-    parent_->getVisual()->viz4Trigger();
+    parent_->getVisual()->viz4()->state(parent_->getVertexState(v), tools::MEDIUM, tools::BLACK, 1);
+    parent_->getVisual()->viz4()->trigger();
     usleep(parent_->visualizeAstarSpeed_ * 1000000);
   }
 
@@ -251,10 +251,10 @@ bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::
       if (v1 != v2)
       {
         // std::cout << "Edge " << v1 << " to " << v2 << std::endl;
-        visual_->viz4Edge(getVertexState(v1), getVertexState(v2), 10);
+        visual_->viz4()->edge(getVertexState(v1), getVertexState(v2), 10);
       }
     }
-    visual_->viz4Trigger();
+    visual_->viz4()->trigger();
   }
 
   // Unload
@@ -335,7 +335,7 @@ void TaskGraph::displayDatabase()
   OMPL_INFORM("Displaying database");
 
   // Clear old database
-  visual_->viz1DeleteAllMarkers();
+  visual_->viz1()->deleteAllMarkers();
 
   if (visualizeDatabaseVertices_)
   {
@@ -354,7 +354,7 @@ void TaskGraph::displayDatabase()
       // Check for null states
       if (stateProperty_[v])
       {
-        visual_->viz1State(stateProperty_[v], tools::SMALL, tools::BLUE, 1);
+        visual_->viz1()->state(stateProperty_[v], tools::SMALL, tools::BLUE, 1);
       }
 
       // Prevent cache from getting too big
@@ -362,7 +362,7 @@ void TaskGraph::displayDatabase()
       {
         std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumVertices()) * 100.0
                   << "% " << std::flush;
-        visual_->viz1Trigger();
+        visual_->viz1()->trigger();
       }
       count++;
     }
@@ -388,14 +388,14 @@ void TaskGraph::displayDatabase()
 
       // Visualize
       assert(edgeWeightProperty_[e] <= MAX_POPULARITY_WEIGHT);
-      visual_->viz1Edge(getVertexState(v1), getVertexState(v2), edgeWeightProperty_[e]);
+      visual_->viz1()->edge(getVertexState(v1), getVertexState(v2), edgeWeightProperty_[e]);
 
       // Prevent cache from getting too big
       if (count % debugFrequency == 0)
       {
         std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumEdges()) * 100.0
                   << "% " << std::flush;
-        visual_->viz1Trigger();
+        visual_->viz1()->trigger();
       }
 
       count++;
@@ -404,7 +404,7 @@ void TaskGraph::displayDatabase()
   }
 
   // Publish remaining markers
-  visual_->viz1Trigger();
+  visual_->viz1()->trigger();
 }
 
 otb::TaskVertex TaskGraph::addVertex(base::State *state, const VertexType &type)
@@ -623,8 +623,8 @@ void TaskGraph::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
     // Visualize sets of size one
     if (freq == 1 && true)
     {
-      visual_->viz5State(getVertexState(v1), tools::ROBOT, tools::RED, 0);
-      visual_->viz5Trigger();
+      visual_->viz5()->state(getVertexState(v1), tools::ROBOT, tools::RED, 0);
+      visual_->viz5()->trigger();
       usleep(1.0 * 1000000);
     }
 
@@ -632,7 +632,7 @@ void TaskGraph::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
     if (freq > 1 && freq < 1000)
     {
       // Clear markers
-      visual_->viz4DeleteAllMarkers();
+      visual_->viz4()->deleteAllMarkers();
 
       // Visualize this subgraph that is disconnected
       // Loop through every every vertex and check if its part of this group
@@ -641,19 +641,19 @@ void TaskGraph::visualizeDisjointSets(DisjointSetsParentKey &disjointSets)
       {
         if (boost::get(boost::get(boost::vertex_predecessor, g_), *v2) == v1)
         {
-          visual_->viz4State(stateProperty_[*v2], tools::LARGE, tools::RED, 0);
+          visual_->viz4()->state(stateProperty_[*v2], tools::LARGE, tools::RED, 0);
 
           // Show state's edges
           foreach (TaskEdge edge, boost::out_edges(*v2, g_))
           {
             TaskVertex e_v1 = boost::source(edge, g_);
             TaskVertex e_v2 = boost::target(edge, g_);
-            visual_->viz4Edge(stateProperty_[e_v1], stateProperty_[e_v2], edgeWeightProperty_[edge]);
+            visual_->viz4()->edge(stateProperty_[e_v1], stateProperty_[e_v2], edgeWeightProperty_[edge]);
           }
-          visual_->viz4Trigger();
+          visual_->viz4()->trigger();
 
           // Show this robot state
-          visual_->viz4State(stateProperty_[*v2], tools::ROBOT, tools::DEFAULT, 0);
+          visual_->viz4()->state(stateProperty_[*v2], tools::ROBOT, tools::DEFAULT, 0);
 
           usleep(0.1 * 1000000);
         }

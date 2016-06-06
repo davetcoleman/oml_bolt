@@ -1,12 +1,9 @@
-  /** \brief Helper function for choosing the correct method for vertex insertion ordering */
-  void getVertexInsertionOrdering(std::list<WeightedVertex>& vertexInsertionOrder);
+/** \brief Helper function for choosing the correct method for vertex insertion ordering */
+void getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInsertionOrder);
 
-  bool getPopularityOrder(std::list<WeightedVertex>& vertexInsertionOrder);
-  bool getDefaultOrder(std::list<WeightedVertex>& vertexInsertionOrder);
-  bool getRandomOrder(std::list<WeightedVertex>& vertexInsertionOrder);
-
-
-
+bool getPopularityOrder(std::list<WeightedVertex> &vertexInsertionOrder);
+bool getDefaultOrder(std::list<WeightedVertex> &vertexInsertionOrder);
+bool getRandomOrder(std::list<WeightedVertex> &vertexInsertionOrder);
 
 void SparseCriteria::getVertexInsertionOrdering(std::list<WeightedVertex> &vertexInsertionOrder)
 {
@@ -43,7 +40,7 @@ bool SparseCriteria::getPopularityOrder(std::list<WeightedVertex> &vertexInserti
 
   if (visualizeNodePopularity_)  // Clear visualization
   {
-    visual_->viz3DeleteAllMarkers();
+    visual_->viz3()->deleteAllMarkers();
   }
 
   // Sort the vertices by popularity in a queue
@@ -93,7 +90,7 @@ bool SparseCriteria::getPopularityOrder(std::list<WeightedVertex> &vertexInserti
     {
       if (verbose)
         std::cout << "vertex " << pqueue.top().v_ << ", mode 7, weightPercent " << weightPercent << std::endl;
-      visual_->viz3State(stateProperty_[pqueue.top().v_], tools::SCALE, tools::BLACK, weightPercent);
+      visual_->viz3()->state(stateProperty_[pqueue.top().v_], tools::SCALE, tools::BLACK, weightPercent);
     }
 
     // Remove from priority queue
@@ -102,7 +99,7 @@ bool SparseCriteria::getPopularityOrder(std::list<WeightedVertex> &vertexInserti
 
   if (visualizeNodePopularity_)
   {
-    visual_->viz3Trigger();
+    visual_->viz3()->trigger();
     usleep(0.001 * 1000000);
   }
 
@@ -152,14 +149,14 @@ bool SparseCriteria::getDefaultOrder(std::list<WeightedVertex> &vertexInsertionO
     // Visualize vertices
     if (visualizeNodePopularity_)
     {
-      visual_->viz3State(stateProperty_[wv.v_], tools::SCALE, tools::BLACK, weightPercent);
+      visual_->viz3()->state(stateProperty_[wv.v_], tools::SCALE, tools::BLACK, weightPercent);
     }
   }
 
   // Visualize vertices
   if (visualizeNodePopularity_)
   {
-    visual_->viz3Trigger();
+    visual_->viz3()->trigger();
     usleep(0.001 * 1000000);
   }
 

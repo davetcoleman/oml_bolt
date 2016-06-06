@@ -334,7 +334,7 @@ void SparseCriteria::createSPARSOuterLoop()
 
     // Visualize
     if (visualizeSparseGraph_)
-      visual_->viz1Trigger();
+      visual_->viz1()->trigger();
 
     std::cout << "Succeeded in inserting " << sucessfulInsertions << " vertices on the " << loopAttempt
               << " loop, remaining uninserted vertices: " << vertexInsertionOrder.size()
@@ -367,7 +367,7 @@ void SparseCriteria::createSPARSOuterLoop()
   }
   else if (sg_->visualizeSparseGraphSpeed_ < std::numeric_limits<double>::epsilon())
   {
-    visual_->viz1Trigger();
+    visual_->viz1()->trigger();
     usleep(0.001 * 1000000);
   }
 }
@@ -397,7 +397,7 @@ bool SparseCriteria::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInser
                 << " Cache usage: " << denseCache_->getPercentCachedCollisionChecks() << "%" << std::endl;
       std::cout << ANSI_COLOR_RESET;
       if (sg_->visualizeSparseGraph_)
-        visual_->viz1Trigger();
+        visual_->viz1()->trigger();
     }
 
     // Run SPARS checks
@@ -413,7 +413,7 @@ bool SparseCriteria::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInser
       // Visualize the failed vertex as a small red dot
       if (sg_->visualizeSparseGraph_ && false)
       {
-        visual_->viz1State(denseCache_->getState(vertexIt->stateID_), tools::SMALL, tools::RED, 0);
+        visual_->viz1()->state(denseCache_->getState(vertexIt->stateID_), tools::SMALL, tools::RED, 0);
       }
       vertexIt++;  // increment since we didn't remove anything from the list
     }
@@ -552,9 +552,9 @@ bool SparseCriteria::addStateToRoadmap(StateID candidateStateID, SparseVertex &n
 
   if (visualizeAttemptedStates_)
   {
-    visual_->viz2DeleteAllMarkers();
-    visual_->viz2State(sg_->getState(candidateStateID), tools::LARGE, tools::GREEN, 0);
-    visual_->viz2Trigger();
+    visual_->viz2()->deleteAllMarkers();
+    visual_->viz2()->state(sg_->getState(candidateStateID), tools::LARGE, tools::GREEN, 0);
+    visual_->viz2()->trigger();
     usleep(0.001 * 1000000);
   }
 
@@ -674,9 +674,9 @@ bool SparseCriteria::checkAddConnectivity(StateID candidateStateID, std::vector<
 
         if (visualizeConnectivity_)
         {
-          visual_->viz2State(sg_->getVertexState(visibleNeighborhood[i]), tools::MEDIUM, tools::BLUE, 0);
-          visual_->viz2State(sg_->getVertexState(visibleNeighborhood[j]), tools::MEDIUM, tools::BLUE, 0);
-          visual_->viz2Trigger();
+          visual_->viz2()->state(sg_->getVertexState(visibleNeighborhood[i]), tools::MEDIUM, tools::BLUE, 0);
+          visual_->viz2()->state(sg_->getVertexState(visibleNeighborhood[j]), tools::MEDIUM, tools::BLUE, 0);
+          visual_->viz2()->trigger();
           usleep(0.001 * 1000000);
         }
 
@@ -878,16 +878,16 @@ bool SparseCriteria::checkAddQuality(StateID candidateStateID, std::vector<Spars
 
     if (visualizeQualityCriteria_ && false)  // Visualization
     {
-      visual_->viz3Edge(sg_->getVertexState(nearSampledRep), nearSampledState, tools::eRED);
+      visual_->viz3()->edge(sg_->getVertexState(nearSampledRep), nearSampledState, tools::eRED);
 
-      visual_->viz3State(nearSampledState, tools::MEDIUM, tools::GREEN, 0);
+      visual_->viz3()->state(nearSampledState, tools::MEDIUM, tools::GREEN, 0);
 
       // Replicate a regular vertex visualization
-      // visual_->viz3State(sg_->getVertexState(nearSampledRep), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
+      // visual_->viz3()->state(sg_->getVertexState(nearSampledRep), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
       // sparseDelta_);
-      visual_->viz3State(sg_->getVertexState(nearSampledRep), tools::LARGE, tools::PURPLE, sparseDelta_);
+      visual_->viz3()->state(sg_->getVertexState(nearSampledRep), tools::LARGE, tools::PURPLE, sparseDelta_);
 
-      visual_->viz3Trigger();
+      visual_->viz3()->trigger();
       usleep(0.001 * 1000000);
     }
 
@@ -959,26 +959,26 @@ bool SparseCriteria::checkAddQuality(StateID candidateStateID, std::vector<Spars
 
 void SparseCriteria::visualizeCheckAddQuality(StateID candidateStateID, SparseVertex candidateRep)
 {
-  visual_->viz3DeleteAllMarkers();
+  visual_->viz3()->deleteAllMarkers();
 
-  visual_->viz3Edge(denseCache_->getState(candidateStateID), sg_->getVertexState(candidateRep), tools::eORANGE);
+  visual_->viz3()->edge(denseCache_->getState(candidateStateID), sg_->getVertexState(candidateRep), tools::eORANGE);
 
   // Show candidate state
-  // visual_->viz3State(denseCache_->getState(candidateStateID), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
+  // visual_->viz3()->state(denseCache_->getState(candidateStateID), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
   // denseDelta_);
-  visual_->viz3State(denseCache_->getState(candidateStateID), tools::LARGE, tools::RED, 0);
+  visual_->viz3()->state(denseCache_->getState(candidateStateID), tools::LARGE, tools::RED, 0);
 
   // Show candidate state's representative
-  visual_->viz3State(sg_->getVertexState(candidateRep), tools::LARGE, tools::BLUE, 0);
+  visual_->viz3()->state(sg_->getVertexState(candidateRep), tools::LARGE, tools::BLUE, 0);
 
   // Show candidate state's representative's neighbors
   foreach (SparseVertex adjVertex, boost::adjacent_vertices(candidateRep, sg_->getGraph()))
   {
-    visual_->viz3Edge(sg_->getVertexState(adjVertex), sg_->getVertexState(candidateRep), tools::eGREEN);
-    visual_->viz3State(sg_->getVertexState(adjVertex), tools::LARGE, tools::PURPLE, 0);
+    visual_->viz3()->edge(sg_->getVertexState(adjVertex), sg_->getVertexState(candidateRep), tools::eGREEN);
+    visual_->viz3()->state(sg_->getVertexState(adjVertex), tools::LARGE, tools::PURPLE, 0);
   }
 
-  visual_->viz3Trigger();
+  visual_->viz3()->trigger();
   usleep(0.001 * 1000000);
 }
 
@@ -1041,57 +1041,57 @@ void SparseCriteria::visualizeCheckAddPath(SparseVertex v, SparseVertex vp, Spar
                                            std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vQuality_, "visualizeCheckAddPath()");
-  visual_->viz5DeleteAllMarkers();
+  visual_->viz5()->deleteAllMarkers();
 
   // Show candidate rep
-  visual_->viz5State(sg_->getVertexState(v), tools::LARGE, tools::BLUE, 0);
+  visual_->viz5()->state(sg_->getVertexState(v), tools::LARGE, tools::BLUE, 0);
 
   // Show adjacent state
-  visual_->viz5State(sg_->getVertexState(vp), tools::LARGE, tools::PURPLE, 0);
-  // visual_->viz5State(sg_->getVertexState(vp), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
+  visual_->viz5()->state(sg_->getVertexState(vp), tools::LARGE, tools::PURPLE, 0);
+  // visual_->viz5()->state(sg_->getVertexState(vp), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
 
   // Show edge between them
-  visual_->viz5Edge(sg_->getVertexState(vp), sg_->getVertexState(v), tools::eGREEN);
+  visual_->viz5()->edge(sg_->getVertexState(vp), sg_->getVertexState(v), tools::eGREEN);
 
   // Show adjacent state
-  visual_->viz5State(sg_->getVertexState(vpp), tools::LARGE, tools::PURPLE, 0);
-  // visual_->viz5State(sg_->getVertexState(vpp), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
+  visual_->viz5()->state(sg_->getVertexState(vpp), tools::LARGE, tools::PURPLE, 0);
+  // visual_->viz5()->state(sg_->getVertexState(vpp), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
 
   // Show edge between them
-  visual_->viz5Edge(sg_->getVertexState(vpp), sg_->getVertexState(v), tools::eORANGE);
-  visual_->viz5Trigger();
+  visual_->viz5()->edge(sg_->getVertexState(vpp), sg_->getVertexState(v), tools::eORANGE);
+  visual_->viz5()->trigger();
   usleep(0.001 * 1000000);
 
   // Show iData
   if (iData.hasInterface1())
   {
     // std::cout << "hasInterface1 " << std::flush;
-    visual_->viz5State(iData.getInterface1Inside(), tools::MEDIUM, tools::ORANGE, 0);
+    visual_->viz5()->state(iData.getInterface1Inside(), tools::MEDIUM, tools::ORANGE, 0);
     // std::cout << "1 " << std::flush;
     // std::cout << "state: " << iData.getInterface1Outside() << std::flush;
-    visual_->viz5State(iData.getInterface1Outside(), tools::MEDIUM, tools::GREEN, 0);
+    visual_->viz5()->state(iData.getInterface1Outside(), tools::MEDIUM, tools::GREEN, 0);
     // std::cout << " 2 " << std::flush;
-    visual_->viz5Edge(iData.getInterface1Inside(), iData.getInterface1Outside(), tools::eRED);
+    visual_->viz5()->edge(iData.getInterface1Inside(), iData.getInterface1Outside(), tools::eRED);
     // std::cout << "3 " << std::endl;
 
     if (vp < vpp)
-      visual_->viz5Edge(sg_->getVertexState(vp), iData.getInterface1Outside(), tools::eRED);
+      visual_->viz5()->edge(sg_->getVertexState(vp), iData.getInterface1Outside(), tools::eRED);
     else
-      visual_->viz5Edge(sg_->getVertexState(vpp), iData.getInterface1Outside(), tools::eRED);
+      visual_->viz5()->edge(sg_->getVertexState(vpp), iData.getInterface1Outside(), tools::eRED);
   }
   if (iData.hasInterface2())
   {
-    visual_->viz5State(iData.getInterface2Inside(), tools::MEDIUM, tools::ORANGE, 0);
-    visual_->viz5State(iData.getInterface2Outside(), tools::MEDIUM, tools::GREEN, 0);
-    visual_->viz5Edge(iData.getInterface2Inside(), iData.getInterface2Outside(), tools::eRED);
+    visual_->viz5()->state(iData.getInterface2Inside(), tools::MEDIUM, tools::ORANGE, 0);
+    visual_->viz5()->state(iData.getInterface2Outside(), tools::MEDIUM, tools::GREEN, 0);
+    visual_->viz5()->edge(iData.getInterface2Inside(), iData.getInterface2Outside(), tools::eRED);
 
     if (vp < vpp)
-      visual_->viz5Edge(sg_->getVertexState(vpp), iData.getInterface2Outside(), tools::eRED);
+      visual_->viz5()->edge(sg_->getVertexState(vpp), iData.getInterface2Outside(), tools::eRED);
     else
-      visual_->viz5Edge(sg_->getVertexState(vp), iData.getInterface2Outside(), tools::eRED);
+      visual_->viz5()->edge(sg_->getVertexState(vp), iData.getInterface2Outside(), tools::eRED);
   }
 
-  visual_->viz5Trigger();
+  visual_->viz5()->trigger();
   usleep(0.001 * 1000000);
 }
 
@@ -1201,9 +1201,9 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
 
       if (visualizeQualityCriteria_)
       {
-        visual_->viz2DeleteAllMarkers();
-        visual_->viz2Path(path, 1, tools::RED);
-        visual_->viz2Trigger();
+        visual_->viz2()->deleteAllMarkers();
+        visual_->viz2()->path(path, 1, tools::RED);
+        visual_->viz2()->trigger();
         usleep(0.001 * 1000000);
 
         visual_->waitForUserFeedback("Add path state is too similar to v");
@@ -1354,11 +1354,12 @@ bool SparseCriteria::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVer
     {
       if (visualizeQualityCriteria_)
       {
-        visual_->viz6DeleteAllMarkers();
+        visual_->viz6()->deleteAllMarkers();
         assert(vertexPath.size() > 1);
         for (std::size_t i = 1; i < vertexPath.size(); ++i)
         {
-          visual_->viz6Edge(sg_->getVertexState(vertexPath[i - 1]), sg_->getVertexState(vertexPath[i]), tools::eGREEN);
+          visual_->viz6()->edge(sg_->getVertexState(vertexPath[i - 1]), sg_->getVertexState(vertexPath[i]),
+                                tools::eGREEN);
         }
       }
 
@@ -1368,7 +1369,7 @@ bool SparseCriteria::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVer
       BOLT_DEBUG(indent + 6, vQuality_, "connector1 " << connector1);
       if (visualizeQualityCriteria_)
       {
-        visual_->viz6Edge(sg_->getVertexState(vp), iData.getOutsideInterfaceOfV1(vp, vpp), tools::eORANGE);
+        visual_->viz6()->edge(sg_->getVertexState(vp), iData.getOutsideInterfaceOfV1(vp, vpp), tools::eORANGE);
       }
 
       double connector2 = si_->distance(sg_->getVertexState(vpp), iData.getOutsideInterfaceOfV2(vp, vpp));
@@ -1376,13 +1377,13 @@ bool SparseCriteria::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVer
       BOLT_DEBUG(indent + 6, vQuality_, "connector2 " << connector2);
       if (visualizeQualityCriteria_)
       {
-        visual_->viz6Edge(sg_->getVertexState(vpp), iData.getOutsideInterfaceOfV2(vp, vpp), tools::eYELLOW);
+        visual_->viz6()->edge(sg_->getVertexState(vpp), iData.getOutsideInterfaceOfV2(vp, vpp), tools::eYELLOW);
       }
 
       pathLength += connector1 + connector2;
       BOLT_DEBUG(indent + 6, vQuality_, "Full Path Length: " << pathLength);
 
-      visual_->viz6Trigger();
+      visual_->viz6()->trigger();
     }
 
     if (iData.getLastDistance() == 0)
@@ -1474,7 +1475,7 @@ void SparseCriteria::findCloseRepresentatives(base::State *workState, const Stat
         BOLT_DEBUG(indent + 6, vQuality_, "notValid ");
 
         if (visualizeQualityCriteria_ && visualizeSampler)
-          visual_->viz3State(sampledState, tools::SMALL, tools::RED, 0);
+          visual_->viz3()->state(sampledState, tools::SMALL, tools::RED, 0);
 
         continue;
       }
@@ -1485,7 +1486,7 @@ void SparseCriteria::findCloseRepresentatives(base::State *workState, const Stat
                                               << " needs to be less than " << denseDelta_);
 
         if (visualizeQualityCriteria_ && visualizeSampler)
-          visual_->viz3State(sampledState, tools::SMALL, tools::RED, 0);
+          visual_->viz3()->state(sampledState, tools::SMALL, tools::RED, 0);
         continue;
       }
       if (!si_->checkMotion(denseCache_->getState(candidateStateID), sampledState))
@@ -1493,12 +1494,12 @@ void SparseCriteria::findCloseRepresentatives(base::State *workState, const Stat
         BOLT_DEBUG(indent + 6, vQuality_, "Motion invalid ");
 
         if (visualizeQualityCriteria_ && visualizeSampler)
-          visual_->viz3State(sampledState, tools::SMALL, tools::RED, 0);
+          visual_->viz3()->state(sampledState, tools::SMALL, tools::RED, 0);
         continue;
       }
 
       if (visualizeQualityCriteria_ && visualizeSampler)
-        visual_->viz3State(sampledState, tools::SMALL, tools::GREEN, 0);
+        visual_->viz3()->state(sampledState, tools::SMALL, tools::GREEN, 0);
 
       foundValidSample = true;
       break;
@@ -1506,7 +1507,7 @@ void SparseCriteria::findCloseRepresentatives(base::State *workState, const Stat
 
     if (visualizeQualityCriteria_ && visualizeSampler)
     {
-      visual_->viz3Trigger();
+      visual_->viz3()->trigger();
       usleep(0.001 * 1000000);
     }
 
@@ -1634,12 +1635,12 @@ double SparseCriteria::maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVer
 
           if (visualizeQualityCriteria_)
           {
-            visual_->viz5State(sg_->getVertexState(x), tools::LARGE, tools::BLACK, 0);
+            visual_->viz5()->state(sg_->getVertexState(x), tools::LARGE, tools::BLACK, 0);
 
             // Temp?
-            // visual_->viz6DeleteAllMarkers();
-            // visual_->viz6State(sg_->getVertexState(x), tools::LARGE, tools::BLACK, 0);
-            // visual_->viz6Trigger();
+            // visual_->viz6()->deleteAllMarkers();
+            // visual_->viz6()->state(sg_->getVertexState(x), tools::LARGE, tools::BLACK, 0);
+            // visual_->viz6()->trigger();
           }
         }
       }
@@ -1658,7 +1659,7 @@ double SparseCriteria::maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVer
   foreach (SparseVertex qualifiedVertex, qualifiedVertices)
   {
     if (visualizeQualityCriteria_)
-      visual_->viz5State(sg_->getVertexState(qualifiedVertex), tools::SMALL, tools::PINK, 0);
+      visual_->viz5()->state(sg_->getVertexState(qualifiedVertex), tools::SMALL, tools::PINK, 0);
 
     // Divide by 2 because of the midpoint path 'M'
     double tempDist = (si_->distance(sg_->getVertexState(vp), sg_->getVertexState(v)) +
@@ -1917,8 +1918,8 @@ bool SparseCriteria::checkRemoveCloseVertices(SparseVertex v1, std::size_t inden
 
   if (visualizeRemoveCloseVertices_)
   {
-    visual_->viz6DeleteAllMarkers();
-    visual_->viz6Trigger();
+    visual_->viz6()->deleteAllMarkers();
+    visual_->viz6()->trigger();
     usleep(0.001 * 1000000);
   }
 
@@ -1927,10 +1928,10 @@ bool SparseCriteria::checkRemoveCloseVertices(SparseVertex v1, std::size_t inden
 
 void SparseCriteria::visualizeRemoveCloseVertices(SparseVertex v1, SparseVertex v2)
 {
-  visual_->viz6DeleteAllMarkers();
-  visual_->viz6State(sg_->getVertexState(v1), tools::LARGE, tools::GREEN, 0);
-  visual_->viz6State(sg_->getVertexState(v2), tools::LARGE, tools::RED, 0);  // RED = to be removed
-  visual_->viz6Trigger();
+  visual_->viz6()->deleteAllMarkers();
+  visual_->viz6()->state(sg_->getVertexState(v1), tools::LARGE, tools::GREEN, 0);
+  visual_->viz6()->state(sg_->getVertexState(v2), tools::LARGE, tools::RED, 0);  // RED = to be removed
+  visual_->viz6()->trigger();
   usleep(0.001 * 1000000);
 }
 
@@ -1940,8 +1941,8 @@ void SparseCriteria::visualizeInterfaces(SparseVertex v, std::size_t indent)
 
   InterfaceHash &iData = sg_->vertexInterfaceProperty_[v];
 
-  visual_->viz6DeleteAllMarkers();
-  visual_->viz6State(sg_->getVertexState(v), tools::LARGE, tools::RED, 0);
+  visual_->viz6()->deleteAllMarkers();
+  visual_->viz6()->state(sg_->getVertexState(v), tools::LARGE, tools::RED, 0);
 
   for (auto it = iData.begin(); it != iData.end(); ++it)
   {
@@ -1951,34 +1952,34 @@ void SparseCriteria::visualizeInterfaces(SparseVertex v, std::size_t indent)
     SparseVertex v1 = pair.first;
     SparseVertex v2 = pair.second;
 
-    visual_->viz6State(sg_->getVertexState(v1), tools::LARGE, tools::PURPLE, 0);
-    visual_->viz6State(sg_->getVertexState(v2), tools::LARGE, tools::PURPLE, 0);
-    // visual_->viz6Edge(sg_->getVertexState(v1), sg_->getVertexState(v2), tools::eGREEN);
+    visual_->viz6()->state(sg_->getVertexState(v1), tools::LARGE, tools::PURPLE, 0);
+    visual_->viz6()->state(sg_->getVertexState(v2), tools::LARGE, tools::PURPLE, 0);
+    // visual_->viz6()->edge(sg_->getVertexState(v1), sg_->getVertexState(v2), tools::eGREEN);
 
     if (iData.hasInterface1())
     {
-      visual_->viz6State(iData.getInterface1Inside(), tools::MEDIUM, tools::ORANGE, 0);
-      visual_->viz6State(iData.getInterface1Outside(), tools::MEDIUM, tools::GREEN, 0);
-      visual_->viz6Edge(iData.getInterface1Inside(), iData.getInterface1Outside(), tools::eYELLOW);
+      visual_->viz6()->state(iData.getInterface1Inside(), tools::MEDIUM, tools::ORANGE, 0);
+      visual_->viz6()->state(iData.getInterface1Outside(), tools::MEDIUM, tools::GREEN, 0);
+      visual_->viz6()->edge(iData.getInterface1Inside(), iData.getInterface1Outside(), tools::eYELLOW);
     }
     else
     {
-      visual_->viz6Edge(sg_->getVertexState(v1), sg_->getVertexState(v2), tools::eRED);
+      visual_->viz6()->edge(sg_->getVertexState(v1), sg_->getVertexState(v2), tools::eRED);
     }
 
     if (iData.hasInterface2())
     {
-      visual_->viz6State(iData.getInterface2Inside(), tools::MEDIUM, tools::ORANGE, 0);
-      visual_->viz6State(iData.getInterface2Outside(), tools::MEDIUM, tools::GREEN, 0);
-      visual_->viz6Edge(iData.getInterface2Inside(), iData.getInterface2Outside(), tools::eYELLOW);
+      visual_->viz6()->state(iData.getInterface2Inside(), tools::MEDIUM, tools::ORANGE, 0);
+      visual_->viz6()->state(iData.getInterface2Outside(), tools::MEDIUM, tools::GREEN, 0);
+      visual_->viz6()->edge(iData.getInterface2Inside(), iData.getInterface2Outside(), tools::eYELLOW);
     }
     else
     {
-      visual_->viz6Edge(sg_->getVertexState(v1), sg_->getVertexState(v2), tools::eRED);
+      visual_->viz6()->edge(sg_->getVertexState(v1), sg_->getVertexState(v2), tools::eRED);
     }
   }
 
-  visual_->viz6Trigger();
+  visual_->viz6()->trigger();
   usleep(0.01 * 1000000);
 }
 
@@ -1986,7 +1987,7 @@ void SparseCriteria::visualizeAllInterfaces(std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vQuality_, "visualizeAllInterfaces()");
 
-  visual_->viz6DeleteAllMarkers();
+  visual_->viz6()->deleteAllMarkers();
 
   foreach (SparseVertex v, boost::vertices(sg_->g_))
   {
@@ -1999,18 +2000,18 @@ void SparseCriteria::visualizeAllInterfaces(std::size_t indent)
 
       if (iData.hasInterface1())
       {
-        visual_->viz6State(iData.getInterface1Inside(), tools::MEDIUM, tools::ORANGE, 0);
-        visual_->viz6State(iData.getInterface1Outside(), tools::MEDIUM, tools::GREEN, 0);
+        visual_->viz6()->state(iData.getInterface1Inside(), tools::MEDIUM, tools::ORANGE, 0);
+        visual_->viz6()->state(iData.getInterface1Outside(), tools::MEDIUM, tools::GREEN, 0);
       }
 
       if (iData.hasInterface2())
       {
-        visual_->viz6State(iData.getInterface2Inside(), tools::MEDIUM, tools::ORANGE, 0);
-        visual_->viz6State(iData.getInterface2Outside(), tools::MEDIUM, tools::GREEN, 0);
+        visual_->viz6()->state(iData.getInterface2Inside(), tools::MEDIUM, tools::ORANGE, 0);
+        visual_->viz6()->state(iData.getInterface2Outside(), tools::MEDIUM, tools::GREEN, 0);
       }
     }
   }
-  visual_->viz6Trigger();
+  visual_->viz6()->trigger();
   usleep(0.01 * 1000000);
 }
 

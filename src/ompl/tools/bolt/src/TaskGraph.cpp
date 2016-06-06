@@ -150,7 +150,7 @@ void TaskGraph::initializeQueryState()
 }
 
 bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::vector<TaskVertex> &vertexPath,
-                              double &distance, std::size_t indent)
+                            double &distance, std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, vSearch_, "astarSearch()");
   indent += 2;
@@ -168,22 +168,22 @@ bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::
 
   if (visualizeAstar_)
   {
-    visual_->viz4DeleteAllMarkers();
+    visual_->viz4()->deleteAllMarkers();
   }
 
   try
   {
     double popularityBias = 0;
     bool popularityBiasEnabled = false;
-    boost::astar_search(g_,                                                              // graph
-                        start,                                                           // start state
-                        boost::bind(&otb::TaskGraph::astarHeuristic, this, _1, goal),  // the heuristic
-                        // ability to disable edges (set cost to inifinity):
-                        boost::weight_map(TaskEdgeWeightMap(g_, edgeCollisionStatePropertyTask_, popularityBias,
-                                                              popularityBiasEnabled))
-                            .predecessor_map(vertexPredecessors)
-                            .distance_map(&vertexDistances[0])
-                            .visitor(TaskAstarVisitor(goal, this)));
+    boost::astar_search(
+        g_,                                                            // graph
+        start,                                                         // start state
+        boost::bind(&otb::TaskGraph::astarHeuristic, this, _1, goal),  // the heuristic
+        // ability to disable edges (set cost to inifinity):
+        boost::weight_map(TaskEdgeWeightMap(g_, edgeCollisionStatePropertyTask_, popularityBias, popularityBiasEnabled))
+            .predecessor_map(vertexPredecessors)
+            .distance_map(&vertexDistances[0])
+            .visitor(TaskAstarVisitor(goal, this)));
   }
   catch (FoundGoalException &)
   {
@@ -236,10 +236,10 @@ bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::
       if (v1 != v2)
       {
         // std::cout << "Edge " << v1 << " to " << v2 << std::endl;
-        visual_->viz4Edge(getVertexState(v1), getVertexState(v2), 10);
+        visual_->viz4()->edge(getVertexState(v1), getVertexState(v2), 10);
       }
     }
-    visual_->viz4Trigger();
+    visual_->viz4()->trigger();
   }
 
   // Unload
@@ -345,17 +345,17 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
       continue;
 
     const StateID sparseStateID = sg_->getStateID(sparseV);
-    const VertexType type = CARTESIAN; // TODO: remove this, seems meaningless
+    const VertexType type = CARTESIAN;  // TODO: remove this, seems meaningless
 
     // Create level 0 vertex
     std::size_t level = 0;
     TaskVertex taskV1 = addVertex(sparseStateID, type, level, indent);
-    sparseToTaskVertex1[sparseV] = taskV1; // record mapping
+    sparseToTaskVertex1[sparseV] = taskV1;  // record mapping
 
     // Create level 2 vertex
     level = 2;
     TaskVertex taskV2 = addVertex(sparseStateID, type, level, indent);
-    sparseToTaskVertex2[sparseV] = taskV2; // record mapping
+    sparseToTaskVertex2[sparseV] = taskV2;  // record mapping
   }
 
   // Loop through every edge in sparse graph and copy twice to task graph
@@ -371,11 +371,11 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
     BOOST_ASSERT_MSG(sparseE_v2 >= sg_->getNumQueryVertices(), "Found query vertex in sparse graph that has an edge!");
 
     // Create level 0 edge
-    //TaskEdge taskEdge1 =
+    // TaskEdge taskEdge1 =
     addEdge(sparseToTaskVertex1[sparseE_v1], sparseToTaskVertex1[sparseE_v2], type, indent);
 
     // Create level 2 edge
-    //TaskEdge taskEdge2 =
+    // TaskEdge taskEdge2 =
     addEdge(sparseToTaskVertex2[sparseE_v1], sparseToTaskVertex2[sparseE_v2], type, indent);
   }
 }
@@ -417,9 +417,9 @@ bool TaskGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::s
   // Visualize path
   if (visualizeQualityPathSimp_)
   {
-    visual_->viz2DeleteAllMarkers();
-    visual_->viz2Path(path, 1, tools::BLUE);
-    visual_->viz2Trigger();
+    visual_->viz2()->deleteAllMarkers();
+    visual_->viz2()->path(path, 1, tools::BLUE);
+    visual_->viz2()->trigger();
     usleep(0.001 * 1000000);
   }
 
@@ -448,9 +448,9 @@ bool TaskGraph::smoothQualityPath(geometric::PathGeometric *path, double clearan
   // Visualize path
   if (visualizeQualityPathSimp_)
   {
-    visual_->viz2DeleteAllMarkers();
-    visual_->viz2Path(path, 1, tools::BLUE);
-    visual_->viz2Trigger();
+    visual_->viz2()->deleteAllMarkers();
+    visual_->viz2()->path(path, 1, tools::BLUE);
+    visual_->viz2()->trigger();
     usleep(0.001 * 1000000);
   }
 
@@ -470,9 +470,9 @@ bool TaskGraph::smoothQualityPath(geometric::PathGeometric *path, double clearan
 
     if (visualizeQualityPathSimp_)
     {
-      visual_->viz2DeleteAllMarkers();
-      visual_->viz2Path(path, 1, tools::ORANGE);
-      visual_->viz2Trigger();
+      visual_->viz2()->deleteAllMarkers();
+      visual_->viz2()->path(path, 1, tools::ORANGE);
+      visual_->viz2()->trigger();
       usleep(0.1 * 1000000);
       // visual_->waitForUserFeedback("optimizing path");
     }
@@ -481,9 +481,9 @@ bool TaskGraph::smoothQualityPath(geometric::PathGeometric *path, double clearan
 
     if (visualizeQualityPathSimp_)
     {
-      visual_->viz2DeleteAllMarkers();
-      visual_->viz2Path(path, 1, tools::BLUE);
-      visual_->viz2Trigger();
+      visual_->viz2()->deleteAllMarkers();
+      visual_->viz2()->path(path, 1, tools::BLUE);
+      visual_->viz2()->trigger();
       usleep(0.1 * 1000000);
       // visual_->waitForUserFeedback("optimizing path");
     }
@@ -495,9 +495,9 @@ bool TaskGraph::smoothQualityPath(geometric::PathGeometric *path, double clearan
 
   if (visualizeQualityPathSimp_)
   {
-    visual_->viz2DeleteAllMarkers();
-    visual_->viz2Path(path, 1, tools::GREEN);
-    visual_->viz2Trigger();
+    visual_->viz2()->deleteAllMarkers();
+    visual_->viz2()->path(path, 1, tools::GREEN);
+    visual_->viz2()->trigger();
     visual_->waitForUserFeedback("finished quality path");
   }
 
@@ -598,8 +598,8 @@ void TaskGraph::visualizeDisjointSets(TaskDisjointSetsMap &disjointSets)
     // Visualize sets of size one
     if (freq == 1)
     {
-      visual_->viz5State(getVertexState(v1), tools::LARGE, tools::RED, 0);
-      visual_->viz5Trigger();
+      visual_->viz5()->state(getVertexState(v1), tools::LARGE, tools::RED, 0);
+      visual_->viz5()->trigger();
       visual_->waitForUserFeedback("showing disjoint set");
       continue;
     }
@@ -608,7 +608,7 @@ void TaskGraph::visualizeDisjointSets(TaskDisjointSetsMap &disjointSets)
     if (freq > 1 && freq < 1000)
     {
       // Clear markers
-      visual_->viz4DeleteAllMarkers();
+      visual_->viz4()->deleteAllMarkers();
 
       // Visualize this subgraph that is disconnected
       // Loop through every every vertex and check if its part of this group
@@ -617,20 +617,20 @@ void TaskGraph::visualizeDisjointSets(TaskDisjointSetsMap &disjointSets)
       {
         if (boost::get(boost::get(boost::vertex_predecessor, g_), *v2) == v1)
         {
-          visual_->viz4State(getVertexState(*v2), tools::LARGE, tools::RED, 0);
+          visual_->viz4()->state(getVertexState(*v2), tools::LARGE, tools::RED, 0);
 
           // Show state's edges
           foreach (TaskEdge edge, boost::out_edges(*v2, g_))
           {
             TaskVertex e_v1 = boost::source(edge, g_);
             TaskVertex e_v2 = boost::target(edge, g_);
-            visual_->viz4Edge(getVertexState(e_v1), getVertexState(e_v2), edgeWeightProperty_[edge]);
+            visual_->viz4()->edge(getVertexState(e_v1), getVertexState(e_v2), edgeWeightProperty_[edge]);
           }
-          visual_->viz4Trigger();
+          visual_->viz4()->trigger();
 
           // Show this robot state
-          // visual_->viz4State(getVertexState(*v2), tools::ROBOT, tools::DEFAULT, 0);
-          visual_->viz4State(getVertexState(*v2), tools::SMALL, tools::RED, 0);
+          // visual_->viz4()->state(getVertexState(*v2), tools::ROBOT, tools::DEFAULT, 0);
+          visual_->viz4()->state(getVertexState(*v2), tools::SMALL, tools::RED, 0);
 
           usleep(0.1 * 1000000);
         }  // if
@@ -672,10 +672,11 @@ TaskVertex TaskGraph::addVertex(StateID stateID, const VertexType &type, std::si
 {
   // Create vertex
   TaskVertex v = boost::add_vertex(g_);
-  BOLT_CYAN_DEBUG(indent, vAdd_, "addVertex(): v: " << v << ", stateID: " << stateID << " type " << type << " level: " << level);
+  BOLT_CYAN_DEBUG(indent, vAdd_, "addVertex(): v: " << v << ", stateID: " << stateID << " type " << type
+                                                    << " level: " << level);
 
   // Add properties
-  vertexTypeProperty_[v] = type; // TODO(davetcoleman): remove?
+  vertexTypeProperty_[v] = type;  // TODO(davetcoleman): remove?
   vertexStateProperty_[v] = stateID;
   vertexLevelProperty_[v] = level;
 
@@ -692,7 +693,7 @@ TaskVertex TaskGraph::addVertex(StateID stateID, const VertexType &type, std::si
 
     if (visualizeTaskGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
-      visual_->viz1Trigger();
+      visual_->viz1()->trigger();
       usleep(visualizeTaskGraphSpeed_ * 1000000);
     }
   }
@@ -739,7 +740,7 @@ void TaskGraph::removeDeletedVertices(std::size_t indent)
       continue;
     }
 
-    if (getStateID(*v) == 0) // Found vertex to delete
+    if (getStateID(*v) == 0)  // Found vertex to delete
     {
       BOLT_DEBUG(indent + 2, verbose, "Removing TaskVertex " << *v << " stateID: " << getStateID(*v));
 
@@ -820,7 +821,7 @@ void TaskGraph::visualizeVertex(TaskVertex v, const VertexType &type)
   }
 
   // Show vertex
-  visual_->viz1State(getVertexState(v), size, color, 0);
+  visual_->viz1()->state(getVertexState(v), size, color, 0);
 }
 
 TaskEdge TaskGraph::addEdge(TaskVertex v1, TaskVertex v2, EdgeType type, std::size_t indent)
@@ -855,19 +856,19 @@ TaskEdge TaskGraph::addEdge(TaskVertex v1, TaskVertex v2, EdgeType type, std::si
   // Visualize
   if (visualizeTaskGraph_)
   {
-    visual_->viz1Edge(getVertexState(v1), getVertexState(v2), BLUE);
+    visual_->viz1()->edge(getVertexState(v1), getVertexState(v2), BLUE);
     if (visualizeTaskGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
-      visual_->viz1Trigger();
+      visual_->viz1()->trigger();
       usleep(visualizeTaskGraphSpeed_ * 1000000);
     }
 
     // Show each added edge for a blip
     if (false)
     {
-      visual_->viz4DeleteAllMarkers();
-      visual_->viz4Edge(getVertexState(v1), getVertexState(v2), BLUE);
-      visual_->viz4Trigger();
+      visual_->viz4()->deleteAllMarkers();
+      visual_->viz4()->edge(getVertexState(v1), getVertexState(v2), BLUE);
+      visual_->viz4()->trigger();
       usleep(0.001 * 1000000);
     }
   }
@@ -921,7 +922,7 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
   }
 
   // Clear previous visualization
-  visual_->viz1DeleteAllMarkers();
+  visual_->viz1()->deleteAllMarkers();
 
   const std::size_t MIN_FEEDBACK = 10000;
   if (visualizeDatabaseEdges_)
@@ -938,14 +939,14 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       TaskVertex v2 = boost::target(e, g_);
 
       // Visualize
-      visual_->viz1Edge(getVertexState(v1), getVertexState(v2), BLUE);
+      visual_->viz1()->edge(getVertexState(v1), getVertexState(v2), BLUE);
 
       // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
       {
         std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumEdges()) * 100.0
                   << "% " << std::flush;
-        visual_->viz1Trigger();
+        visual_->viz1()->trigger();
         usleep(0.01 * 1000000);
       }
 
@@ -989,8 +990,8 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       {
         std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumVertices()) * 100.0
                   << "% " << std::flush;
-        visual_->viz1Trigger();
-        //usleep(0.01 * 1000000);
+        visual_->viz1()->trigger();
+        // usleep(0.01 * 1000000);
       }
       count++;
     }
@@ -999,7 +1000,7 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
   }
 
   // Publish remaining edges
-  visual_->viz1Trigger();
+  visual_->viz1()->trigger();
   usleep(0.001 * 1000000);
 }
 
@@ -1049,7 +1050,7 @@ void otb::TaskAstarVisitor::discover_vertex(TaskVertex v, const TaskAdjList &) c
   parent_->recordNodeOpened();
 
   if (parent_->visualizeAstar_)
-    parent_->getVisual()->viz4State(parent_->getVertexState(v), tools::SMALL, tools::GREEN, 1);
+    parent_->getVisual()->viz4()->state(parent_->getVertexState(v), tools::SMALL, tools::GREEN, 1);
 }
 
 void otb::TaskAstarVisitor::examine_vertex(TaskVertex v, const TaskAdjList &) const
@@ -1059,8 +1060,8 @@ void otb::TaskAstarVisitor::examine_vertex(TaskVertex v, const TaskAdjList &) co
 
   if (parent_->visualizeAstar_)
   {
-    parent_->getVisual()->viz4State(parent_->getVertexState(v), tools::LARGE, tools::BLACK, 1);
-    parent_->getVisual()->viz4Trigger();
+    parent_->getVisual()->viz4()->state(parent_->getVertexState(v), tools::LARGE, tools::BLACK, 1);
+    parent_->getVisual()->viz4()->trigger();
     usleep(parent_->visualizeAstarSpeed_ * 1000000);
   }
 

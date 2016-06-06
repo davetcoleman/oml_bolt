@@ -274,7 +274,7 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
 
   if (visualizeAstar_)
   {
-    visual_->viz4DeleteAllMarkers();
+    visual_->viz4()->deleteAllMarkers();
   }
 
   try
@@ -342,10 +342,10 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
       if (v1 != v2)
       {
         // std::cout << "Edge " << v1 << " to " << v2 << std::endl;
-        visual_->viz4Edge(getVertexState(v1), getVertexState(v2), 10);
+        visual_->viz4()->edge(getVertexState(v1), getVertexState(v2), 10);
       }
     }
-    visual_->viz4Trigger();
+    visual_->viz4()->trigger();
   }
 
   // Unload
@@ -469,9 +469,9 @@ bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std:
   // Visualize path
   if (visualizeQualityPathSimp_)
   {
-    visual_->viz2DeleteAllMarkers();
-    visual_->viz2Path(path, 1, tools::BLUE);
-    visual_->viz2Trigger();
+    visual_->viz2()->deleteAllMarkers();
+    visual_->viz2()->path(path, 1, tools::BLUE);
+    visual_->viz2()->trigger();
     usleep(0.001 * 1000000);
   }
 
@@ -500,9 +500,9 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
   // Visualize path
   if (visualizeQualityPathSimp_)
   {
-    visual_->viz2DeleteAllMarkers();
-    visual_->viz2Path(path, 1, tools::BLUE);
-    visual_->viz2Trigger();
+    visual_->viz2()->deleteAllMarkers();
+    visual_->viz2()->path(path, 1, tools::BLUE);
+    visual_->viz2()->trigger();
     usleep(0.001 * 1000000);
   }
 
@@ -522,9 +522,9 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
 
     if (visualizeQualityPathSimp_)
     {
-      visual_->viz2DeleteAllMarkers();
-      visual_->viz2Path(path, 1, tools::ORANGE);
-      visual_->viz2Trigger();
+      visual_->viz2()->deleteAllMarkers();
+      visual_->viz2()->path(path, 1, tools::ORANGE);
+      visual_->viz2()->trigger();
       usleep(0.1 * 1000000);
       // visual_->waitForUserFeedback("optimizing path");
     }
@@ -533,9 +533,9 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
 
     if (visualizeQualityPathSimp_)
     {
-      visual_->viz2DeleteAllMarkers();
-      visual_->viz2Path(path, 1, tools::BLUE);
-      visual_->viz2Trigger();
+      visual_->viz2()->deleteAllMarkers();
+      visual_->viz2()->path(path, 1, tools::BLUE);
+      visual_->viz2()->trigger();
       usleep(0.1 * 1000000);
       // visual_->waitForUserFeedback("optimizing path");
     }
@@ -547,9 +547,9 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
 
   if (visualizeQualityPathSimp_)
   {
-    visual_->viz2DeleteAllMarkers();
-    visual_->viz2Path(path, 1, tools::GREEN);
-    visual_->viz2Trigger();
+    visual_->viz2()->deleteAllMarkers();
+    visual_->viz2()->path(path, 1, tools::GREEN);
+    visual_->viz2()->trigger();
     visual_->waitForUserFeedback("finished quality path");
   }
 
@@ -604,7 +604,8 @@ void SparseGraph::getDisjointSets(SparseDisjointSetsMap &disjointSets)
 void SparseGraph::printDisjointSets(SparseDisjointSetsMap &disjointSets)
 {
   OMPL_INFORM("Print disjoint sets");
-  for (SparseDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end(); iterator++)
+  for (SparseDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
+       iterator++)
   {
     const SparseVertex v = iterator->first;
     const std::size_t freq = iterator->second.size();
@@ -619,7 +620,8 @@ void SparseGraph::visualizeDisjointSets(SparseDisjointSetsMap &disjointSets)
   // Find the disjoint set that is the 'main' large one
   std::size_t maxDisjointSetSize = 0;
   SparseVertex maxDisjointSetParent;
-  for (SparseDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end(); iterator++)
+  for (SparseDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
+       iterator++)
   {
     const SparseVertex v = iterator->first;
     const std::size_t freq = iterator->second.size();
@@ -633,7 +635,8 @@ void SparseGraph::visualizeDisjointSets(SparseDisjointSetsMap &disjointSets)
   OMPL_INFORM("The largest disjoint set is of size %u and parent vertex %u", maxDisjointSetSize, maxDisjointSetParent);
 
   // Display size of disjoint sets and visualize small ones
-  for (SparseDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end(); iterator++)
+  for (SparseDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
+       iterator++)
   {
     const SparseVertex v1 = iterator->first;
     const std::size_t freq = iterator->second.size();
@@ -650,8 +653,8 @@ void SparseGraph::visualizeDisjointSets(SparseDisjointSetsMap &disjointSets)
     // Visualize sets of size one
     if (freq == 1)
     {
-      visual_->viz5State(getVertexState(v1), tools::LARGE, tools::RED, 0);
-      visual_->viz5Trigger();
+      visual_->viz5()->state(getVertexState(v1), tools::LARGE, tools::RED, 0);
+      visual_->viz5()->trigger();
       visual_->waitForUserFeedback("showing disjoint set");
       continue;
     }
@@ -660,7 +663,7 @@ void SparseGraph::visualizeDisjointSets(SparseDisjointSetsMap &disjointSets)
     if (freq > 1 && freq < 1000)
     {
       // Clear markers
-      visual_->viz4DeleteAllMarkers();
+      visual_->viz4()->deleteAllMarkers();
 
       // Visualize this subgraph that is disconnected
       // Loop through every every vertex and check if its part of this group
@@ -669,20 +672,20 @@ void SparseGraph::visualizeDisjointSets(SparseDisjointSetsMap &disjointSets)
       {
         if (boost::get(boost::get(boost::vertex_predecessor, g_), *v2) == v1)
         {
-          visual_->viz4State(getVertexState(*v2), tools::LARGE, tools::RED, 0);
+          visual_->viz4()->state(getVertexState(*v2), tools::LARGE, tools::RED, 0);
 
           // Show state's edges
           foreach (SparseEdge edge, boost::out_edges(*v2, g_))
           {
             SparseVertex e_v1 = boost::source(edge, g_);
             SparseVertex e_v2 = boost::target(edge, g_);
-            visual_->viz4Edge(getVertexState(e_v1), getVertexState(e_v2), edgeWeightProperty_[edge]);
+            visual_->viz4()->edge(getVertexState(e_v1), getVertexState(e_v2), edgeWeightProperty_[edge]);
           }
-          visual_->viz4Trigger();
+          visual_->viz4()->trigger();
 
           // Show this robot state
-          // visual_->viz4State(getVertexState(*v2), tools::ROBOT, tools::DEFAULT, 0);
-          visual_->viz4State(getVertexState(*v2), tools::SMALL, tools::RED, 0);
+          // visual_->viz4()->state(getVertexState(*v2), tools::ROBOT, tools::DEFAULT, 0);
+          visual_->viz4()->state(getVertexState(*v2), tools::SMALL, tools::RED, 0);
 
           usleep(0.1 * 1000000);
         }  // if
@@ -773,7 +776,7 @@ SparseVertex SparseGraph::addVertex(StateID stateID, const VertexType &type, std
 
     if (visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
-      visual_->viz1Trigger();
+      visual_->viz1()->trigger();
       usleep(visualizeSparseGraphSpeed_ * 1000000);
     }
   }
@@ -827,7 +830,7 @@ void SparseGraph::removeDeletedVertices(std::size_t indent)
       continue;
     }
 
-    if (getStateID(*v) == 0) // Found vertex to delete
+    if (getStateID(*v) == 0)  // Found vertex to delete
     {
       BOLT_DEBUG(indent + 2, verbose, "Removing SparseVertex " << *v << " stateID: " << getStateID(*v));
 
@@ -909,11 +912,11 @@ void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
 
   // Show visibility region around vertex
   if (visualizeDatabaseCoverage_)
-    visual_->viz1State(getVertexState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
-                       sparseCriteria_->sparseDelta_);
+    visual_->viz1()->state(getVertexState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
+                           sparseCriteria_->sparseDelta_);
 
   // Show vertex
-  //visual_->viz1State(getVertexState(v), size, color, 0);
+  // visual_->viz1()->state(getVertexState(v), size, color, 0);
   visual_->viz1()->state(getVertexState(v), size, color, 0);
 }
 
@@ -952,19 +955,19 @@ SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type,
   // Visualize
   if (visualizeSparseGraph_)
   {
-    visual_->viz1Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
+    visual_->viz1()->edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
     if (visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
-      visual_->viz1Trigger();
+      visual_->viz1()->trigger();
       usleep(visualizeSparseGraphSpeed_ * 1000000);
     }
 
     // Show each added edge for a blip
     if (false)
     {
-      visual_->viz4DeleteAllMarkers();
-      visual_->viz4Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(eCONNECTIVITY));
-      visual_->viz4Trigger();
+      visual_->viz4()->deleteAllMarkers();
+      visual_->viz4()->edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(eCONNECTIVITY));
+      visual_->viz4()->trigger();
       usleep(0.001 * 1000000);
     }
   }
@@ -1108,7 +1111,7 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
   }
 
   // Clear previous visualization
-  visual_->viz1DeleteAllMarkers();
+  visual_->viz1()->deleteAllMarkers();
 
   const std::size_t MIN_FEEDBACK = 10000;
   if (visualizeDatabaseEdges_)
@@ -1125,14 +1128,14 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
       SparseVertex v2 = boost::target(e, g_);
 
       // Visualize
-      visual_->viz1Edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(edgeTypeProperty_[e]));
+      visual_->viz1()->edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(edgeTypeProperty_[e]));
 
       // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
       {
         std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumEdges()) * 100.0
                   << "% " << std::flush;
-        visual_->viz1Trigger();
+        visual_->viz1()->trigger();
         usleep(0.01 * 1000000);
       }
 
@@ -1176,8 +1179,8 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
       {
         std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumVertices()) * 100.0
                   << "% " << std::flush;
-        visual_->viz1Trigger();
-        //usleep(0.01 * 1000000);
+        visual_->viz1()->trigger();
+        // usleep(0.01 * 1000000);
       }
       count++;
     }
@@ -1186,7 +1189,7 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
   }
 
   // Publish remaining edges
-  visual_->viz1Trigger();
+  visual_->viz1()->trigger();
   usleep(0.001 * 1000000);
 }
 
@@ -1203,7 +1206,7 @@ VertexPair SparseGraph::interfaceDataIndex(SparseVertex vp, SparseVertex vpp)
 
 InterfaceData &SparseGraph::getInterfaceData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent)
 {
-  //BOLT_BLUE_DEBUG(indent, sparseCriteria_->vQuality_, "getInterfaceData() " << v << ", " << vp << ", " << vpp);
+  // BOLT_BLUE_DEBUG(indent, sparseCriteria_->vQuality_, "getInterfaceData() " << v << ", " << vp << ", " << vpp);
   return vertexInterfaceProperty_[v][interfaceDataIndex(vp, vpp)];
 }
 
@@ -1253,7 +1256,7 @@ void otb::SparsestarVisitor::discover_vertex(SparseVertex v, const SparseAdjList
   parent_->recordNodeOpened();
 
   if (parent_->visualizeAstar_)
-    parent_->getVisual()->viz4State(parent_->getVertexState(v), tools::SMALL, tools::GREEN, 1);
+    parent_->getVisual()->viz4()->state(parent_->getVertexState(v), tools::SMALL, tools::GREEN, 1);
 }
 
 void otb::SparsestarVisitor::examine_vertex(SparseVertex v, const SparseAdjList &) const
@@ -1263,8 +1266,8 @@ void otb::SparsestarVisitor::examine_vertex(SparseVertex v, const SparseAdjList 
 
   if (parent_->visualizeAstar_)
   {
-    parent_->getVisual()->viz4State(parent_->getVertexState(v), tools::LARGE, tools::BLACK, 1);
-    parent_->getVisual()->viz4Trigger();
+    parent_->getVisual()->viz4()->state(parent_->getVertexState(v), tools::LARGE, tools::BLACK, 1);
+    parent_->getVisual()->viz4()->trigger();
     usleep(parent_->visualizeAstarSpeed_ * 1000000);
   }
 

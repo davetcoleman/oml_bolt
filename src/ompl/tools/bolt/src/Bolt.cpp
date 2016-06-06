@@ -159,26 +159,26 @@ void Bolt::visualize()
     std::shared_ptr<geometric::PathGeometric> originalPath = boltPlanner_->getOriginalSolutionPath();
 
     // Make the chosen path a different color and thickness
-    visual_->viz5Path(originalPath.get(), /*style*/ 1, tools::BLACK);
-    visual_->viz5Trigger();
+    visual_->viz5()->path(originalPath.get(), /*style*/ 1, tools::BLACK);
+    visual_->viz5()->trigger();
 
     // Don't show raw trajectory twice in larger dimensions
     if (si_->getStateSpace()->getDimension() == 3)
     {
-      visual_->viz6Path(originalPath.get(), /*style*/ 1, tools::BLACK);
-      visual_->viz6Trigger();
+      visual_->viz6()->path(originalPath.get(), /*style*/ 1, tools::BLACK);
+      visual_->viz6()->trigger();
     }
   }
 
   geometric::PathGeometric *solutionPath = static_cast<geometric::PathGeometric *>(pdef_->getSolutionPath().get());
 
   // Show smoothed & interpolated path
-  visual_->viz6Path(solutionPath, /*style*/ 1, tools::BLUE);
-  visual_->viz6Trigger();
+  visual_->viz6()->path(solutionPath, /*style*/ 1, tools::BLUE);
+  visual_->viz6()->trigger();
 
   // Show robot animated if not 2D
   if (si_->getStateSpace()->getDimension() > 3)
-    visual_->viz6Path(solutionPath, /*style*/ 3, tools::DEFAULT);
+    visual_->viz6()->path(solutionPath, /*style*/ 3, tools::DEFAULT);
 }
 
 bool Bolt::checkOptimalityGuarantees(std::size_t indent)

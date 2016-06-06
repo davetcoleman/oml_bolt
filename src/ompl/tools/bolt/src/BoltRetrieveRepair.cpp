@@ -388,9 +388,9 @@ bool BoltRetrieveRepair::getPathOnGraph(const std::vector<SparseVertex> &candida
       }
       if (debug)
       {
-        visual_->viz4State(sparseGraph_->getVertexState(start), tools::LARGE, tools::RED, 1);
-        visual_->viz4Edge(actualStart, sparseGraph_->getVertexState(start), 100);
-        visual_->viz4Trigger();
+        visual_->viz4()->state(sparseGraph_->getVertexState(start), tools::LARGE, tools::RED, 1);
+        visual_->viz4()->edge(actualStart, sparseGraph_->getVertexState(start), 100);
+        visual_->viz4()->trigger();
         usleep(0.1 * 1000000);
       }
       continue;  // this is actually not visible
@@ -425,9 +425,9 @@ bool BoltRetrieveRepair::getPathOnGraph(const std::vector<SparseVertex> &candida
 
         if (debug)
         {
-          visual_->viz4State(sparseGraph_->getVertexState(goal), tools::SMALL, tools::RED, 1);
-          visual_->viz4Edge(actualGoal, sparseGraph_->getVertexState(goal), 100);
-          visual_->viz4Trigger();
+          visual_->viz4()->state(sparseGraph_->getVertexState(goal), tools::SMALL, tools::RED, 1);
+          visual_->viz4()->edge(actualGoal, sparseGraph_->getVertexState(goal), 100);
+          visual_->viz4()->trigger();
           usleep(0.1 * 1000000);
         }
 
@@ -517,16 +517,16 @@ bool BoltRetrieveRepair::lazyCollisionSearch(const SparseVertex &start, const Sp
   if (visualize)
   {
     OMPL_INFORM("viz start -----------------------------");
-    visual_->viz5State(sparseGraph_->getVertexState(start), tools::VARIABLE_SIZE, tools::PURPLE, 1);
-    visual_->viz5Edge(actualStart, sparseGraph_->getVertexState(start), 30);
-    visual_->viz5Trigger();
+    visual_->viz5()->state(sparseGraph_->getVertexState(start), tools::VARIABLE_SIZE, tools::PURPLE, 1);
+    visual_->viz5()->edge(actualStart, sparseGraph_->getVertexState(start), 30);
+    visual_->viz5()->trigger();
     usleep(5 * 1000000);
 
     // Visualize goal vertex
     OMPL_INFORM("viz goal ------------------------------");
-    visual_->viz5State(sparseGraph_->getVertexState(goal), tools::VARIABLE_SIZE, tools::PURPLE, 1);
-    visual_->viz5Edge(actualGoal, sparseGraph_->getVertexState(goal), 0);
-    visual_->viz5Trigger();
+    visual_->viz5()->state(sparseGraph_->getVertexState(goal), tools::VARIABLE_SIZE, tools::PURPLE, 1);
+    visual_->viz5()->edge(actualGoal, sparseGraph_->getVertexState(goal), 0);
+    visual_->viz5()->trigger();
     usleep(5 * 1000000);
   }
 
@@ -829,9 +829,9 @@ bool BoltRetrieveRepair::canConnect(const base::State *randomState, const base::
 
       if (false)
       {
-        visual_->viz5State(s2, tools::MEDIUM, tools::BLUE, 1);
-        visual_->viz5Edge(s1, s2, 100);
-        visual_->viz5Trigger();
+        visual_->viz5()->state(s2, tools::MEDIUM, tools::BLUE, 1);
+        visual_->viz5()->edge(s1, s2, 100);
+        visual_->viz5()->trigger();
         usleep(1 * 1000000);
       }
 
@@ -859,13 +859,13 @@ bool BoltRetrieveRepair::canConnect(const base::State *randomState, const base::
 
           if (!si_->isValid(interState))
           {
-            visual_->viz5State(interState, tools::LARGE, tools::RED, 1);
-            visual_->viz5Trigger();
+            visual_->viz5()->state(interState, tools::LARGE, tools::RED, 1);
+            visual_->viz5()->trigger();
             usleep(1 * 1000000);
           }
           else
           {
-            // visual_->viz5State(interState, /*mode=*/1, 1); // GREEN
+            // visual_->viz5()->state(interState, /*mode=*/1, 1); // GREEN
           }
         }
       }
@@ -963,10 +963,10 @@ popularityBias,
       if (v1 != v2)
       {
         // std::cout << "Edge " << v1 << " to " << v2 << std::endl;
-        visual_->viz4Edge(sparseGraph_->getVertexState(v1), sparseGraph_->getVertexState(v2), 10);
+        visual_->viz4()->edge(sparseGraph_->getVertexState(v1), sparseGraph_->getVertexState(v2), 10);
       }
     }
-    visual_->viz4Trigger();
+    visual_->viz4()->trigger();
   }
 
   // Unload

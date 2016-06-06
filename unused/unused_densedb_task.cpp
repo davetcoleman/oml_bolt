@@ -163,8 +163,8 @@ void DenseDB::generateTaskSpace()
 
     // if (visualizeGridGeneration_)  // Visualize - only do this for 2/3D environments
     {
-      visual_->viz1State(newState, /*mode=*/5, 1);  // Candidate node has already (just) been added
-      visual_->viz1Trigger();
+      visual_->viz1()->state(newState, /*mode=*/5, 1);  // Candidate node has already (just) been added
+      visual_->viz1()->trigger();
       usleep(0.001 * 1000000);
     }
   }
@@ -198,14 +198,14 @@ void DenseDB::generateTaskSpace()
       viz1Edge(newE);
       if (i % 100 == 0)
       {
-        visual_->viz1Trigger();
+        visual_->viz1()->trigger();
         usleep(0.001 * 1000000);
       }
     }
   }
 
   // if (visualizeGridGeneration_)  // Visualize
-  visual_->viz1Trigger();
+  visual_->viz1()->trigger();
 
   OMPL_INFORM("Done generating task space graph");
 }
@@ -359,16 +359,16 @@ bool DenseDB::connectStateToNeighborsAtLevel(const TaskVertex &fromVertex, const
     const double cost = (level == 0 ? 100 : 50);
     if (visualizeCartNeighbors_)
     {
-      visual_->viz1Edge(stateProperty_[v], stateProperty_[fromVertex], cost);
-      visual_->viz1State(stateProperty_[v], /*mode=*/1, 1);
-      visual_->viz1Trigger();
+      visual_->viz1()->edge(stateProperty_[v], stateProperty_[fromVertex], cost);
+      visual_->viz1()->state(stateProperty_[v], /*mode=*/1, 1);
+      visual_->viz1()->trigger();
       usleep(0.001 * 1000000);
     }
   }
 
   // Display ---------------------------------------
   if (visualizeCartNeighbors_)
-    visual_->viz1Trigger();
+    visual_->viz1()->trigger();
 
   return true;
 }
@@ -429,9 +429,9 @@ bool DenseDB::addCartPath(std::vector<base::State *> path)
     // Visualize
     if (visualizeCartPath_)
     {
-      visual_->viz1Edge(path[i - 1], path[i], 0);
-      visual_->viz1State(path[i], /*mode=*/1, 1);
-      visual_->viz1Trigger();
+      visual_->viz1()->edge(path[i - 1], path[i], 0);
+      visual_->viz1()->state(path[i], /*mode=*/1, 1);
+      visual_->viz1()->trigger();
       usleep(0.001 * 1000000);
     }
   }

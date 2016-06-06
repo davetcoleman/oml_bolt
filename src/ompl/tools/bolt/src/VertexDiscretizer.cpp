@@ -400,8 +400,8 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
         if (visualizeGridGeneration_)
         {
           // Candidate node rejected
-          visual_->viz1State(candidateState, tools::MEDIUM, tools::RED, 0);
-          visual_->vizTrigger(threadID + 1);
+          visual_->viz1()->state(candidateState, tools::MEDIUM, tools::RED, 0);
+          // visual_->vizTrigger(threadID + 1);
         }
         if (verbose_)
           std::cout << "   Rejected because of validity" << std::endl;
@@ -415,8 +415,8 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
         if (visualizeGridGeneration_)
         {
           // Candidate node rejected
-          visual_->viz1State(candidateState, tools::MEDIUM, tools::RED, 0);
-          visual_->vizTrigger(threadID + 1);
+          visual_->viz1()->state(candidateState, tools::MEDIUM, tools::RED, 0);
+          // visual_->vizTrigger(threadID + 1);
         }
         if (verbose_)
           std::cout << "   Rejected because of clearance" << std::endl;
@@ -434,8 +434,8 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
       // Visualize
       if (visualizeGridGeneration_)
       {
-        visual_->viz1State(candidateState, MEDIUM, GREEN, 0);
-        visual_->viz1Trigger();
+        visual_->viz1()->state(candidateState, MEDIUM, GREEN, 0);
+        visual_->viz1()->trigger();
         usleep(0.001 * 1000000);
       }
     }

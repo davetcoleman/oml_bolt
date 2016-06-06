@@ -85,11 +85,11 @@ bool SparseGraph::findSparseRepresentatives()
       else
       {
         double visualColor = 100;
-        visual_->viz2Edge(state, getSparseState(denseDB_->representativesProperty_[denseV]), visualColor);
+        visual_->viz2()->edge(state, getSparseState(denseDB_->representativesProperty_[denseV]), visualColor);
       }
     }
   }
-  visual_->viz2Trigger();
+  visual_->viz2()->trigger();
 
   return true;
 }

@@ -93,7 +93,7 @@ enum EdgeType
 };
 
 /** \brief The type used internally for representing vertex IDs */
-//typedef unsigned long int VertexIndexType;  // TODO(davetcoleman): just use size_t?
+// typedef unsigned long int VertexIndexType;  // TODO(davetcoleman): just use size_t?
 typedef std::size_t VertexIndexType;
 
 /** \brief Pair of vertices which support an interface. */
@@ -489,7 +489,8 @@ public:
  * \brief Sparse disjoint sets structure
  */
 typedef boost::disjoint_sets<boost::property_map<SparseAdjList, boost::vertex_rank_t>::type,
-                             boost::property_map<SparseAdjList, boost::vertex_predecessor_t>::type> SparseDisjointSetType;
+                             boost::property_map<SparseAdjList, boost::vertex_predecessor_t>::type>
+    SparseDisjointSetType;
 
 // Ability to copy the disjoint sets data into a hashtable
 typedef std::map<SparseVertex, std::vector<SparseVertex> > SparseDisjointSetsMap;

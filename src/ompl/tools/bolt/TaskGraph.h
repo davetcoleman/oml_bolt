@@ -144,8 +144,8 @@ public:
    *  \param vertexPath
    *  \return true if candidate solution found
    */
-  bool astarSearch(const TaskVertex start, const TaskVertex goal, std::vector<TaskVertex>& vertexPath,
-                   double& distance, std::size_t indent);
+  bool astarSearch(const TaskVertex start, const TaskVertex goal, std::vector<TaskVertex>& vertexPath, double& distance,
+                   std::size_t indent);
 
   /** \brief Distance between two states with special bias using popularity */
   double astarHeuristic(const TaskVertex a, const TaskVertex b) const;
@@ -347,7 +347,6 @@ protected:
   bool graphUnsaved_ = false;
 
 public:  // user settings from other applications
-
   /** \brief Visualization speed of astar search, num of seconds to show each vertex */
   bool visualizeAstar_ = false;
   double visualizeAstarSpeed_ = 0.1;

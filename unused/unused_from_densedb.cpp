@@ -1,80 +1,76 @@
-  /** \brief Set the file path to load/save to/from */
-  void setFilePath(const std::string& filePath)
-  {
-    filePath_ = filePath;
-  }
+/** \brief Set the file path to load/save to/from */
+void setFilePath(const std::string &filePath)
+{
+  filePath_ = filePath;
+}
 
-  /**
-   * \brief Load database from file
-   * \param fileName - name of database file
-   * \return true if file loaded successfully
-   */
-  bool load();
+/**
+ * \brief Load database from file
+ * \param fileName - name of database file
+ * \return true if file loaded successfully
+ */
+bool load();
 
-  /**
-   * \brief Save loaded database to file, except skips saving if no paths have been added
-   * \param fileName - name of database file
-   * \return true if file saved successfully
-   */
-  bool saveIfChanged();
+/**
+ * \brief Save loaded database to file, except skips saving if no paths have been added
+ * \param fileName - name of database file
+ * \return true if file saved successfully
+ */
+bool saveIfChanged();
 
-  /**
-   * \brief Save loaded database to file
-   * \param fileName - name of database file
-   * \return true if file saved successfully
-   */
-  bool save();
+/**
+ * \brief Save loaded database to file
+ * \param fileName - name of database file
+ * \return true if file saved successfully
+ */
+bool save();
 
-  /**
-   * \brief Add a new solution path to our database. Des not actually save to file so
-   *        experience will be lost if save() is not called
-   * \param new path - must be non-const because will be interpolated
-   * \return true on success
-   */
-  bool postProcessPath(geometric::PathGeometric& solutionPath);
+/**
+ * \brief Add a new solution path to our database. Des not actually save to file so
+ *        experience will be lost if save() is not called
+ * \param new path - must be non-const because will be interpolated
+ * \return true on success
+ */
+bool postProcessPath(geometric::PathGeometric &solutionPath);
 
-  /** \brief Helper function for postProcessPath */
-  bool postProcessPathWithNeighbors(geometric::PathGeometric& solutionPath,
-                                    const std::vector<TaskVertex>& visibleNeighborhood, bool recurseVerbose,
-                                    std::vector<TaskVertex>& roadmapPath);
+/** \brief Helper function for postProcessPath */
+bool postProcessPathWithNeighbors(geometric::PathGeometric &solutionPath,
+                                  const std::vector<TaskVertex> &visibleNeighborhood, bool recurseVerbose,
+                                  std::vector<TaskVertex> &roadmapPath);
 
-  /** \brief Update edge weights of dense graph based on this a newly created path */
-  bool updateEdgeWeights(const std::vector<TaskVertex>& roadmapPath);
+/** \brief Update edge weights of dense graph based on this a newly created path */
+bool updateEdgeWeights(const std::vector<TaskVertex> &roadmapPath);
 
-  /**
-   * \brief Call itself recursively for each point in the trajectory, looking for vertices on the graph to connect to
-   * \param inputPath - smoothed trajectory that we want to now convert into a 'snapped' trajectory
-   * \param roadmapPath - resulting path that is 'snapped' onto the pre-existing roadmap
-   * \param currVertexIndex - index in inputPath (smoothed path) that we are trying to connect to
-   * \param prevGraphVertex - vertex we are trying to connect to
-   * \param allValid - flag to determine if any of the edges were never found to be valid
-   * \param verbose - whether to show lots of debug output to console
-   * \return true on success
-   */
-  bool recurseSnapWaypoints(ompl::geometric::PathGeometric& inputPath, std::vector<TaskVertex>& roadmapPath,
-                            std::size_t currVertexIndex, const TaskVertex& prevGraphVertex, bool& allValid,
-                            bool verbose);
+/**
+ * \brief Call itself recursively for each point in the trajectory, looking for vertices on the graph to connect to
+ * \param inputPath - smoothed trajectory that we want to now convert into a 'snapped' trajectory
+ * \param roadmapPath - resulting path that is 'snapped' onto the pre-existing roadmap
+ * \param currVertexIndex - index in inputPath (smoothed path) that we are trying to connect to
+ * \param prevGraphVertex - vertex we are trying to connect to
+ * \param allValid - flag to determine if any of the edges were never found to be valid
+ * \param verbose - whether to show lots of debug output to console
+ * \return true on success
+ */
+bool recurseSnapWaypoints(ompl::geometric::PathGeometric &inputPath, std::vector<TaskVertex> &roadmapPath,
+                          std::size_t currVertexIndex, const TaskVertex &prevGraphVertex, bool &allValid, bool verbose);
 
-  /** \brief Keep graph evenly weighted */
-  void normalizeGraphEdgeWeights();
+/** \brief Keep graph evenly weighted */
+void normalizeGraphEdgeWeights();
 
-  void removeVertex(TaskVertex v);
+void removeVertex(TaskVertex v);
 
-  /** \brief Check that all states are the correct type */
-  void checkStateType();
+/** \brief Check that all states are the correct type */
+void checkStateType();
 
-  /**
-   * \brief Sometimes the dense graph's discretization is not enough, so we have the ability to manually add
-   *        samples and connect to the graph
-   * \param denseV - a newly created vertex that needs to be connected to the dense graph
-   *                 the vertex should cover a currently un-visible region of the configuration space
-   */
-  void connectNewVertex(TaskVertex denseV);
+/**
+ * \brief Sometimes the dense graph's discretization is not enough, so we have the ability to manually add
+ *        samples and connect to the graph
+ * \param denseV - a newly created vertex that needs to be connected to the dense graph
+ *                 the vertex should cover a currently un-visible region of the configuration space
+ */
+void connectNewVertex(TaskVertex denseV);
 
-  void removeInvalidVertices();
-
-
-
+void removeInvalidVertices();
 
 bool TaskGraph::load()
 {
@@ -114,7 +110,7 @@ bool TaskGraph::load()
   denseCache_->load();
 
   // Visualize
-  // visual_->viz1Trigger();
+  // visual_->viz1()->trigger();
   // usleep(0.1 * 1000000);
 
   // Error check
@@ -203,8 +199,8 @@ bool TaskGraph::postProcessPath(og::PathGeometric &solutionPath)
 
   if (visualizeSnapPath_)  // Clear old path
   {
-    visual_->viz5DeleteAllMarkers();
-    visual_->viz4DeleteAllMarkers();
+    visual_->viz5()->deleteAllMarkers();
+    visual_->viz4()->deleteAllMarkers();
   }
 
   // Get starting state
@@ -264,8 +260,8 @@ bool TaskGraph::postProcessPath(og::PathGeometric &solutionPath)
 }
 
 bool TaskGraph::postProcessPathWithNeighbors(og::PathGeometric &solutionPath,
-                                           const std::vector<TaskVertex> &visibleNeighborhood, bool recurseVerbose,
-                                           std::vector<TaskVertex> &roadmapPath)
+                                             const std::vector<TaskVertex> &visibleNeighborhood, bool recurseVerbose,
+                                             std::vector<TaskVertex> &roadmapPath)
 {
   std::size_t currVertexIndex = 1;
 
@@ -280,7 +276,7 @@ bool TaskGraph::postProcessPathWithNeighbors(og::PathGeometric &solutionPath,
 
     if (visualizeSnapPath_)  // Add first state
     {
-      visual_->viz5State(stateProperty_[prevGraphVertex], tools::SMALL, tools::GREEN, 1);
+      visual_->viz5()->state(stateProperty_[prevGraphVertex], tools::SMALL, tools::GREEN, 1);
     }
 
     // Add this start state
@@ -299,7 +295,7 @@ bool TaskGraph::postProcessPathWithNeighbors(og::PathGeometric &solutionPath,
 
     if (visualizeSnapPath_)  // Visualize
     {
-      visual_->viz5Trigger();
+      visual_->viz5()->trigger();
       usleep(visualizeSnapPathSpeed_ * 1000000);
     }
   }
@@ -323,8 +319,8 @@ bool TaskGraph::updateEdgeWeights(const std::vector<TaskVertex> &roadmapPath)
       if (visualizeSnapPath_)  // Visualize
       {
         const double cost = 100;  // red
-        visual_->viz4Edge(stateProperty_[roadmapPath[vertexID - 1]], stateProperty_[roadmapPath[vertexID]], cost);
-        visual_->viz4Trigger();
+        visual_->viz4()->edge(stateProperty_[roadmapPath[vertexID - 1]], stateProperty_[roadmapPath[vertexID]], cost);
+        visual_->viz4()->trigger();
         usleep(visualizeSnapPathSpeed_ * 1000000);
       }
       std::cout << "shutting down out of curiosity " << std::endl;
@@ -345,14 +341,14 @@ bool TaskGraph::updateEdgeWeights(const std::vector<TaskVertex> &roadmapPath)
 
       if (visualizeSnapPath_)  // Visualize
       {
-        visual_->viz5Edge(stateProperty_[roadmapPath[vertexID - 1]], stateProperty_[roadmapPath[vertexID]], 100);
+        visual_->viz5()->edge(stateProperty_[roadmapPath[vertexID - 1]], stateProperty_[roadmapPath[vertexID]], 100);
       }
     }
   }
 
   if (visualizeSnapPath_)  // Visualize
   {
-    visual_->viz5Trigger();
+    visual_->viz5()->trigger();
     usleep(visualizeSnapPathSpeed_ * 1000000);
   }
 
@@ -360,8 +356,8 @@ bool TaskGraph::updateEdgeWeights(const std::vector<TaskVertex> &roadmapPath)
 }
 
 bool TaskGraph::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<TaskVertex> &roadmapPath,
-                                   std::size_t currVertexIndex, const TaskVertex &prevGraphVertex, bool &allValid,
-                                   bool verbose)
+                                     std::size_t currVertexIndex, const TaskVertex &prevGraphVertex, bool &allValid,
+                                     bool verbose)
 {
   if (verbose)
     std::cout << std::string(currVertexIndex, ' ') << "recurseSnapWaypoints() -------" << std::endl;
@@ -413,17 +409,17 @@ bool TaskGraph::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<T
       if (visualizeSnapPath_)  // Visualize
       {
         // Show the node we're currently considering going through
-        visual_->viz5State(stateProperty_[candidateVertex], tools::MEDIUM, tools::PURPLE, 1);
+        visual_->viz5()->state(stateProperty_[candidateVertex], tools::MEDIUM, tools::PURPLE, 1);
         // edge between the state on the original inputPath and its neighbor we are currently considering
         double color = 25;  // light green
-        visual_->viz5Edge(currentPathState, stateProperty_[candidateVertex], color);
+        visual_->viz5()->edge(currentPathState, stateProperty_[candidateVertex], color);
 
         color = isValid ? 75 : 100;  // orange, red
         // edge between the previous connection point we chose for the roadmapPath, and the currently considered
         // next state
-        visual_->viz5Edge(stateProperty_[prevGraphVertex], stateProperty_[candidateVertex], color);
+        visual_->viz5()->edge(stateProperty_[prevGraphVertex], stateProperty_[candidateVertex], color);
 
-        visual_->viz5Trigger();
+        visual_->viz5()->trigger();
         usleep(visualizeSnapPathSpeed_ * 1000000);
       }
 
@@ -439,7 +435,7 @@ bool TaskGraph::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<T
         if (verbose)
           std::cout << std::string(currVertexIndex + 2, ' ') << "Found case where double loop fixed the "
                                                                 "problem - loop " << neighborID << std::endl;
-        // visual_->viz5Trigger();
+        // visual_->viz5()->trigger();
         // usleep(6*1000000);
       }
       foundValidConnToPrevious = true;
@@ -458,8 +454,8 @@ bool TaskGraph::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<T
         if (visualizeSnapPath_)  // Visualize
         {
           double color = 25;  // light green
-          visual_->viz4Edge(stateProperty_[prevGraphVertex], stateProperty_[candidateVertex], color);
-          visual_->viz4Trigger();
+          visual_->viz4()->edge(stateProperty_[prevGraphVertex], stateProperty_[candidateVertex], color);
+          visual_->viz4()->trigger();
           usleep(visualizeSnapPathSpeed_ * 1000000);
         }
       }
@@ -506,7 +502,7 @@ bool TaskGraph::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<T
 
     if (visualizeSnapPath_)  // Visualize
     {
-      visual_->viz5Trigger();
+      visual_->viz5()->trigger();
       usleep(visualizeSnapPathSpeed_ * 1000000);
     }
 
@@ -514,8 +510,8 @@ bool TaskGraph::recurseSnapWaypoints(og::PathGeometric &inputPath, std::vector<T
     std::cout << std::string(currVertexIndex, ' ') << "TODO remove this viz" << std::endl;
 
     // Show the node we're currently considering going through
-    visual_->viz5State(stateProperty_[prevGraphVertex], tools::VARIABLE_SIZE, tools::PURPLE, 3);
-    visual_->viz5Trigger();
+    visual_->viz5()->state(stateProperty_[prevGraphVertex], tools::VARIABLE_SIZE, tools::PURPLE, 3);
+    visual_->viz5()->trigger();
     usleep(0.001 * 1000000);
 
     return false;
@@ -625,7 +621,7 @@ void TaskGraph::connectNewVertex(TaskVertex v1)
   // Visualize new vertex
   if (visualizeAddSample_)
   {
-    visual_->viz1State(stateProperty_[v1], tools::SMALL, tools::GREEN, 1);
+    visual_->viz1()->state(stateProperty_[v1], tools::SMALL, tools::GREEN, 1);
   }
 
   // Connect to nearby vertices
@@ -681,7 +677,7 @@ void TaskGraph::connectNewVertex(TaskVertex v1)
       {
         double popularity = 100;  // TODO: maybe make edge really popular so we can be sure its added to the
                                   // spars graph since we need it
-        visual_->viz1Edge(stateProperty_[v1], stateProperty_[v2], popularity);
+        visual_->viz1()->edge(stateProperty_[v1], stateProperty_[v2], popularity);
       }
     }
 
@@ -693,7 +689,7 @@ void TaskGraph::connectNewVertex(TaskVertex v1)
   // Visualize
   if (visualizeAddSample_)
   {
-    visual_->viz1Trigger();
+    visual_->viz1()->trigger();
     usleep(0.001 * 1000000);
   }
 
@@ -725,8 +721,8 @@ void TaskGraph::removeInvalidVertices()
       OMPL_ERROR("State %u is not valid", *vertexIt);
       totalInvalid++;
 
-      visual_->viz5State(stateProperty_[*vertexIt], tools::ROBOT, tools::RED, 0);
-      visual_->viz5Trigger();
+      visual_->viz5()->state(stateProperty_[*vertexIt], tools::ROBOT, tools::RED, 0);
+      visual_->viz5()->trigger();
       // usleep(0.25 * 1000000);
 
       if (actuallyRemove)
