@@ -93,6 +93,10 @@ public:
   /** \brief Deconstructor */
   virtual ~TaskGraph(void);
 
+  /* ---------------------------------------------------------------------------------
+   * Setup and cleanup
+   * --------------------------------------------------------------------------------- */
+
   /** \brief Retrieve the computed roadmap. */
   const TaskAdjList& getGraph() const
   {
@@ -126,6 +130,10 @@ public:
   /** \brief Initialize database */
   bool setup();
 
+  /* ---------------------------------------------------------------------------------
+   * Astar search
+   * --------------------------------------------------------------------------------- */
+
   /** \brief Check that the query vertex is initialized (used for internal nearest neighbor searches) */
   void initializeQueryState();
 
@@ -155,6 +163,10 @@ public:
   {
     numNodesClosed_++;
   }
+
+  /* ---------------------------------------------------------------------------------
+   * Get graph properties
+   * --------------------------------------------------------------------------------- */
 
   const std::size_t getNumQueryVertices() const
   {
@@ -186,15 +198,33 @@ public:
   /** \brief Determine if no nodes or edges have been added to the graph except query vertices */
   bool isEmpty() const;
 
+  /* ---------------------------------------------------------------------------------
+   * Task Planning
+   * --------------------------------------------------------------------------------- */
+
+  void generateTaskSpace(std::size_t indent);
+
+  /* ---------------------------------------------------------------------------------
+   * Error checking
+   * --------------------------------------------------------------------------------- */
+
   /** \brief Clear all past edge state information about in collision or not */
   void clearEdgeCollisionStates();
 
   /** \brief Part of super debugging */
   void errorCheckDuplicateStates(std::size_t indent);
 
+  /* ---------------------------------------------------------------------------------
+   * Smoothing
+   * --------------------------------------------------------------------------------- */
+
   /** \brief Path smoothing helpers */
   bool smoothQualityPathOriginal(geometric::PathGeometric* path, std::size_t indent);
   bool smoothQualityPath(geometric::PathGeometric* path, double clearance, std::size_t indent);
+
+  /* ---------------------------------------------------------------------------------
+   * Disjoint Sets
+   * --------------------------------------------------------------------------------- */
 
   /** \brief Disjoint sets analysis tools */
   std::size_t getDisjointSetsCount(bool verbose = false);
@@ -204,12 +234,16 @@ public:
   std::size_t checkConnectedComponents();
   bool sameComponent(TaskVertex v1, TaskVertex v2);
 
+  /* ---------------------------------------------------------------------------------
+   * Add/remove vertices, edges, states
+   * --------------------------------------------------------------------------------- */
+
   /** \brief Add a state to the DenseCache */
   StateID addState(base::State* state);
 
   /** \brief Add vertices to graph */
-  TaskVertex addVertex(base::State* state, const VertexType& type, std::size_t indent);
-  TaskVertex addVertex(StateID stateID, const VertexType& type, std::size_t indent);
+  TaskVertex addVertex(base::State* state, const VertexType& type, std::size_t level, std::size_t indent);
+  TaskVertex addVertex(StateID stateID, const VertexType& type, std::size_t level, std::size_t indent);
 
   /** \brief Remove vertex from graph */
   void removeVertex(TaskVertex v);
@@ -235,8 +269,16 @@ public:
   const base::State* getState(StateID stateID) const;
   const StateID getStateID(TaskVertex v) const;
 
+  /* ---------------------------------------------------------------------------------
+   * Visualizations
+   * --------------------------------------------------------------------------------- */
+
   /** \brief Show in visualizer the task graph */
   void displayDatabase(bool showVertices = false, std::size_t indent = 0);
+
+  /* ---------------------------------------------------------------------------------
+   * Debug Utilities
+   * --------------------------------------------------------------------------------- */
 
   /** \brief Print info to console */
   void debugState(const ompl::base::State* state);
@@ -278,6 +320,9 @@ protected:
 
   /** \brief Access to the internal base::state at each Vertex */
   boost::property_map<TaskAdjList, vertex_state_cache_t>::type vertexStateProperty_;
+
+  /** \brief Access to additional task level dimension at each Vertex */
+  boost::property_map<TaskAdjList, vertex_level_t>::type vertexLevelProperty_;
 
   /** \brief Access to the SPARS vertex type for the vertices */
   boost::property_map<TaskAdjList, vertex_type_t>::type vertexTypeProperty_;

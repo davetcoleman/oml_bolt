@@ -79,6 +79,7 @@ TaskGraph::TaskGraph(SparseGraphPtr sg)
   , edgeCollisionStatePropertyTask_(boost::get(edge_collision_state_t(), g_))
   // Property accessors of vertices
   , vertexStateProperty_(boost::get(vertex_state_cache_t(), g_))
+  , vertexLevelProperty_(boost::get(vertex_level_t(), g_))
   , vertexTypeProperty_(boost::get(vertex_type_t(), g_))
   , vertexTaskMirrorProperty_(boost::get(vertex_task_mirror_t(), g_))
   // Disjoint set accessors
@@ -327,6 +328,56 @@ bool TaskGraph::isEmpty() const
   return (getNumVertices() == getNumQueryVertices() && getNumEdges() == 0);
 }
 
+void TaskGraph::generateTaskSpace(std::size_t indent)
+{
+  BOLT_BLUE_DEBUG(indent, true, "generateTaskSpace()");
+  indent += 2;
+
+  // Record a mapping from SparseVertex to the two TaskVertices
+  std::vector<TaskVertex> sparseToTaskVertex1(sg_->getNumVertices());
+  std::vector<TaskVertex> sparseToTaskVertex2(sg_->getNumVertices());
+
+  // Loop through every vertex in sparse graph and copy twice to task graph
+  foreach (SparseVertex sparseV, boost::vertices(sg_->getGraph()))
+  {
+    // The first thread number of verticies are used for queries and should be skipped
+    if (sparseV < sg_->getNumQueryVertices())
+      continue;
+
+    const StateID sparseStateID = sg_->getStateID(sparseV);
+    const VertexType type = CARTESIAN; // TODO: remove this, seems meaningless
+
+    // Create level 0 vertex
+    std::size_t level = 0;
+    TaskVertex taskV1 = addVertex(sparseStateID, type, level, indent);
+    sparseToTaskVertex1[sparseV] = taskV1; // record mapping
+
+    // Create level 2 vertex
+    level = 2;
+    TaskVertex taskV2 = addVertex(sparseStateID, type, level, indent);
+    sparseToTaskVertex2[sparseV] = taskV2; // record mapping
+  }
+
+  // Loop through every edge in sparse graph and copy twice to task graph
+  BOLT_DEBUG(indent + 2, true, "Adding task space edges");
+  foreach (const SparseEdge sparseE, boost::edges(sg_->getGraph()))
+  {
+    const SparseVertex sparseE_v1 = boost::source(sparseE, sg_->getGraph());
+    const SparseVertex sparseE_v2 = boost::target(sparseE, sg_->getGraph());
+    EdgeType type = sg_->getEdgeTypeProperty(sparseE);
+
+    // Error check
+    BOOST_ASSERT_MSG(sparseE_v1 >= sg_->getNumQueryVertices(), "Found query vertex in sparse graph that has an edge!");
+    BOOST_ASSERT_MSG(sparseE_v2 >= sg_->getNumQueryVertices(), "Found query vertex in sparse graph that has an edge!");
+
+    // Create level 0 edge
+    TaskEdge taskEdge1 = addEdge(sparseToTaskVertex1[sparseE_v1], sparseToTaskVertex1[sparseE_v2], type, indent);
+
+    // Create level 2 edge
+    TaskEdge taskEdge2 = addEdge(sparseToTaskVertex2[sparseE_v1], sparseToTaskVertex2[sparseE_v2], type, indent);
+  }
+}
+
 void TaskGraph::clearEdgeCollisionStates()
 {
   foreach (const TaskEdge e, boost::edges(g_))
@@ -336,6 +387,8 @@ void TaskGraph::clearEdgeCollisionStates()
 void TaskGraph::errorCheckDuplicateStates(std::size_t indent)
 {
   BOLT_BLUE_DEBUG(indent, true, "errorCheckDuplicateStates() - part of super debug");
+  indent += 2;
+
   bool found = false;
   // Error checking: check for any duplicate states
   for (std::size_t i = 0; i < denseCache_->getStateCacheSize(); ++i)
@@ -344,7 +397,7 @@ void TaskGraph::errorCheckDuplicateStates(std::size_t indent)
     {
       if (si_->getStateSpace()->equalStates(getState(i), getState(j)))
       {
-        BOLT_RED_DEBUG(indent + 2, 1, "Found equal state: " << i << ", " << j);
+        BOLT_RED_DEBUG(indent, 1, "Found equal state: " << i << ", " << j);
         debugState(getState(i));
         found = true;
       }
@@ -608,20 +661,21 @@ StateID TaskGraph::addState(base::State *state)
   return denseCache_->addState(state);
 }
 
-TaskVertex TaskGraph::addVertex(base::State *state, const VertexType &type, std::size_t indent)
+TaskVertex TaskGraph::addVertex(base::State *state, const VertexType &type, std::size_t level, std::size_t indent)
 {
-  return addVertex(addState(state), type, indent);
+  return addVertex(addState(state), type, level, indent);
 }
 
-TaskVertex TaskGraph::addVertex(StateID stateID, const VertexType &type, std::size_t indent)
+TaskVertex TaskGraph::addVertex(StateID stateID, const VertexType &type, std::size_t level, std::size_t indent)
 {
   // Create vertex
   TaskVertex v = boost::add_vertex(g_);
-  BOLT_CYAN_DEBUG(indent, vAdd_, "addVertex(): v: " << v << ", stateID: " << stateID << " type " << type);
+  BOLT_CYAN_DEBUG(indent, vAdd_, "addVertex(): v: " << v << ", stateID: " << stateID << " type " << type << " level: " << level);
 
   // Add properties
-  vertexTypeProperty_[v] = type;
+  vertexTypeProperty_[v] = type; // TODO(davetcoleman): remove?
   vertexStateProperty_[v] = stateID;
+  vertexLevelProperty_[v] = level;
 
   // Connected component tracking
   disjointSets_.make_set(v);
@@ -854,7 +908,7 @@ const StateID TaskGraph::getStateID(TaskVertex v) const
 
 void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, vVisualize_, "Displaying Task database");
+  BOLT_CYAN_DEBUG(indent, vVisualize_, "displayDatabase()");
   indent += 2;
 
   // Error check

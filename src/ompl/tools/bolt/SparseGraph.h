@@ -95,6 +95,10 @@ public:
   /** \brief Deconstructor */
   virtual ~SparseGraph(void);
 
+  /* ---------------------------------------------------------------------------------
+   * Setup and cleanup
+   * --------------------------------------------------------------------------------- */
+
   /** \brief Give the sparse graph reference to the criteria, because sometimes it needs data from there */
   void setSparseCriteria(SparseCriteriaPtr sparseCriteria)
   {
@@ -136,6 +140,10 @@ public:
 
   /** \brief Clear data on why vertices and edges were added by optimality criteria */
   void clearStatistics();
+
+  /* ---------------------------------------------------------------------------------
+   * Astar search
+   * --------------------------------------------------------------------------------- */
 
   /** \brief Check that the query vertex is initialized (used for internal nearest neighbor searches) */
   void initializeQueryState();
@@ -190,6 +198,10 @@ public:
     numNodesClosed_++;
   }
 
+  /* ---------------------------------------------------------------------------------
+   * Get graph properties
+   * --------------------------------------------------------------------------------- */
+
   const std::size_t getNumQueryVertices() const
   {
     return queryVertices_.size();
@@ -225,15 +237,27 @@ public:
   /** \brief Determine if no nodes or edges have been added to the graph except query vertices */
   bool isEmpty() const;
 
+  /* ---------------------------------------------------------------------------------
+   * Error checking
+   * --------------------------------------------------------------------------------- */
+
   /** \brief Clear all past edge state information about in collision or not */
   void clearEdgeCollisionStates();
 
   /** \brief Part of super debugging */
   void errorCheckDuplicateStates(std::size_t indent);
 
+  /* ---------------------------------------------------------------------------------
+   * Smoothing
+   * --------------------------------------------------------------------------------- */
+
   /** \brief Path smoothing helpers */
   bool smoothQualityPathOriginal(geometric::PathGeometric* path, std::size_t indent);
   bool smoothQualityPath(geometric::PathGeometric* path, double clearance, std::size_t indent);
+
+  /* ---------------------------------------------------------------------------------
+   * Disjoint Sets
+   * --------------------------------------------------------------------------------- */
 
   /** \brief Disjoint sets analysis tools */
   std::size_t getDisjointSetsCount(bool verbose = false);
@@ -242,6 +266,10 @@ public:
   void visualizeDisjointSets(SparseDisjointSetsMap& disjointSets);
   std::size_t checkConnectedComponents();
   bool sameComponent(SparseVertex v1, SparseVertex v2);
+
+  /* ---------------------------------------------------------------------------------
+   * Add/remove vertices, edges, states
+   * --------------------------------------------------------------------------------- */
 
   /** \brief Add a state to the DenseCache */
   StateID addState(base::State* state);
@@ -287,14 +315,26 @@ public:
   /** \brief When a quality path is added with new vertices, remove all edges near the new vertex */
   void clearEdgesNearVertex(SparseVertex vertex);
 
+  /* ---------------------------------------------------------------------------------
+   * Visualizations
+   * --------------------------------------------------------------------------------- */
+
   /** \brief Show in visualizer the sparse graph */
   void displayDatabase(bool showVertices = false, std::size_t indent = 0);
+
+  /* ---------------------------------------------------------------------------------
+   * Sparse Interfaces
+   * --------------------------------------------------------------------------------- */
 
   /** \brief Rectifies indexing order for accessing the vertex data */
   VertexPair interfaceDataIndex(SparseVertex vp, SparseVertex vpp);
 
   /** \brief Retrieves the Vertex data associated with v,vp,vpp */
   InterfaceData& getInterfaceData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent);
+
+  /* ---------------------------------------------------------------------------------
+   * Debug Utilities
+   * --------------------------------------------------------------------------------- */
 
   /** \brief Print info to console */
   void debugState(const ompl::base::State* state);

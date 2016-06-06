@@ -93,7 +93,8 @@ enum EdgeType
 };
 
 /** \brief The type used internally for representing vertex IDs */
-typedef unsigned long int VertexIndexType;  // TODO(davetcoleman): just use size_t?
+//typedef unsigned long int VertexIndexType;  // TODO(davetcoleman): just use size_t?
+typedef std::size_t VertexIndexType;
 
 /** \brief Pair of vertices which support an interface. */
 typedef std::pair<VertexIndexType, VertexIndexType> VertexPair;
@@ -104,8 +105,16 @@ typedef std::unordered_map<VertexPair, InterfaceData> InterfaceHash;
 /** \brief Identification for states in the StateCache */
 typedef VertexIndexType StateID;
 
+/** \brief Task level dimension data type */
+typedef std::size_t VertexLevel;
+
 /** \brief Boost vertex properties */
 struct vertex_state_t
+{
+  typedef boost::vertex_property_tag kind;
+};
+
+struct vertex_level_t
 {
   typedef boost::vertex_property_tag kind;
 };
@@ -262,11 +271,12 @@ typedef boost::property_map<SparseAdjList, edge_collision_state_t>::type SparseE
 /** Wrapper for the vertex's multiple as its property. */
 // clang-format off
 typedef boost::property<vertex_state_cache_t, VertexIndexType, // State
+        boost::property<vertex_level_t, VertexLevel, // An extra dimension for task level
         boost::property<boost::vertex_predecessor_t, VertexIndexType, // Disjoint Sets
         boost::property<boost::vertex_rank_t, VertexIndexType, // Disjoint Sets
-        boost::property<vertex_type_t, VertexType, // Task Type
-        boost::property<vertex_task_mirror_t, VertexIndexType // Link to corresponding free space TaskVertex, if one exists
-        > > > > > TaskVertexProperties;
+        boost::property<vertex_type_t, VertexType, // Task Type TODO is this needed?
+        boost::property<vertex_task_mirror_t, VertexIndexType // Link to corresponding free space TaskVertex, if one exists TODO is this needed?
+        > > > > > > TaskVertexProperties;
 // clang-format on
 
 /** Wrapper for the double assigned to an edge as its weight property. */
