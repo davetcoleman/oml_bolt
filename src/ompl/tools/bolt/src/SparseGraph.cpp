@@ -876,50 +876,6 @@ void SparseGraph::removeDeletedVertices(std::size_t indent)
   }
 }
 
-void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
-{
-  tools::VizColors color;
-  tools::VizSizes size;
-
-  switch (type)
-  {
-    case COVERAGE:
-      color = tools::BLACK;
-      size = tools::LARGE;
-      break;
-    case CONNECTIVITY:
-      color = tools::ORANGE;
-      size = tools::LARGE;
-      break;
-    case INTERFACE:
-      color = tools::PINK;
-      size = tools::LARGE;
-      break;
-    case QUALITY:
-      color = tools::BLUE;
-      size = tools::LARGE;
-      break;
-    case DISCRETIZED:
-      color = tools::GREEN;
-      size = tools::LARGE;
-      break;
-    case START:
-    case GOAL:
-    case CARTESIAN:
-    default:
-      throw Exception(name_, "Unknown type");
-  }
-
-  // Show visibility region around vertex
-  if (visualizeDatabaseCoverage_)
-    visual_->viz1()->state(getVertexState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
-                           sparseCriteria_->sparseDelta_);
-
-  // Show vertex
-  // visual_->viz1()->state(getVertexState(v), size, color, 0);
-  visual_->viz1()->state(getVertexState(v), size, color, 0);
-}
-
 SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent)
 {
   BOLT_CYAN_DEBUG(indent, vAdd_, "addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
@@ -1193,6 +1149,50 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
   usleep(0.001 * 1000000);
 }
 
+void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
+{
+  tools::VizColors color;
+  tools::VizSizes size;
+
+  switch (type)
+  {
+    case COVERAGE:
+      color = tools::BLACK;
+      size = tools::LARGE;
+      break;
+    case CONNECTIVITY:
+      color = tools::ORANGE;
+      size = tools::LARGE;
+      break;
+    case INTERFACE:
+      color = tools::PINK;
+      size = tools::LARGE;
+      break;
+    case QUALITY:
+      color = tools::BLUE;
+      size = tools::LARGE;
+      break;
+    case DISCRETIZED:
+      color = tools::GREEN;
+      size = tools::LARGE;
+      break;
+    case START:
+    case GOAL:
+    case CARTESIAN:
+    default:
+      throw Exception(name_, "Unknown type");
+  }
+
+  // Show visibility region around vertex
+  if (visualizeDatabaseCoverage_)
+    visual_->viz1()->state(getVertexState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
+                           sparseCriteria_->sparseDelta_);
+
+  // Show vertex
+  // visual_->viz1()->state(getVertexState(v), size, color, 0);
+  visual_->viz1()->state(getVertexState(v), size, color, 0);
+}
+
 VertexPair SparseGraph::interfaceDataIndex(SparseVertex vp, SparseVertex vpp)
 {
   if (vp < vpp)
@@ -1213,6 +1213,12 @@ InterfaceData &SparseGraph::getInterfaceData(SparseVertex v, SparseVertex vp, Sp
 void SparseGraph::debugState(const ompl::base::State *state)
 {
   si_->printState(state, std::cout);
+}
+
+
+void SparseGraph::debugVertex(const SparseVertex v)
+{
+  debugState(getVertexState(v));
 }
 
 void SparseGraph::debugNN()

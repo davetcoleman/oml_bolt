@@ -190,6 +190,11 @@ public:
     return vertexTypeProperty_[v];
   }
 
+  VertexLevel getVertexTaskLevel(TaskVertex v) const
+  {
+    return vertexLevelProperty_[v];
+  }
+
   double getEdgeWeightProperty(TaskEdge e) const
   {
     return edgeWeightProperty_[e];
@@ -204,6 +209,24 @@ public:
 
   /** \brief Copy the sparse graph into a new task graph, and mirror it into two layers */
   void generateTaskSpace(std::size_t indent = 0);
+
+  /** \brief Add a cartesian path into the middle layer of the task dimension */
+  bool addCartPath(std::vector<base::State*> path, std::size_t indent = 0);
+
+  /**
+   * \brief Helper for connecting both sides of a cartesian path into a dual level graph
+   * \param fromVertex - the endpoint (start or goal) we are connecting from the cartesian path to the graph
+   * \param level - what task level we are connecting to - either 0 or 2 (bottom layer or top layer)
+   * \param minConnectorVertex - the vertex on the main graph that has the shortest path to connecting to the
+   * cartesian path (returned value)
+   * \return true on success
+   */
+  bool connectVertexToNeighborsAtLevel(const TaskVertex fromVertex, const VertexLevel level,
+                                      TaskVertex& minConnectorVertex, std::size_t indent);
+
+  /** \brief Get k number of neighbors near a state at a certain level that have valid motions */
+  void getNeighborsAtLevel(const TaskVertex nearVertex, const VertexLevel level, const std::size_t kNeighbors,
+                           std::vector<TaskVertex>& neighbors, std::size_t indent);
 
   /* ---------------------------------------------------------------------------------
    * Error checking
@@ -230,7 +253,7 @@ public:
   /** \brief Disjoint sets analysis tools */
   std::size_t getDisjointSetsCount(bool verbose = false);
   void getDisjointSets(TaskDisjointSetsMap& disjointSets);
-  void printDisjointSets(TaskDisjointSetsMap& disjointSets);
+  void printDisjointSets(TaskDisjointSetsMap& disjointSets, std::size_t indent);
   void visualizeDisjointSets(TaskDisjointSetsMap& disjointSets);
   std::size_t checkConnectedComponents();
   bool sameComponent(TaskVertex v1, TaskVertex v2);
@@ -243,17 +266,14 @@ public:
   StateID addState(base::State* state);
 
   /** \brief Add vertices to graph */
-  TaskVertex addVertex(base::State* state, const VertexType& type, std::size_t level, std::size_t indent);
-  TaskVertex addVertex(StateID stateID, const VertexType& type, std::size_t level, std::size_t indent);
+  TaskVertex addVertex(base::State* state, const VertexType& type, VertexLevel level, std::size_t indent);
+  TaskVertex addVertex(StateID stateID, const VertexType& type, VertexLevel level, std::size_t indent);
 
   /** \brief Remove vertex from graph */
   void removeVertex(TaskVertex v);
 
   /** \brief Cleanup graph because we leave deleted vertices in graph during construction */
   void removeDeletedVertices(std::size_t indent);
-
-  /** \brief Display in viewer */
-  void visualizeVertex(TaskVertex v, const VertexType& type);
 
   /** \brief Add edge to graph */
   TaskEdge addEdge(TaskVertex v1, TaskVertex v2, EdgeType type, std::size_t indent);
@@ -277,12 +297,20 @@ public:
   /** \brief Show in visualizer the task graph */
   void displayDatabase(bool showVertices = false, std::size_t indent = 0);
 
+  /** \brief Display in viewer */
+  void visualizeVertex(TaskVertex v);
+
+  void visualizeEdge(TaskVertex v1, TaskVertex v2);
+
   /* ---------------------------------------------------------------------------------
    * Debug Utilities
    * --------------------------------------------------------------------------------- */
 
   /** \brief Print info to console */
   void debugState(const ompl::base::State* state);
+
+  /** \brief Print info to console */
+  void debugVertex(const TaskVertex v);
 
   /** \brief Print nearest neighbor info to console */
   void debugNN();
@@ -328,7 +356,7 @@ protected:
   /** \brief Access to the SPARS vertex type for the vertices */
   boost::property_map<TaskAdjList, vertex_type_t>::type vertexTypeProperty_;
 
-  /** \brief Access to  */
+  /** \brief Access to corresponding free space TaskVertex, if one exists TODO is this needed? */
   boost::property_map<TaskAdjList, vertex_task_mirror_t>::type vertexTaskMirrorProperty_;
 
   /** \brief Data structure that maintains the connected components */
@@ -347,6 +375,10 @@ protected:
   /** \brief Track if the graph has been modified */
   bool graphUnsaved_ = false;
 
+  /** \brief Remember which cartesian start/goal states should be used for distanceFunction */
+  TaskVertex startConnectorVertex_;
+  TaskVertex endConnectorVertex_;
+
 public:  // user settings from other applications
   /** \brief Visualization speed of astar search, num of seconds to show each vertex */
   bool visualizeAstar_ = false;
@@ -362,7 +394,8 @@ public:  // user settings from other applications
   bool superDebug_ = true;
 
   /** \brief Show the task graph being generated */
-  bool visualizeTaskGraph_ = false;
+  bool visualizeCartPath_ = true;
+  bool visualizeTaskGraph_ = true;
   double visualizeTaskGraphSpeed_ = 0.0;
   bool visualizeDatabaseVertices_ = true;
   bool visualizeDatabaseEdges_ = true;

@@ -284,9 +284,6 @@ public:
   /** \brief Cleanup graph because we leave deleted vertices in graph during construction */
   void removeDeletedVertices(std::size_t indent);
 
-  /** \brief Display in viewer */
-  void visualizeVertex(SparseVertex v, const VertexType& type);
-
   /** \brief Add edge to graph */
   SparseEdge addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent);
 
@@ -322,6 +319,9 @@ public:
   /** \brief Show in visualizer the sparse graph */
   void displayDatabase(bool showVertices = false, std::size_t indent = 0);
 
+  /** \brief Display in viewer */
+  void visualizeVertex(SparseVertex v, const VertexType& type);
+
   /* ---------------------------------------------------------------------------------
    * Sparse Interfaces
    * --------------------------------------------------------------------------------- */
@@ -338,6 +338,9 @@ public:
 
   /** \brief Print info to console */
   void debugState(const ompl::base::State* state);
+
+  /** \brief Print info to console */
+  void debugVertex(const SparseVertex v);
 
   /** \brief Print nearest neighbor info to console */
   void debugNN();

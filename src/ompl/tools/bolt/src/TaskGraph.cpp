@@ -97,6 +97,7 @@ TaskGraph::TaskGraph(SparseGraphPtr sg)
   initializeQueryState();
 
   // Initialize nearest neighbor datastructure
+  // TODO(davetcoleman): do we need to have a separate NN_ structure for the TaskGraph??
   nn_.reset(new NearestNeighborsGNAT<TaskVertex>());
   nn_->setDistanceFunction(boost::bind(&otb::TaskGraph::distanceFunction, this, _1, _2));
 
@@ -235,7 +236,6 @@ bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::
       const TaskVertex v2 = vertexPredecessors[v1];
       if (v1 != v2)
       {
-        // std::cout << "Edge " << v1 << " to " << v2 << std::endl;
         visual_->viz4()->edge(getVertexState(v1), getVertexState(v2), 10);
       }
     }
@@ -349,7 +349,7 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
     const VertexType type = CARTESIAN;  // TODO: remove this, seems meaningless
 
     // Create level 0 vertex
-    std::size_t level = 0;
+    VertexLevel level = 0;
     TaskVertex taskV1 = addVertex(sparseStateID, type, level, indent);
     sparseToTaskVertex1[sparseV] = taskV1;  // record mapping
 
@@ -357,6 +357,10 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
     level = 2;
     TaskVertex taskV2 = addVertex(sparseStateID, type, level, indent);
     sparseToTaskVertex2[sparseV] = taskV2;  // record mapping
+
+    // Link the two vertices to each other for future bookkeeping
+    vertexTaskMirrorProperty_[taskV1] = taskV2;
+    vertexTaskMirrorProperty_[taskV2] = taskV1;
   }
 
   // Loop through every edge in sparse graph and copy twice to task graph
@@ -381,6 +385,184 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
   }
 
   displayDatabase();
+}
+
+bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
+{
+  BOLT_BLUE_DEBUG(indent, true, "addCartPath()");
+  indent += 2;
+
+  // Error check
+  if (path.size() < 2)
+  {
+    OMPL_ERROR("Invalid cartesian path - too few states");
+    return false;
+  }
+  // TODO: check for validity
+
+  // Create verticies for the extremas - start & goal
+  VertexLevel level = 1;  // middle layer
+  TaskVertex startVertex = addVertex(path.front(), CARTESIAN, level, indent);
+  TaskVertex goalVertex = addVertex(path.back(), CARTESIAN, level, indent);
+
+  // Record min cost for cost-to-go heurstic distance function later
+  // distanceAcrossCartesian_ = distanceFunction(startVertex, goalVertex);
+
+  // Connect Start to graph --------------------------------------
+  BOLT_DEBUG(indent, true, "Creating start connector");
+  const VertexLevel level0 = 0;
+  if (!connectVertexToNeighborsAtLevel(startVertex, level0, startConnectorVertex_, indent))
+  {
+    OMPL_ERROR("Failed to connect start of cartesian path");
+    return false;
+  }
+
+  // Connect goal to graph --------------------------------------
+  BOLT_DEBUG(indent, true, "Creating goal connector");
+  const VertexLevel level2 = 2;
+  if (!connectVertexToNeighborsAtLevel(goalVertex, level2, endConnectorVertex_, indent))
+  {
+    OMPL_ERROR("Failed to connect goal of cartesian path");
+    return false;
+  }
+
+  // Add cartesian path to mid level graph --------------------
+  TaskVertex v1 = startVertex;
+  TaskVertex v2;
+  VertexLevel cartLevel = 1;
+  BOLT_DEBUG(indent, true, "Add cartesian path");
+
+  for (std::size_t i = 1; i < path.size(); ++i)
+  {
+
+    // Check if we are on the goal vertex
+    if (i == path.size() - 1)
+    {
+      v2 = goalVertex;  // Do not create the goal vertex twice
+    }
+    else
+    {
+      v2 = addVertex(path[i], CARTESIAN, cartLevel, indent);
+    }
+
+    addEdge(v1, v2, eCARTESIAN, indent);
+    v1 = v2;
+  }
+
+  visual_->viz2()->trigger();
+  usleep(0.001 * 1000000);
+
+  return true;
+}
+
+bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const VertexLevel level,
+                                                TaskVertex &minConnectorVertex, std::size_t indent)
+{
+  BOLT_BLUE_DEBUG(indent, true, "connectVertexToNeighborsAtLevel()");
+  indent += 2;
+
+  // Get nearby states to goal
+  std::vector<TaskVertex> neighbors;
+  const std::size_t kNeighbors = 20;
+  getNeighborsAtLevel(fromVertex, level, kNeighbors, neighbors, indent);
+
+  // Error check
+  if (neighbors.empty())
+  {
+    OMPL_ERROR("No neighbors found when connecting cartesian path");
+    return false;
+  }
+  else if (neighbors.size() < 3)
+  {
+    OMPL_WARN("Only %u neighbors found on level %u", neighbors.size(), level);
+  }
+  else
+    OMPL_INFORM("Found %u neighbors on level %u", neighbors.size(), level);
+
+  // Find the shortest connector out of all the options
+  double minConnectorCost = std::numeric_limits<double>::infinity();
+
+  // Loop through each neighbor
+  foreach (TaskVertex v, neighbors)
+  {
+    // Add edge from nearby graph vertex to cart path goal
+    double connectorCost = distanceFunction(fromVertex, v);
+    addEdge(fromVertex, v, eCARTESIAN, indent);
+
+    // Get min cost connector
+    if (connectorCost < minConnectorCost)
+    {
+      minConnectorCost = connectorCost;  // TODO(davetcoleman): should we save the cost, or just use 1.0?
+      minConnectorVertex = v;
+    }
+
+    // Visualize connection to goal of cartesian path
+    if (true)  // visualizeCartNeighbors_)
+    {
+      visualizeEdge(v, fromVertex);
+      visual_->viz2()->trigger();
+      usleep(0.001 * 1000000);
+    }
+  }
+
+  // Display ---------------------------------------
+  // if (visualizeCartNeighbors_)
+  // visual_->viz2()->trigger();
+
+  return true;
+}
+
+void TaskGraph::getNeighborsAtLevel(const TaskVertex origVertex, const VertexLevel level, const std::size_t kNeighbors,
+                                    std::vector<TaskVertex> &neighbors, std::size_t indent)
+{
+  BOLT_BLUE_DEBUG(indent, true, "getNeighborsAtLevel()");
+  indent += 2;
+
+  if (level == 1)
+    OMPL_ERROR("Unhandled level, does not support 1");
+
+  const std::size_t threadID = 0;
+  base::State *origState = getVertexStateNonConst(origVertex);
+
+  // Get nearby state
+  queryStates_[threadID] = origState;
+  nn_->nearestK(queryVertices_[threadID], kNeighbors, neighbors);
+  queryStates_[threadID] = nullptr;
+
+  // Run various checks
+  for (std::size_t i = 0; i < neighbors.size(); ++i)
+  {
+    TaskVertex nearVertex = neighbors[i];
+
+    // Collision check
+    if (!si_->checkMotion(origState, getVertexState(nearVertex)))  // is not valid motion
+    {
+      BOLT_DEBUG(indent, true, "Skipping neighbor " << nearVertex << ", i=" << i << ", at level="
+                                                    << getVertexTaskLevel(nearVertex) << " because invalid motion");
+      neighbors.erase(neighbors.begin() + i);
+      i--;
+      continue;
+    }
+
+    BOLT_DEBUG(indent, true, "Keeping neighbor " << nearVertex);
+  }
+
+  // Convert our list of neighbors to the proper level
+  if (level == 2)
+  {
+    BOLT_DEBUG(indent, true, "Converting vector of level 0 neighbors to level 2 neighbors");
+
+    for (std::size_t i = 0; i < neighbors.size(); ++i)
+    {
+      TaskVertex nearVertex = neighbors[i];
+
+      // Get the vertex on the opposite level and replace it in the vector
+      TaskVertex newVertex = vertexTaskMirrorProperty_[nearVertex];
+
+      // Replace
+      neighbors[i] = newVertex;
+    }
+  }
 }
 
 void TaskGraph::clearEdgeCollisionStates()
@@ -552,14 +734,14 @@ void TaskGraph::getDisjointSets(TaskDisjointSetsMap &disjointSets)
   }
 }
 
-void TaskGraph::printDisjointSets(TaskDisjointSetsMap &disjointSets)
+void TaskGraph::printDisjointSets(TaskDisjointSetsMap &disjointSets, std::size_t indent)
 {
   OMPL_INFORM("Print disjoint sets");
   for (TaskDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end(); iterator++)
   {
     const TaskVertex v = iterator->first;
     const std::size_t freq = iterator->second.size();
-    std::cout << "  Parent: " << v << " frequency " << freq << std::endl;
+    BOLT_DEBUG(indent, true, "Parent: " << v << " frequency " << freq);
   }
 }
 
@@ -589,9 +771,6 @@ void TaskGraph::visualizeDisjointSets(TaskDisjointSetsMap &disjointSets)
     const TaskVertex v1 = iterator->first;
     const std::size_t freq = iterator->second.size();
 
-    // std::cout << std::endl;
-    // std::cout << "Parent vertex: " << v1 << " StateID: " << getStateID(v1) << " Frequency: " << freq << std::endl;
-    // debugState(getVertexState(v1));
 
     BOOST_ASSERT_MSG(freq > 0, "Frequency must be at least 1");
 
@@ -666,12 +845,12 @@ StateID TaskGraph::addState(base::State *state)
   return denseCache_->addState(state);
 }
 
-TaskVertex TaskGraph::addVertex(base::State *state, const VertexType &type, std::size_t level, std::size_t indent)
+TaskVertex TaskGraph::addVertex(base::State *state, const VertexType &type, VertexLevel level, std::size_t indent)
 {
   return addVertex(addState(state), type, level, indent);
 }
 
-TaskVertex TaskGraph::addVertex(StateID stateID, const VertexType &type, std::size_t level, std::size_t indent)
+TaskVertex TaskGraph::addVertex(StateID stateID, const VertexType &type, VertexLevel level, std::size_t indent)
 {
   // Create vertex
   TaskVertex v = boost::add_vertex(g_);
@@ -686,17 +865,20 @@ TaskVertex TaskGraph::addVertex(StateID stateID, const VertexType &type, std::si
   // Connected component tracking
   disjointSets_.make_set(v);
 
-  // Add vertex to nearest neighbor structure
-  nn_->add(v);
+  // Add vertex to nearest neighbor structure - except only do this for level 0
+  if (level == 0)
+  {
+    nn_->add(v);
+  }
 
   // Visualize
   if (visualizeTaskGraph_)
   {
-    visualizeVertex(v, type);
+    visualizeVertex(v);
 
     if (visualizeTaskGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
-      visual_->viz1()->trigger();
+      visual_->viz2()->trigger();
       usleep(visualizeTaskGraphSpeed_ * 1000000);
     }
   }
@@ -789,49 +971,6 @@ void TaskGraph::removeDeletedVertices(std::size_t indent)
   }
 }
 
-void TaskGraph::visualizeVertex(TaskVertex v, const VertexType &type)
-{
-  tools::VizColors color;
-  tools::VizSizes size;
-
-  switch (type)
-  {
-    case COVERAGE:
-      color = tools::BLACK;
-      size = tools::LARGE;
-      break;
-    case CONNECTIVITY:
-      color = tools::ORANGE;
-      size = tools::LARGE;
-      break;
-    case INTERFACE:
-      color = tools::PINK;
-      size = tools::LARGE;
-      break;
-    case QUALITY:
-      color = tools::BLUE;
-      size = tools::LARGE;
-      break;
-    case DISCRETIZED:
-      color = tools::GREEN;
-      size = tools::LARGE;
-      break;
-    case CARTESIAN:
-      color = tools::GREEN;
-      size = tools::LARGE;
-      break;
-    case START:
-    case GOAL:
-    default:
-      throw Exception(name_, "Unknown type");
-  }
-
-  VertexLevel level = vertexLevelProperty_[v];
-
-  // Show vertex
-  visual_->viz2()->state(getVertexState(v), level, size, color, 0);
-}
-
 TaskEdge TaskGraph::addEdge(TaskVertex v1, TaskVertex v2, EdgeType type, std::size_t indent)
 {
   BOLT_CYAN_DEBUG(indent, vAdd_, "addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
@@ -864,20 +1003,12 @@ TaskEdge TaskGraph::addEdge(TaskVertex v1, TaskVertex v2, EdgeType type, std::si
   // Visualize
   if (visualizeTaskGraph_)
   {
-    visual_->viz1()->edge(getVertexState(v1), getVertexState(v2), BLUE);
+    visualizeEdge(v1, v2);
+
     if (visualizeTaskGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
-      visual_->viz1()->trigger();
+      visual_->viz2()->trigger();
       usleep(visualizeTaskGraphSpeed_ * 1000000);
-    }
-
-    // Show each added edge for a blip
-    if (false)
-    {
-      visual_->viz4()->deleteAllMarkers();
-      visual_->viz4()->edge(getVertexState(v1), getVertexState(v2), BLUE);
-      visual_->viz4()->trigger();
-      usleep(0.001 * 1000000);
     }
   }
 
@@ -946,12 +1077,8 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       TaskVertex v1 = boost::source(e, g_);
       TaskVertex v2 = boost::target(e, g_);
 
-      VertexLevel level1 = vertexLevelProperty_[v1];
-      VertexLevel level2 = vertexLevelProperty_[v2];
-
       // Visualize
-      visual_->viz2()->edge(getVertexState(v1), level1, getVertexState(v2), level2, ompl::tools::MEDIUM,
-                            ompl::tools::BLUE);
+      visualizeEdge(v1, v2);
 
       // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
@@ -995,7 +1122,7 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       }
 
       // Visualize
-      visualizeVertex(v, vertexTypeProperty_[v]);
+      visualizeVertex(v);
 
       // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
@@ -1016,9 +1143,64 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
   usleep(0.001 * 1000000);
 }
 
+void TaskGraph::visualizeVertex(TaskVertex v)
+{
+  tools::VizColors color;
+  tools::VizSizes size;
+
+  VertexLevel level = vertexLevelProperty_[v];
+
+  switch (level)
+  {
+    case 0:
+      color = tools::BLUE;
+      size = tools::LARGE;
+      break;
+    case 1:
+      color = tools::RED;
+      size = tools::LARGE;
+      break;
+    case 2:
+      color = tools::GREEN;
+      size = tools::LARGE;
+      break;
+    default:
+      throw Exception(name_, "Unknown vertex levle");
+  }
+
+  // Show vertex
+  visual_->viz2()->state(getVertexState(v), level, size, color, 0);
+}
+
+void TaskGraph::visualizeEdge(TaskVertex v1, TaskVertex v2)
+{
+  VertexLevel level1 = vertexLevelProperty_[v1];
+  VertexLevel level2 = vertexLevelProperty_[v2];
+  ompl::tools::VizColors color;
+
+  if (level1 == 0 && level2 == 0)
+    color = BLUE;
+  else if (level1 == 1 && level2 == 1)
+    color = RED;
+  else if (level1 == 2 && level2 == 2)
+    color = GREEN;
+  else if (level1 != level2)
+    color = ORANGE;
+  else
+    OMPL_ERROR("Unknown task level combination");
+
+  // Visualize
+  visual_->viz2()->edge(getVertexState(v1), level1, getVertexState(v2), level2, ompl::tools::MEDIUM, color);
+}
+
 void TaskGraph::debugState(const ompl::base::State *state)
 {
   si_->printState(state, std::cout);
+}
+
+void TaskGraph::debugVertex(const TaskVertex v)
+{
+  debugState(getVertexState(v));
 }
 
 void TaskGraph::debugNN()
