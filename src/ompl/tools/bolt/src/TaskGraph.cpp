@@ -338,6 +338,7 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
   std::vector<TaskVertex> sparseToTaskVertex2(sg_->getNumVertices());
 
   // Loop through every vertex in sparse graph and copy twice to task graph
+  BOLT_DEBUG(indent + 2, true, "Adding task space vertices");
   foreach (SparseVertex sparseV, boost::vertices(sg_->getGraph()))
   {
     // The first thread number of verticies are used for queries and should be skipped
@@ -378,6 +379,8 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
     // TaskEdge taskEdge2 =
     addEdge(sparseToTaskVertex2[sparseE_v1], sparseToTaskVertex2[sparseE_v2], type, indent);
   }
+
+  displayDatabase();
 }
 
 void TaskGraph::clearEdgeCollisionStates()
@@ -813,15 +816,20 @@ void TaskGraph::visualizeVertex(TaskVertex v, const VertexType &type)
       color = tools::GREEN;
       size = tools::LARGE;
       break;
+    case CARTESIAN:
+      color = tools::GREEN;
+      size = tools::LARGE;
+      break;
     case START:
     case GOAL:
-    case CARTESIAN:
     default:
       throw Exception(name_, "Unknown type");
   }
 
+  VertexLevel level = vertexLevelProperty_[v];
+
   // Show vertex
-  visual_->viz1()->state(getVertexState(v), size, color, 0);
+  visual_->viz2()->state(getVertexState(v), level, size, color, 0);
 }
 
 TaskEdge TaskGraph::addEdge(TaskVertex v1, TaskVertex v2, EdgeType type, std::size_t indent)
@@ -922,7 +930,7 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
   }
 
   // Clear previous visualization
-  visual_->viz1()->deleteAllMarkers();
+  visual_->viz2()->deleteAllMarkers();
 
   const std::size_t MIN_FEEDBACK = 10000;
   if (visualizeDatabaseEdges_)
@@ -938,15 +946,19 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       TaskVertex v1 = boost::source(e, g_);
       TaskVertex v2 = boost::target(e, g_);
 
+      VertexLevel level1 = vertexLevelProperty_[v1];
+      VertexLevel level2 = vertexLevelProperty_[v2];
+
       // Visualize
-      visual_->viz1()->edge(getVertexState(v1), getVertexState(v2), BLUE);
+      visual_->viz2()->edge(getVertexState(v1), level1, getVertexState(v2), level2, ompl::tools::MEDIUM,
+                            ompl::tools::BLUE);
 
       // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
       {
         std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumEdges()) * 100.0
                   << "% " << std::flush;
-        visual_->viz1()->trigger();
+        visual_->viz2()->trigger();
         usleep(0.01 * 1000000);
       }
 
@@ -990,7 +1002,7 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       {
         std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumVertices()) * 100.0
                   << "% " << std::flush;
-        visual_->viz1()->trigger();
+        visual_->viz2()->trigger();
         // usleep(0.01 * 1000000);
       }
       count++;
@@ -1000,7 +1012,7 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
   }
 
   // Publish remaining edges
-  visual_->viz1()->trigger();
+  visual_->viz2()->trigger();
   usleep(0.001 * 1000000);
 }
 

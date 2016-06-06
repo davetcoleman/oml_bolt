@@ -202,7 +202,8 @@ public:
    * Task Planning
    * --------------------------------------------------------------------------------- */
 
-  void generateTaskSpace(std::size_t indent);
+  /** \brief Copy the sparse graph into a new task graph, and mirror it into two layers */
+  void generateTaskSpace(std::size_t indent = 0);
 
   /* ---------------------------------------------------------------------------------
    * Error checking
