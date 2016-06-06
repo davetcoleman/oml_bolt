@@ -371,10 +371,12 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
     BOOST_ASSERT_MSG(sparseE_v2 >= sg_->getNumQueryVertices(), "Found query vertex in sparse graph that has an edge!");
 
     // Create level 0 edge
-    TaskEdge taskEdge1 = addEdge(sparseToTaskVertex1[sparseE_v1], sparseToTaskVertex1[sparseE_v2], type, indent);
+    //TaskEdge taskEdge1 =
+    addEdge(sparseToTaskVertex1[sparseE_v1], sparseToTaskVertex1[sparseE_v2], type, indent);
 
     // Create level 2 edge
-    TaskEdge taskEdge2 = addEdge(sparseToTaskVertex2[sparseE_v1], sparseToTaskVertex2[sparseE_v2], type, indent);
+    //TaskEdge taskEdge2 =
+    addEdge(sparseToTaskVertex2[sparseE_v1], sparseToTaskVertex2[sparseE_v2], type, indent);
   }
 }
 
@@ -785,8 +787,8 @@ void TaskGraph::removeDeletedVertices(std::size_t indent)
 
 void TaskGraph::visualizeVertex(TaskVertex v, const VertexType &type)
 {
-  tools::colors color;
-  tools::sizes size;
+  tools::VizColors color;
+  tools::VizSizes size;
 
   switch (type)
   {

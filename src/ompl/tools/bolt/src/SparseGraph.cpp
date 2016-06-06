@@ -875,8 +875,8 @@ void SparseGraph::removeDeletedVertices(std::size_t indent)
 
 void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
 {
-  tools::colors color;
-  tools::sizes size;
+  tools::VizColors color;
+  tools::VizSizes size;
 
   switch (type)
   {
@@ -913,7 +913,8 @@ void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
                        sparseCriteria_->sparseDelta_);
 
   // Show vertex
-  visual_->viz1State(getVertexState(v), size, color, 0);
+  //visual_->viz1State(getVertexState(v), size, color, 0);
+  visual_->viz1()->state(getVertexState(v), size, color, 0);
 }
 
 SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent)
@@ -979,7 +980,7 @@ bool SparseGraph::hasEdge(SparseVertex v1, SparseVertex v2)
   return boost::edge(v1, v2, g_).second;
 }
 
-edgeColors SparseGraph::convertEdgeTypeToColor(EdgeType edgeType)
+VizEdgeColors SparseGraph::convertEdgeTypeToColor(EdgeType edgeType)
 {
   switch (edgeType)
   {
