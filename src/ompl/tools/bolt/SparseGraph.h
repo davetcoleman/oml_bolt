@@ -52,7 +52,7 @@
 #include <ompl/tools/bolt/DenseCache.h>
 #include <ompl/tools/bolt/Debug.h>
 #include <ompl/tools/bolt/VertexDiscretizer.h>
-#include <ompl/tools/bolt/BoltStorage.h>
+#include <ompl/tools/bolt/SparseStorage.h>
 
 // Boost
 #include <boost/function.hpp>
@@ -84,7 +84,7 @@ OMPL_CLASS_FORWARD(SparseCriteria);
 /** \brief Near-asypmotically optimal roadmap datastructure */
 class SparseGraph
 {
-  friend class BoltRetrieveRepair;
+  friend class BoltPlanner;
   friend class SparseCriteria;
 
 public:

@@ -44,7 +44,7 @@
 #include <ompl/tools/bolt/TaskGraph.h>
 #include <ompl/tools/bolt/SparseCriteria.h>
 #include <ompl/tools/debug/Visualizer.h>
-#include <ompl/tools/bolt/BoltRetrieveRepair.h>
+#include <ompl/tools/bolt/BoltPlanner.h>
 
 #include <ompl/base/Planner.h>
 #include <ompl/base/PlannerData.h>
@@ -112,18 +112,18 @@ public:
   }
 
   /** \brief Get a pointer to the retrieve repair planner */
-  BoltRetrieveRepairPtr getRetrieveRepairPlanner() const
+  BoltPlannerPtr getBoltPlanner() const
   {
     return boltPlanner_;
   }
 
   /** \brief Set the planner to use for repairing experience paths
-      inside the BoltRetrieveRepair planner. If the planner is not
+      inside the BoltPlanner planner. If the planner is not
       set, a default planner is set. */
   void setRepairPlanner(const base::PlannerPtr &planner)
   {
     // This is required by the parent class but we no longer use this feature
-    // static_cast<BoltRetrieveRepair&>(*boltPlanner_).setRepairPlanner(planner);
+    // static_cast<BoltPlanner&>(*boltPlanner_).setRepairPlanner(planner);
   }
 
   /** \brief Set the planner allocator to use. This is only
@@ -191,7 +191,7 @@ public:
 
 protected:
   /**  The maintained experience planner instance */
-  BoltRetrieveRepairPtr boltPlanner_;
+  BoltPlannerPtr boltPlanner_;
 
   /** \brief The graph that contains a sparse roadmap of the space */
   SparseGraphPtr sparseGraph_;

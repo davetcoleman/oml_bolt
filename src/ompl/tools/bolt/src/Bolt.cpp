@@ -83,7 +83,7 @@ void Bolt::initialize()
   taskGraph_.reset(new TaskGraph(sparseGraph_));
 
   // Load the Retrieve repair database. We do it here so that setRepairPlanner() works
-  boltPlanner_ = BoltRetrieveRepairPtr(new BoltRetrieveRepair(si_, sparseGraph_, visual_));
+  boltPlanner_ = BoltPlannerPtr(new BoltPlanner(si_, taskGraph_, visual_));
 
   std::size_t numThreads = boost::thread::hardware_concurrency();
   OMPL_INFORM("Bolt Framework initialized using %u threads", numThreads);
@@ -106,6 +106,7 @@ void Bolt::setup(void)
     // Setup SPARS
     sparseGraph_->setup();
     sparseCriteria_->setup();
+    taskGraph_->setup();
 
     // Set the configured flag
     configured_ = true;

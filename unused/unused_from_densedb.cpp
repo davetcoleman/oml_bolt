@@ -100,7 +100,7 @@ bool TaskGraph::load()
   // Load
   OMPL_INFORM("Loading database from file: %s", filePath_.c_str());
 
-  BoltStorage storage_(si_, this);
+  SparseStorage storage_(si_, this);
   storage_.load(filePath_.c_str());
 
   // Benchmark
@@ -174,7 +174,7 @@ bool TaskGraph::save()
   time::point start = time::now();
 
   // Save
-  BoltStorage storage_(si_, this);
+  SparseStorage storage_(si_, this);
   storage_.save(filePath_.c_str());
 
   // Save collision cache

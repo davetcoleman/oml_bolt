@@ -172,7 +172,7 @@ bool SparseGraph::load()
   // Benchmark
   time::point start = time::now();
 
-  BoltStorage storage_(si_, this);
+  SparseStorage storage_(si_, this);
   if (!storage_.load(filePath_.c_str()))
     return false;
 
@@ -241,7 +241,7 @@ bool SparseGraph::save()
   time::point start = time::now();
 
   // Save
-  BoltStorage storage_(si_, this);
+  SparseStorage storage_(si_, this);
   storage_.save(filePath_.c_str());
 
   // Save collision cache
@@ -258,7 +258,7 @@ bool SparseGraph::save()
 bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath,
                               double &distance, std::size_t indent)
 {
-  BOLT_BLUE_DEBUG(indent, vSearch_, "astarSearch()");
+  BOLT_CYAN_DEBUG(indent, vSearch_, "astarSearch()");
   indent += 2;
 
   // Hold a list of the shortest path parent to each vertex
@@ -442,7 +442,7 @@ void SparseGraph::clearEdgeCollisionStates()
 
 void SparseGraph::errorCheckDuplicateStates(std::size_t indent)
 {
-  BOLT_BLUE_DEBUG(indent, true, "errorCheckDuplicateStates() - part of super debug");
+  BOLT_CYAN_DEBUG(indent, true, "errorCheckDuplicateStates() - part of super debug");
   bool found = false;
   // Error checking: check for any duplicate states
   for (std::size_t i = 0; i < denseCache_->getStateCacheSize(); ++i)
@@ -494,7 +494,7 @@ bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std:
 
 bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clearance, std::size_t indent)
 {
-  BOLT_BLUE_DEBUG(indent, visualizeQualityPathSimp_, "smoothQualityPath()");
+  BOLT_CYAN_DEBUG(indent, visualizeQualityPathSimp_, "smoothQualityPath()");
   indent += 2;
 
   // Visualize path
@@ -814,7 +814,7 @@ void SparseGraph::removeVertex(SparseVertex v)
 void SparseGraph::removeDeletedVertices(std::size_t indent)
 {
   bool verbose = true;
-  BOLT_BLUE_DEBUG(indent, verbose, "removeDeletedVertices()");
+  BOLT_CYAN_DEBUG(indent, verbose, "removeDeletedVertices()");
   indent += 2;
 
   // Remove all vertices that are set to 0
@@ -1206,7 +1206,7 @@ VertexPair SparseGraph::interfaceDataIndex(SparseVertex vp, SparseVertex vpp)
 
 InterfaceData &SparseGraph::getInterfaceData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent)
 {
-  // BOLT_BLUE_DEBUG(indent, sparseCriteria_->vQuality_, "getInterfaceData() " << v << ", " << vp << ", " << vpp);
+  // BOLT_CYAN_DEBUG(indent, sparseCriteria_->vQuality_, "getInterfaceData() " << v << ", " << vp << ", " << vpp);
   return vertexInterfaceProperty_[v][interfaceDataIndex(vp, vpp)];
 }
 

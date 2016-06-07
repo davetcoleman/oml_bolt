@@ -78,7 +78,7 @@ class TaskGraph
 {
   friend class BoltRetrieveRepair;
   friend class SparseGraph;
-  friend class BoltStorage;
+  friend class SparseStorage;
   friend class DenseCache;
 
 public:
@@ -213,12 +213,12 @@ public:
     return boost::num_edges(g_);
   }
 
-  /** \brief Hook for adding vertices from BoltStorage */
-  // void addVertexFromFile(BoltStorage::PlannerDataVertex *v);
-  void addVertexFromFile(BoltStorage::BoltVertexData v);
+  /** \brief Hook for adding vertices from SparseStorage */
+  // void addVertexFromFile(SparseStorage::PlannerDataVertex *v);
+  void addVertexFromFile(SparseStorage::BoltVertexData v);
 
-  /** \brief Hook for adding edges from BoltStorage */
-  void addEdgeFromFile(BoltStorage::BoltEdgeData e);
+  /** \brief Hook for adding edges from SparseStorage */
+  void addEdgeFromFile(SparseStorage::BoltEdgeData e);
 
   /** \brief Mark the datastructure as needing to be saved to file */
   void setGraphUnsaved()

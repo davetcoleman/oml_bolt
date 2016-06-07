@@ -259,7 +259,7 @@ bool BoltRetrieveRepair::getPathOffGraph(const base::State *start, const base::S
                                          og::PathGeometric &geometricSolution,
                                          const base::PlannerTerminationCondition &ptc)
 {
-  // Attempt to connect to graph x times, because if it failes we start adding samples
+  // Attempt to connect to graph x times, because if it fails we start adding samples
   std::size_t maxAttempts = 2;
   std::size_t attempt = 0;
   for (; attempt < maxAttempts; ++attempt)

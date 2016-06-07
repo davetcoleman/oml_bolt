@@ -37,7 +37,7 @@
 */
 
 // OMPL
-#include <ompl/tools/bolt/BoltStorage.h>
+#include <ompl/tools/bolt/SparseStorage.h>
 #include <ompl/tools/bolt/SparseGraph.h>
 #include <ompl/tools/bolt/BoostGraphHeaders.h>
 
@@ -54,13 +54,13 @@ namespace tools
 {
 namespace bolt
 {
-BoltStorage::BoltStorage(const base::SpaceInformationPtr &si, SparseGraph *sparseGraph)
+SparseStorage::SparseStorage(const base::SpaceInformationPtr &si, SparseGraph *sparseGraph)
   : si_(si), sparseGraph_(sparseGraph)
 {
   numQueryVertices_ = boost::thread::hardware_concurrency();
 }
 
-void BoltStorage::save(const std::string &filePath)
+void SparseStorage::save(const std::string &filePath)
 {
   std::ofstream out(filePath.c_str(), std::ios::binary);
 
@@ -75,7 +75,7 @@ void BoltStorage::save(const std::string &filePath)
   out.close();
 }
 
-void BoltStorage::save(std::ostream &out)
+void SparseStorage::save(std::ostream &out)
 {
   if (!out.good())
   {
@@ -104,7 +104,7 @@ void BoltStorage::save(std::ostream &out)
   }
 }
 
-void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
+void SparseStorage::saveVertices(boost::archive::binary_oarchive &oa)
 {
   const base::StateSpacePtr &space = si_->getStateSpace();
 
@@ -147,7 +147,7 @@ void BoltStorage::saveVertices(boost::archive::binary_oarchive &oa)
   std::cout << std::endl;
 }
 
-void BoltStorage::saveEdges(boost::archive::binary_oarchive &oa)
+void SparseStorage::saveEdges(boost::archive::binary_oarchive &oa)
 {
   std::size_t feedbackFrequency = std::max(10.0, sparseGraph_->getNumEdges() / 10.0);
 
@@ -180,10 +180,10 @@ void BoltStorage::saveEdges(boost::archive::binary_oarchive &oa)
   std::cout << std::endl;
 }
 
-bool BoltStorage::load(const std::string &filePath)
+bool SparseStorage::load(const std::string &filePath)
 {
   OMPL_INFORM("------------------------------------------------");
-  OMPL_INFORM("BoltStorage: Loading Sparse Graph");
+  OMPL_INFORM("SparseStorage: Loading Sparse Graph");
   OMPL_INFORM("Path: %s", filePath.c_str());
 
   // Error checking
@@ -211,7 +211,7 @@ bool BoltStorage::load(const std::string &filePath)
   return result;
 }
 
-bool BoltStorage::load(std::istream &in)
+bool SparseStorage::load(std::istream &in)
 {
   if (!in.good())
   {
@@ -254,7 +254,7 @@ bool BoltStorage::load(std::istream &in)
   return true;
 }
 
-void BoltStorage::loadVertices(unsigned int numVertices, boost::archive::binary_iarchive &ia)
+void SparseStorage::loadVertices(unsigned int numVertices, boost::archive::binary_iarchive &ia)
 {
   OMPL_INFORM("Loading %u vertices from file", numVertices);
 
@@ -287,7 +287,7 @@ void BoltStorage::loadVertices(unsigned int numVertices, boost::archive::binary_
   std::cout << std::endl;
 }
 
-void BoltStorage::loadEdges(unsigned int numEdges, boost::archive::binary_iarchive &ia)
+void SparseStorage::loadEdges(unsigned int numEdges, boost::archive::binary_iarchive &ia)
 {
   OMPL_INFORM("Loading %u edges from file", numEdges);
   std::size_t feedbackFrequency = std::max(10.0, numEdges / 10.0);

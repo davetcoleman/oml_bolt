@@ -153,7 +153,7 @@ void TaskGraph::initializeQueryState()
 bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::vector<TaskVertex> &vertexPath,
                             double &distance, std::size_t indent)
 {
-  BOLT_BLUE_DEBUG(indent, vSearch_, "astarSearch()");
+  BOLT_CYAN_DEBUG(indent, vSearch_, "astarSearch()");
   indent += 2;
 
   // Hold a list of the shortest path parent to each vertex
@@ -330,7 +330,7 @@ bool TaskGraph::isEmpty() const
 
 void TaskGraph::generateTaskSpace(std::size_t indent)
 {
-  BOLT_BLUE_DEBUG(indent, true, "generateTaskSpace()");
+  BOLT_CYAN_DEBUG(indent, true, "generateTaskSpace()");
   indent += 2;
 
   // Record a mapping from SparseVertex to the two TaskVertices
@@ -389,7 +389,7 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
 
 bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
 {
-  BOLT_BLUE_DEBUG(indent, true, "addCartPath()");
+  BOLT_CYAN_DEBUG(indent, true, "addCartPath()");
   indent += 2;
 
   // Error check
@@ -458,7 +458,7 @@ bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
 bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const VertexLevel level,
                                                 TaskVertex &minConnectorVertex, std::size_t indent)
 {
-  BOLT_BLUE_DEBUG(indent, true, "connectVertexToNeighborsAtLevel()");
+  BOLT_CYAN_DEBUG(indent, true, "connectVertexToNeighborsAtLevel()");
   indent += 2;
 
   // Get nearby states to goal
@@ -515,7 +515,7 @@ bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const Ver
 void TaskGraph::getNeighborsAtLevel(const TaskVertex origVertex, const VertexLevel level, const std::size_t kNeighbors,
                                     std::vector<TaskVertex> &neighbors, std::size_t indent)
 {
-  BOLT_BLUE_DEBUG(indent, true, "getNeighborsAtLevel()");
+  BOLT_CYAN_DEBUG(indent, true, "getNeighborsAtLevel()");
   indent += 2;
 
   if (level == 1)
@@ -573,7 +573,7 @@ void TaskGraph::clearEdgeCollisionStates()
 
 void TaskGraph::errorCheckDuplicateStates(std::size_t indent)
 {
-  BOLT_BLUE_DEBUG(indent, true, "errorCheckDuplicateStates() - part of super debug");
+  BOLT_CYAN_DEBUG(indent, true, "errorCheckDuplicateStates() - part of super debug");
   indent += 2;
 
   bool found = false;
@@ -627,7 +627,7 @@ bool TaskGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::s
 
 bool TaskGraph::smoothQualityPath(geometric::PathGeometric *path, double clearance, std::size_t indent)
 {
-  BOLT_BLUE_DEBUG(indent, visualizeQualityPathSimp_, "smoothQualityPath()");
+  BOLT_CYAN_DEBUG(indent, visualizeQualityPathSimp_, "smoothQualityPath()");
   indent += 2;
 
   // Visualize path
@@ -909,7 +909,7 @@ void TaskGraph::removeVertex(TaskVertex v)
 void TaskGraph::removeDeletedVertices(std::size_t indent)
 {
   bool verbose = true;
-  BOLT_BLUE_DEBUG(indent, verbose, "removeDeletedVertices()");
+  BOLT_CYAN_DEBUG(indent, verbose, "removeDeletedVertices()");
   indent += 2;
 
   // Remove all vertices that are set to 0

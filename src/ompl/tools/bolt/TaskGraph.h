@@ -51,7 +51,7 @@
 #include <ompl/tools/bolt/DenseCache.h>
 #include <ompl/tools/bolt/Debug.h>
 #include <ompl/tools/bolt/VertexDiscretizer.h>
-#include <ompl/tools/bolt/BoltStorage.h>
+#include <ompl/tools/bolt/SparseStorage.h>
 #include <ompl/tools/debug/Visualizer.h>
 
 // Boost
@@ -83,7 +83,7 @@ OMPL_CLASS_FORWARD(TaskGraph);
 /** \brief Near-asypmotically optimal roadmap datastructure */
 class TaskGraph
 {
-  friend class BoltRetrieveRepair;
+  friend class BoltPlanner;
 
 public:
   /** \brief Constructor needs the state space used for planning.
@@ -353,10 +353,10 @@ protected:
   /** \brief Access to additional task level dimension at each Vertex */
   boost::property_map<TaskAdjList, vertex_level_t>::type vertexLevelProperty_;
 
-  /** \brief Access to the SPARS vertex type for the vertices */
+  /** \brief Access to type TODO(davetcoleman): needed? */
   boost::property_map<TaskAdjList, vertex_type_t>::type vertexTypeProperty_;
 
-  /** \brief Access to corresponding free space TaskVertex, if one exists TODO is this needed? */
+  /** \brief Access to corresponding free space SparseVertex, if one exists TODO is this needed? */
   boost::property_map<TaskAdjList, vertex_task_mirror_t>::type vertexTaskMirrorProperty_;
 
   /** \brief Data structure that maintains the connected components */

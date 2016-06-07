@@ -34,8 +34,8 @@
 
 /* Author: Dave Coleman */
 
-#ifndef OMPL_GEOMETRIC_PLANNERS_EXPERIENCE_BOLT_BOLT_RETRIEVE_REPAIR_
-#define OMPL_GEOMETRIC_PLANNERS_EXPERIENCE_BOLT_BOLT_RETRIEVE_REPAIR_
+#ifndef OMPL_BOLT_BOLT_RETRIEVE_REPAIR_
+#define OMPL_BOLT_BOLT_RETRIEVE_REPAIR_
 
 #include <ompl/geometric/planners/PlannerIncludes.h>
 #include <ompl/geometric/PathGeometric.h>
@@ -248,4 +248,4 @@ public:
 }  // namespace tools
 }  // namespace ompl
 
-#endif
+#endif // OMPL_BOLT_BOLT_RETRIEVE_REPAIR_

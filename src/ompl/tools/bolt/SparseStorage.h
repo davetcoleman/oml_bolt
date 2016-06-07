@@ -36,8 +36,8 @@
    Desc:   Save and load from file
 */
 
-#ifndef OMPL_TOOLS_BOLT_BOLT_STORAGE_H_
-#define OMPL_TOOLS_BOLT_BOLT_STORAGE_H_
+#ifndef OMPL_TOOLS_BOLT_SPARSE_STORAGE_H_
+#define OMPL_TOOLS_BOLT_SPARSE_STORAGE_H_
 
 #include <iostream>
 #include <fstream>
@@ -62,24 +62,24 @@ namespace tools
 namespace bolt
 {
 /**
-   @anchor BoltStorage
+   @anchor SparseStorage
    @par Short description
 */
 
 /// @cond IGNORE
-OMPL_CLASS_FORWARD(BoltStorage);
+OMPL_CLASS_FORWARD(SparseStorage);
 OMPL_CLASS_FORWARD(SparseGraph);
 /// @endcond
 
-/** \class ompl::tools::bolt::BoltStoragePtr
-    \brief A boost shared pointer wrapper for ompl::tools::bolt::BoltStorage */
+/** \class ompl::tools::bolt::SparseStoragePtr
+    \brief A boost shared pointer wrapper for ompl::tools::bolt::SparseStorage */
 
 static const boost::uint32_t OMPL_PLANNER_DATA_ARCHIVE_MARKER = 0x5044414D;  // this spells PDAM
 
-class BoltStorage
+class SparseStorage
 {
 public:
-  /// \brief Information stored at the beginning of the BoltStorage archive
+  /// \brief Information stored at the beginning of the SparseStorage archive
   struct Header
   {
     /// \brief OMPL specific marker (fixed value)
@@ -137,7 +137,7 @@ public:
   };
 
   /** \brief Constructor */
-  BoltStorage(const base::SpaceInformationPtr &si, SparseGraph *sparseGraph);
+  SparseStorage(const base::SpaceInformationPtr &si, SparseGraph *sparseGraph);
 
   void save(const std::string &filePath);
 
@@ -153,10 +153,10 @@ public:
 
   bool load(std::istream &in);
 
-  /// \brief Read \e numVertices from the binary input \e ia and store them as BoltStorage
+  /// \brief Read \e numVertices from the binary input \e ia and store them as SparseStorage
   void loadVertices(unsigned int numVertices, boost::archive::binary_iarchive &ia);
 
-  /// \brief Read \e numEdges from the binary input \e ia and store them as BoltStorage
+  /// \brief Read \e numEdges from the binary input \e ia and store them as SparseStorage
   void loadEdges(unsigned int numEdges, boost::archive::binary_iarchive &ia);
 
   /// \brief The space information instance for this data.
@@ -166,7 +166,7 @@ public:
 
   /** \brief Based on number of threads system is using */
   std::size_t numQueryVertices_;
-};  // end of class BoltStorage
+};  // end of class SparseStorage
 
 }  // namespace bolt
 }  // namespace tools
