@@ -161,7 +161,7 @@ base::PlannerStatus BoltPlanner::solve(Termination &ptc)
   // Smooth the result
   if (smoothingEnabled_)
   {
-    simplifyPath(geometricSolution, ptc);
+    simplifyPath(geometricSolution, ptc, indent);
   }
 
   // Add more points to path

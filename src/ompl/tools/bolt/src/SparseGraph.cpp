@@ -334,7 +334,7 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
   // Show all predecessors
   if (visualizeAstar_)
   {
-    BOLT_DEBUG(indent + 2, vSearch_, "Show all predecessors");
+    BOLT_DEBUG(indent, vSearch_, "Show all predecessors");
     for (std::size_t i = numThreads_; i < getNumVertices(); ++i)  // skip vertex 0-11 because those are query vertices
     {
       const SparseVertex v1 = i;
@@ -443,6 +443,8 @@ void SparseGraph::clearEdgeCollisionStates()
 void SparseGraph::errorCheckDuplicateStates(std::size_t indent)
 {
   BOLT_CYAN_DEBUG(indent, true, "errorCheckDuplicateStates() - part of super debug");
+  indent += 2;
+
   bool found = false;
   // Error checking: check for any duplicate states
   for (std::size_t i = 0; i < denseCache_->getStateCacheSize(); ++i)
@@ -451,7 +453,7 @@ void SparseGraph::errorCheckDuplicateStates(std::size_t indent)
     {
       if (si_->getStateSpace()->equalStates(getState(i), getState(j)))
       {
-        BOLT_RED_DEBUG(indent + 2, 1, "Found equal state: " << i << ", " << j);
+        BOLT_RED_DEBUG(indent, 1, "Found equal state: " << i << ", " << j);
         debugState(getState(i));
         found = true;
       }
@@ -728,6 +730,7 @@ SparseVertex SparseGraph::addVertex(StateID stateID, const VertexType &type, std
   // Create vertex
   SparseVertex v = boost::add_vertex(g_);
   BOLT_CYAN_DEBUG(indent, vAdd_, "addVertex(): v: " << v << ", stateID: " << stateID << " type " << type);
+  indent += 2;
 
   // Add properties
   vertexTypeProperty_[v] = type;
@@ -832,7 +835,7 @@ void SparseGraph::removeDeletedVertices(std::size_t indent)
 
     if (getStateID(*v) == 0)  // Found vertex to delete
     {
-      BOLT_DEBUG(indent + 2, verbose, "Removing SparseVertex " << *v << " stateID: " << getStateID(*v));
+      BOLT_DEBUG(indent, verbose, "Removing SparseVertex " << *v << " stateID: " << getStateID(*v));
 
       boost::remove_vertex(*v, g_);
       numRemoved++;
@@ -879,6 +882,7 @@ void SparseGraph::removeDeletedVertices(std::size_t indent)
 SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent)
 {
   BOLT_CYAN_DEBUG(indent, vAdd_, "addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
+  indent += 2;
 
   if (superDebug_)  // Extra checks
   {
@@ -1214,7 +1218,6 @@ void SparseGraph::debugState(const ompl::base::State *state)
 {
   si_->printState(state, std::cout);
 }
-
 
 void SparseGraph::debugVertex(const SparseVertex v)
 {

@@ -88,7 +88,7 @@ public:
   virtual ~BoltPlanner(void);
 
   /** \brief Wrapper function to show good user feedback while smoothing a path */
-  bool simplifyPath(geometric::PathGeometric &path, Termination &ptc, std::size_t indent = 0);
+  bool simplifyPath(geometric::PathGeometric &path, Termination &ptc, std::size_t indent);
 
   /** \brief Get information about the exploration data structure the planning from scratch motion planner used. */
   //virtual void getPlannerData(base::PlannerData &data) const;

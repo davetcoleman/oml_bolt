@@ -266,8 +266,8 @@ void Bolt::logResults()
         exit(-1);
 
       // Check optimality
-      if (!checkOptimalityGuarantees())
-        exit(-1);
+      //if (!checkOptimalityGuarantees())
+      //exit(-1);
 
       // Stats
       stats_.numSolutionsFromRecall_++;

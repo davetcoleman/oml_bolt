@@ -109,21 +109,6 @@ TaskGraph::~TaskGraph()
   freeMemory();
 }
 
-void TaskGraph::freeMemory()
-{
-  foreach (TaskVertex v, boost::vertices(g_))
-  {
-    if (vertexStateProperty_[v] != nullptr)
-      si_->freeState(vertexStateProperty_[v]);
-    vertexStateProperty_[v] = nullptr;  // TODO(davetcoleman): is this needed??
-  }
-
-  g_.clear();
-
-  if (nn_)
-    nn_->clear();
-}
-
 bool TaskGraph::setup()
 {
   // Initialize path simplifier
@@ -134,6 +119,28 @@ bool TaskGraph::setup()
   }
 
   return true;
+}
+
+void TaskGraph::clear()
+{
+  freeMemory();
+  initializeQueryState();
+
+  graphUnsaved_ = false;
+  taskPlanningEnabled_ = false;
+}
+
+void TaskGraph::freeMemory()
+{
+  foreach (TaskVertex v, boost::vertices(g_))
+  {
+    if (vertexStateProperty_[v] != nullptr)
+      si_->freeState(vertexStateProperty_[v]);
+    vertexStateProperty_[v] = nullptr;  // TODO(davetcoleman): is this needed??
+  }
+
+  g_.clear();
+  nn_->clear();
 }
 
 void TaskGraph::initializeQueryState()
@@ -336,8 +343,15 @@ bool TaskGraph::isEmpty() const
 
 void TaskGraph::generateTaskSpace(std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, true, "generateTaskSpace()");
+  BOLT_CYAN_DEBUG(indent, verbose_, "generateTaskSpace()");
   indent += 2;
+
+  // Clear pre-existing graphs
+  if (!isEmpty())
+  {
+    BOLT_DEBUG(indent, verbose_, "clearing previous graph");
+    clear();
+  }
 
   // Record a mapping from SparseVertex to the two TaskVertices
   std::vector<TaskVertex> sparseToTaskVertex1(sg_->getNumVertices());
@@ -352,7 +366,7 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
       continue;
 
     //const StateID sparseStateID = sg_->getStateID(sparseV);
-    const VertexType type = CARTESIAN;  // TODO: remove this, seems meaningless
+    const VertexType type = DISCRETIZED;  // TODO: remove this, seems meaningless
     const base::State* state = sg_->getVertexState(sparseV);
 
     // Create level 0 vertex
@@ -391,12 +405,13 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
     addEdge(sparseToTaskVertex2[sparseE_v1], sparseToTaskVertex2[sparseE_v2], type, indent);
   }
 
+  // Visualize
   displayDatabase();
 }
 
 bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, true, "addCartPath()");
+  BOLT_CYAN_DEBUG(indent, verbose_, "addCartPath()");
   indent += 2;
 
   // Error check
@@ -407,6 +422,9 @@ bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
   }
   // TODO: check for validity
 
+  // Clear previous cartesian path
+  clearCartesianVertices(indent);
+
   // Create verticies for the extremas - start & goal
   VertexLevel level = 1;  // middle layer
   TaskVertex startVertex = addVertex(path.front(), CARTESIAN, level, indent);
@@ -416,7 +434,7 @@ bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
   // distanceAcrossCartesian_ = distanceFunction(startVertex, goalVertex);
 
   // Connect Start to graph --------------------------------------
-  BOLT_DEBUG(indent, true, "Creating start connector");
+  BOLT_DEBUG(indent, verbose_, "Creating start connector");
   const VertexLevel level0 = 0;
   if (!connectVertexToNeighborsAtLevel(startVertex, level0, startConnectorVertex_, indent))
   {
@@ -425,7 +443,7 @@ bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
   }
 
   // Connect goal to graph --------------------------------------
-  BOLT_DEBUG(indent, true, "Creating goal connector");
+  BOLT_DEBUG(indent, verbose_, "Creating goal connector");
   const VertexLevel level2 = 2;
   if (!connectVertexToNeighborsAtLevel(goalVertex, level2, endConnectorVertex_, indent))
   {
@@ -437,7 +455,7 @@ bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
   TaskVertex v1 = startVertex;
   TaskVertex v2;
   VertexLevel cartLevel = 1;
-  BOLT_DEBUG(indent, true, "Add cartesian path");
+  BOLT_DEBUG(indent, verbose_, "Add cartesian path");
 
   for (std::size_t i = 1; i < path.size(); ++i)
   {
@@ -456,19 +474,88 @@ bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
     v1 = v2;
   }
 
-  visual_->viz2()->trigger();
-  usleep(0.001 * 1000000);
-
   // Tell the planner to require task planning
   taskPlanningEnabled_ = true;
 
   return true;
 }
 
+void TaskGraph::clearCartesianVertices(std::size_t indent)
+{
+  BOLT_CYAN_DEBUG(indent, verbose_, "removeDeletedVertices()");
+  indent += 2;
+
+  // Remove all vertices that are of type CARTESIAN
+  std::size_t numRemoved = 0;
+
+  // Iterate manually through graph
+  typedef boost::graph_traits<TaskAdjList>::vertex_iterator VertexIterator;
+  for (VertexIterator v = boost::vertices(g_).first; v != boost::vertices(g_).second; /* manual */)
+  {
+    if (*v < getNumQueryVertices())  // Skip query vertices
+    {
+      v++;
+      continue;
+    }
+
+    if (getVertexTypeProperty(*v) == CARTESIAN)  // Found vertex to delete
+    {
+      BOLT_DEBUG(indent, verbose_, "Removing CARTESIAN TaskVertex " << *v);
+
+      boost::clear_vertex(*v, g_); // delete the edges
+      boost::remove_vertex(*v, g_);
+
+      numRemoved++;
+    }
+    else  // only proceed if no deletion happened
+    {
+      // BOLT_DEBUG(indent, verbose_, "Checking TaskVertex " << *v << " stateID: " << getStateID(*v));
+      v++;
+    }
+  }
+  BOLT_DEBUG(indent, verbose_, "Removed " << numRemoved << " vertices from graph of type CARTESIAN");
+
+  if (numRemoved == 0)
+  {
+    BOLT_DEBUG(indent, verbose_, "No verticies deleted, skipping resetting NN and disjointSets");
+    return;
+  }
+
+  // Reset the nearest neighbor tree
+  nn_->clear();
+
+  // Reset disjoint sets
+  disjointSets_ = TaskDisjointSetType(boost::get(boost::vertex_rank, g_), boost::get(boost::vertex_predecessor, g_));
+
+  // Reinsert vertices into nearest neighbor
+  foreach (TaskVertex v, boost::vertices(g_))
+  {
+    if (v < numThreads_)  // Skip the query vertices
+      continue;
+
+    if (getTaskLevel(v) == 0)
+      nn_->add(v);
+
+    disjointSets_.make_set(v);
+  }
+
+  // Reinsert edges into disjoint sets
+  foreach (TaskEdge e, boost::edges(g_))
+  {
+    TaskVertex v1 = boost::source(e, g_);
+    TaskVertex v2 = boost::target(e, g_);
+    disjointSets_.union_set(v1, v2);
+  }
+
+  // Clear the visualization and redisplay
+  bool showVertices = true;
+  displayDatabase(showVertices, indent);
+}
+
 bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const VertexLevel level,
                                                 TaskVertex &minConnectorVertex, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, true, "connectVertexToNeighborsAtLevel()");
+  BOLT_CYAN_DEBUG(indent, verbose_, "connectVertexToNeighborsAtLevel()");
   indent += 2;
 
   // Get nearby states to goal
@@ -479,15 +566,15 @@ bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const Ver
   // Error check
   if (neighbors.empty())
   {
-    BOLT_RED_DEBUG(indent, true, "No neighbors found when connecting cartesian path");
+    BOLT_RED_DEBUG(indent, verbose_, "No neighbors found when connecting cartesian path");
     return false;
   }
   else if (neighbors.size() < 3)
   {
-    BOLT_DEBUG(indent, true, "Only found " << neighbors.size() << " neighbors on level " << level);
+    BOLT_DEBUG(indent, verbose_, "Only found " << neighbors.size() << " neighbors on level " << level);
   }
   else
-    BOLT_DEBUG(indent, true, "Found " << neighbors.size() << " neighbors on level " << level);
+    BOLT_DEBUG(indent, verbose_, "Found " << neighbors.size() << " neighbors on level " << level);
 
   // Find the shortest connector out of all the options
   double minConnectorCost = std::numeric_limits<double>::infinity();
@@ -505,19 +592,7 @@ bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const Ver
       minConnectorCost = connectorCost;  // TODO(davetcoleman): should we save the cost, or just use 1.0?
       minConnectorVertex = v;
     }
-
-    // Visualize connection to goal of cartesian path
-    if (true)  // visualizeCartNeighbors_)
-    {
-      visualizeEdge(v, fromVertex);
-      visual_->viz2()->trigger();
-      usleep(0.001 * 1000000);
-    }
   }
-
-  // Display ---------------------------------------
-  // if (visualizeCartNeighbors_)
-  // visual_->viz2()->trigger();
 
   return true;
 }
@@ -525,7 +600,7 @@ bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const Ver
 void TaskGraph::getNeighborsAtLevel(const TaskVertex origVertex, const VertexLevel level, const std::size_t kNeighbors,
                                     std::vector<TaskVertex> &neighbors, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, true, "getNeighborsAtLevel()");
+  BOLT_CYAN_DEBUG(indent, verbose_, "getNeighborsAtLevel()");
   indent += 2;
 
   if (level == 1)
@@ -547,20 +622,20 @@ void TaskGraph::getNeighborsAtLevel(const TaskVertex origVertex, const VertexLev
     // Collision check
     if (!si_->checkMotion(origState, getVertexState(nearVertex)))  // is not valid motion
     {
-      BOLT_DEBUG(indent, true, "Skipping neighbor " << nearVertex << ", i=" << i << ", at level="
+      BOLT_DEBUG(indent, verbose_, "Skipping neighbor " << nearVertex << ", i=" << i << ", at level="
                                                     << getTaskLevel(nearVertex) << " because invalid motion");
       neighbors.erase(neighbors.begin() + i);
       i--;
       continue;
     }
 
-    BOLT_DEBUG(indent, true, "Keeping neighbor " << nearVertex);
+    BOLT_DEBUG(indent, verbose_, "Keeping neighbor " << nearVertex);
   }
 
   // Convert our list of neighbors to the proper level
   if (level == 2)
   {
-    BOLT_DEBUG(indent, true, "Converting vector of level 0 neighbors to level 2 neighbors");
+    BOLT_DEBUG(indent, verbose_, "Converting vector of level 0 neighbors to level 2 neighbors");
 
     for (std::size_t i = 0; i < neighbors.size(); ++i)
     {
@@ -583,7 +658,7 @@ void TaskGraph::clearEdgeCollisionStates()
 
 void TaskGraph::errorCheckDuplicateStates(std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, true, "errorCheckDuplicateStates() - part of super debug");
+  BOLT_CYAN_DEBUG(indent, verbose_, "errorCheckDuplicateStates() - part of super debug");
   indent += 2;
 
   bool found = false;
@@ -751,7 +826,7 @@ void TaskGraph::printDisjointSets(TaskDisjointSetsMap &disjointSets, std::size_t
   {
     const TaskVertex v = iterator->first;
     const std::size_t freq = iterator->second.size();
-    BOLT_DEBUG(indent, true, "Parent: " << v << " frequency " << freq);
+    BOLT_DEBUG(indent, verbose_, "Parent: " << v << " frequency " << freq);
   }
 }
 
@@ -941,7 +1016,7 @@ void TaskGraph::removeDeletedVertices(std::size_t indent)
 
     if (getState(*v) == NULL)  // Found vertex to delete
     {
-      BOLT_DEBUG(indent + 2, verbose, "Removing TaskVertex " << *v << " state: " << getState(*v));
+      BOLT_DEBUG(indent, verbose, "Removing TaskVertex " << *v << " state: " << getState(*v));
 
       boost::remove_vertex(*v, g_);
       numRemoved++;
@@ -1127,7 +1202,7 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       // Check for null states
       if (!getVertexState(v))
       {
-        BOLT_RED_DEBUG(indent, true, "Null vertex found: " << v);
+        BOLT_RED_DEBUG(indent, verbose_, "Null vertex found: " << v);
         continue;
       }
 

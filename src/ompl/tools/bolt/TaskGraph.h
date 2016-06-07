@@ -124,11 +124,14 @@ public:
     return visual_;
   }
 
-  /** \brief Free all the memory allocated by the database */
-  void freeMemory();
-
   /** \brief Initialize database */
   bool setup();
+
+  /** \brief Reset the graph to be planned on again */
+  void clear();
+
+  /** \brief Free all the memory allocated by the database */
+  void freeMemory();
 
   /* ---------------------------------------------------------------------------------
    * Astar search
@@ -231,10 +234,13 @@ public:
    * --------------------------------------------------------------------------------- */
 
   /** \brief Copy the sparse graph into a new task graph, and mirror it into two layers */
-  void generateTaskSpace(std::size_t indent = 0);
+  void generateTaskSpace(std::size_t indent);
 
   /** \brief Add a cartesian path into the middle layer of the task dimension */
-  bool addCartPath(std::vector<base::State*> path, std::size_t indent = 0);
+  bool addCartPath(std::vector<base::State*> path, std::size_t indent);
+
+  /** \brief Remove all vertices associated with a cartesian path */
+  void clearCartesianVertices(std::size_t indent);
 
   /**
    * \brief Helper for connecting both sides of a cartesian path into a dual level graph
@@ -341,6 +347,7 @@ public:
   void debugNN();
 
 protected:
+
   /** \brief Short name of this class */
   const std::string name_ = "TaskGraph";
 
@@ -414,17 +421,17 @@ public:  // user settings from other applications
   bool vVisualize_ = false;
   bool vAdd_ = false;  // message when adding edges and vertices
   bool vSearch_ = false;
+  bool verbose_ = true; // general verbosity level for everything else
 
   /** \brief Run with extra safety checks */
   bool superDebug_ = true;
 
   /** \brief Show the task graph being generated */
-  bool visualizeCartPath_ = true;
+  bool visualizeCartPath_ = false;
   bool visualizeTaskGraph_ = true;
   double visualizeTaskGraphSpeed_ = 0.0;
   bool visualizeDatabaseVertices_ = true;
   bool visualizeDatabaseEdges_ = true;
-  bool visualizeDatabaseCoverage_ = true;
 
 };  // end class TaskGraph
 
