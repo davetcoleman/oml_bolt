@@ -170,6 +170,8 @@ void Bolt::visualize()
       visual_->viz6()->trigger();
     }
   }
+  OMPL_WARN("disabled visualize smooth");
+  return;
 
   geometric::PathGeometric *solutionPath = static_cast<geometric::PathGeometric *>(pdef_->getSolutionPath().get());
 
@@ -210,7 +212,7 @@ bool Bolt::checkOptimalityGuarantees(std::size_t indent)
   BOLT_YELLOW_DEBUG(indent + 2, 1, "Percent of max allowed:  " << percentOfMaxAllows << " %");
   BOLT_DEBUG(indent, 1, "-----------------------------------------");
 
-  visual_->waitForUserFeedback("review results");
+  //visual_->waitForUserFeedback("review results");
 
   return true;
 }

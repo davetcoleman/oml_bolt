@@ -190,11 +190,6 @@ public:
     return vertexTypeProperty_[v];
   }
 
-  VertexLevel getVertexTaskLevel(TaskVertex v) const
-  {
-    return vertexLevelProperty_[v];
-  }
-
   double getEdgeWeightProperty(TaskEdge e) const
   {
     return edgeWeightProperty_[e];
@@ -202,6 +197,34 @@ public:
 
   /** \brief Determine if no nodes or edges have been added to the graph except query vertices */
   bool isEmpty() const;
+
+  /* ---------------------------------------------------------------------------------
+   * Get/Set Task Level
+   * --------------------------------------------------------------------------------- */
+  inline int getTaskLevel(const TaskVertex v) const
+  {
+    return si_->getStateSpace()->getLevel(vertexStateProperty_[v]);
+  }
+
+  inline int getTaskLevel(const base::State* state) const
+  {
+    return si_->getStateSpace()->getLevel(state);
+  }
+
+  inline void setVertexTaskLevel(TaskVertex v, int level)
+  {
+    si_->getStateSpace()->setLevel(vertexStateProperty_[v], level);
+  }
+
+  inline void setStateTaskLevel(base::State* state, int level)
+  {
+    si_->getStateSpace()->setLevel(state, level);
+  }
+
+  bool taskPlanningEnabled()
+  {
+    return taskPlanningEnabled_;
+  }
 
   /* ---------------------------------------------------------------------------------
    * Task Planning
@@ -265,8 +288,10 @@ public:
   /** \brief Add a state to the DenseCache */
   StateID addState(base::State* state);
 
-  /** \brief Add vertices to graph */
+  /** \brief Add vertices to graph. The state passed in will be owned by the AdjList graph */
   TaskVertex addVertex(base::State* state, const VertexType& type, VertexLevel level, std::size_t indent);
+
+  /** \brief Add vertices to graph. The state referenced by stateID will be cloned */
   TaskVertex addVertex(StateID stateID, const VertexType& type, VertexLevel level, std::size_t indent);
 
   /** \brief Remove vertex from graph */
@@ -348,10 +373,7 @@ protected:
   TaskEdgeCollisionStateMap edgeCollisionStatePropertyTask_;
 
   /** \brief Access to the internal base::state at each Vertex */
-  boost::property_map<TaskAdjList, vertex_state_cache_t>::type vertexStateProperty_;
-
-  /** \brief Access to additional task level dimension at each Vertex */
-  boost::property_map<TaskAdjList, vertex_level_t>::type vertexLevelProperty_;
+  boost::property_map<TaskAdjList, vertex_state_t>::type vertexStateProperty_;
 
   /** \brief Access to type TODO(davetcoleman): needed? */
   boost::property_map<TaskAdjList, vertex_type_t>::type vertexTypeProperty_;
@@ -378,6 +400,9 @@ protected:
   /** \brief Remember which cartesian start/goal states should be used for distanceFunction */
   TaskVertex startConnectorVertex_;
   TaskVertex endConnectorVertex_;
+
+  /** \brief Flag if we are in task planning mode or not. If false, just plan in free space mode */
+  bool taskPlanningEnabled_ = false;
 
 public:  // user settings from other applications
   /** \brief Visualization speed of astar search, num of seconds to show each vertex */

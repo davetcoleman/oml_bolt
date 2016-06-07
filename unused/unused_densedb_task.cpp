@@ -5,9 +5,6 @@ double distanceFunctionTasks(const TaskVertex a, const TaskVertex b) const;
 bool checkTaskPathSolution(geometric::PathGeometric &path, base::State *start, base::State *goal);
 
 
-/** \brief Testing code for integrating Decartes */
-bool addCartPath(std::vector<base::State *> path);
-
 double TaskGraph::distanceFunctionTasks(const TaskVertex a, const TaskVertex b) const
 {
   // Do not use task distance if that mode is not enabled

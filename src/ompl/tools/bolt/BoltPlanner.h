@@ -69,6 +69,8 @@ OMPL_CLASS_FORWARD(TaskGraph);
 /** \class ompl::base::BoltPlannerPtr
     \brief A boost shared pointer wrapper for ompl::base::BoltPlanner */
 
+typedef const base::PlannerTerminationCondition Termination;
+
 /**
    @anchor BoltPlanner
    @par Short description
@@ -86,10 +88,10 @@ public:
   virtual ~BoltPlanner(void);
 
   /** \brief Wrapper function to show good user feedback while smoothing a path */
-  bool simplifyPath(geometric::PathGeometric &path, const base::PlannerTerminationCondition &ptc);
+  bool simplifyPath(geometric::PathGeometric &path, Termination &ptc, std::size_t indent = 0);
 
   /** \brief Get information about the exploration data structure the planning from scratch motion planner used. */
-  virtual void getPlannerData(base::PlannerData &data) const;
+  //virtual void getPlannerData(base::PlannerData &data) const;
 
   /**
    *  \brief Get debug information about the top recalled paths that were chosen for further filtering
@@ -107,10 +109,10 @@ public:
    * \brief Get the chosen path used from database for repair
    * \return PlannerData of chosen path
    */
-  const geometric::PathGeometric &getChosenRecallPath() const;
+  //const geometric::PathGeometric &getChosenRecallPath() const;
 
   /** \brief Main entry function for finding a path plan */
-  virtual base::PlannerStatus solve(const base::PlannerTerminationCondition &ptc);
+  virtual base::PlannerStatus solve(Termination &ptc);
 
   /** \brief Clear memory */
   virtual void clear(void);
@@ -137,10 +139,10 @@ public:
    * \return
    */
   bool getPathOffGraph(const base::State *start, const base::State *goal, geometric::PathGeometric &geometricSolution,
-                       const base::PlannerTerminationCondition &ptc, std::size_t indent);
+                       Termination &ptc, std::size_t indent);
 
   /** \brief Clear verticies not on the specified level */
-  bool removeVerticesNotOnLevel(std::vector<bolt::TaskVertex> &graphNeighborhood, int level);
+  bool removeVerticesNotOnLevel(std::vector<bolt::TaskVertex> &neighbors, int level);
 
   /**
    * \brief Convert astar results to correctly ordered path
@@ -156,12 +158,12 @@ public:
   /**
    * \brief Finds nodes in the graph near state NOTE: note tested for visibility
    * \param state - vertex to find neighbors around
-   * \param graphNeighborhood - result vector
+   * \param neighbors - result vector
    * \param requiredLevel - if -1, allows states from all levels, otherwise only returns states from a certain level
    * \return false is no neighbors found
    */
-  bool findGraphNeighbors(const base::State *state, std::vector<bolt::TaskVertex> &graphNeighborhood,
-                          int requiredLevel = -1);
+  bool findGraphNeighbors(const base::State *state, std::vector<bolt::TaskVertex> &neighbors,
+                          int requiredLevel = -1, std::size_t indent = 0);
 
   /** \brief Check if there exists a solution, i.e., there exists a pair of milestones such that the
    *   first is in \e start and the second is in \e goal, and the two milestones are in the same
@@ -173,7 +175,7 @@ public:
   bool getPathOnGraph(const std::vector<bolt::TaskVertex> &candidateStarts,
                       const std::vector<bolt::TaskVertex> &candidateGoals, const base::State *actualStart,
                       const base::State *actualGoal, geometric::PathGeometric &geometricSolution,
-                      const base::PlannerTerminationCondition &ptc, bool debug, bool &feedbackStartFailed, std::size_t indent);
+                      Termination &ptc, bool debug, bool &feedbackStartFailed, std::size_t indent);
 
   /**
    * \brief Repeatidly search through graph for connection then check for collisions then repeat
@@ -181,15 +183,13 @@ public:
    */
   bool lazyCollisionSearch(const bolt::TaskVertex &start, const bolt::TaskVertex &goal,
                            const base::State *actualStart, const base::State *actualGoal,
-                           geometric::PathGeometric &geometricSolution, const base::PlannerTerminationCondition &ptc, std::size_t indent);
+                           geometric::PathGeometric &geometricSolution, Termination &ptc, std::size_t indent);
 
   /** \brief Check recalled path for collision and disable as needed */
-  bool lazyCollisionCheck(std::vector<bolt::TaskVertex> &vertexPath, const base::PlannerTerminationCondition &ptc, std::size_t indent);
+  bool lazyCollisionCheck(std::vector<bolt::TaskVertex> &vertexPath, Termination &ptc, std::size_t indent);
 
   /** \brief Test if the passed in random state can connect to a nearby vertex in the graph */
-  bool canConnect(const base::State *randomState, const base::PlannerTerminationCondition &ptc);
-
-  // bool astarSearch(const TaskVertex start, const TaskVertex goal, std::vector<TaskVertex> &vertexPath);
+  //bool canConnect(const base::State *randomState, Termination &ptc, std::size_t indent);
 
   TaskGraphPtr getTaskGraph()
   {
@@ -208,7 +208,7 @@ protected:
    *        I am more inclined to try to compute the percent of the length of the motion that is valid.
    *        That could go in SpaceInformation, as a utility function.
    */
-  std::size_t checkMotionScore(const base::State *s1, const base::State *s2) const;
+  //std::size_t checkMotionScore(const base::State *s1, const base::State *s2) const;
 
   /** \brief The database of motions to search through */
   TaskGraphPtr taskGraph_;

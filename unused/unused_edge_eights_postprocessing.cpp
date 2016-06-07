@@ -1,30 +1,3 @@
-/** \brief Set the file path to load/save to/from */
-void setFilePath(const std::string &filePath)
-{
-  filePath_ = filePath;
-}
-
-/**
- * \brief Load database from file
- * \param fileName - name of database file
- * \return true if file loaded successfully
- */
-bool load();
-
-/**
- * \brief Save loaded database to file, except skips saving if no paths have been added
- * \param fileName - name of database file
- * \return true if file saved successfully
- */
-bool saveIfChanged();
-
-/**
- * \brief Save loaded database to file
- * \param fileName - name of database file
- * \return true if file saved successfully
- */
-bool save();
-
 /**
  * \brief Add a new solution path to our database. Des not actually save to file so
  *        experience will be lost if save() is not called
@@ -57,7 +30,6 @@ bool recurseSnapWaypoints(ompl::geometric::PathGeometric &inputPath, std::vector
 /** \brief Keep graph evenly weighted */
 void normalizeGraphEdgeWeights();
 
-void removeVertex(TaskVertex v);
 
 /** \brief Check that all states are the correct type */
 void checkStateType();
@@ -72,121 +44,6 @@ void connectNewVertex(TaskVertex denseV);
 
 void removeInvalidVertices();
 
-bool TaskGraph::load()
-{
-  OMPL_INFORM("TaskGraph: load()");
-
-  // Error checking
-  if (getNumEdges() > queryVertices_.size() ||
-      getNumVertices() > queryVertices_.size())  // the search verticie may already be there
-  {
-    OMPL_INFORM("Database is not empty, unable to load from file");
-    return true;
-  }
-  if (filePath_.empty())
-  {
-    OMPL_ERROR("Empty filename passed to save function");
-    return false;
-  }
-  if (!boost::filesystem::exists(filePath_))
-  {
-    OMPL_INFORM("Database file does not exist: %s.", filePath_.c_str());
-    return false;
-  }
-
-  // Benchmark
-  time::point start = time::now();
-
-  // Load
-  OMPL_INFORM("Loading database from file: %s", filePath_.c_str());
-
-  SparseStorage storage_(si_, this);
-  storage_.load(filePath_.c_str());
-
-  // Benchmark
-  double duration = time::seconds(time::now() - start);
-
-  // Load collision cache
-  denseCache_->load();
-
-  // Visualize
-  // visual_->viz1()->trigger();
-  // usleep(0.1 * 1000000);
-
-  // Error check
-  if (!getNumVertices() || !getNumEdges())
-  {
-    OMPL_ERROR("Corrupted planner data loaded, skipping building graph");
-    return false;
-  }
-
-  // Get the average vertex degree (number of connected edges)
-  double averageDegree = (getNumEdges() * 2) / static_cast<double>(getNumVertices());
-
-  // Check how many disjoint sets are in the dense graph (should be none)
-  std::size_t numSets = checkConnectedComponents();
-
-  OMPL_INFORM("------------------------------------------------------");
-  OMPL_INFORM("Loaded graph stats:");
-  OMPL_INFORM("   Total valid vertices:   %u", getNumVertices());
-  OMPL_INFORM("   Total valid edges:      %u", getNumEdges());
-  OMPL_INFORM("   Average degree:         %f", averageDegree);
-  OMPL_INFORM("   Connected Components:   %u", numSets);
-  OMPL_INFORM("   Loading time:           %f", duration);
-  OMPL_INFORM("------------------------------------------------------");
-
-  return true;
-}
-
-bool TaskGraph::saveIfChanged()
-{
-  if (graphUnsaved_)
-  {
-    return save();
-  }
-  else
-    OMPL_INFORM("Not saving because database has not changed");
-  return true;
-}
-
-bool TaskGraph::save()
-{
-  if (!graphUnsaved_)
-    OMPL_WARN("No need to save because graphUnsaved_ is false, but saving anyway because requested");
-
-  // Disabled
-  if (!savingEnabled_)
-  {
-    OMPL_INFORM("Not saving because option disabled for TaskGraph");
-    return false;
-  }
-
-  // Error checking
-  if (filePath_.empty())
-  {
-    OMPL_ERROR("Empty filename passed to save function");
-    return false;
-  }
-
-  OMPL_INFORM("Saving with %d vertices and %d edges to: %s", getNumVertices(), getNumEdges(), filePath_.c_str());
-
-  // Benchmark
-  time::point start = time::now();
-
-  // Save
-  SparseStorage storage_(si_, this);
-  storage_.save(filePath_.c_str());
-
-  // Save collision cache
-  denseCache_->save();
-
-  // Benchmark
-  double loadTime = time::seconds(time::now() - start);
-  OMPL_INFORM("Saved database to file in %f sec", loadTime);
-
-  graphUnsaved_ = false;
-  return true;
-}
 
 bool TaskGraph::postProcessPath(og::PathGeometric &solutionPath)
 {

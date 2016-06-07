@@ -270,13 +270,12 @@ typedef boost::property_map<SparseAdjList, edge_collision_state_t>::type SparseE
 
 /** Wrapper for the vertex's multiple as its property. */
 // clang-format off
-typedef boost::property<vertex_state_cache_t, VertexIndexType, // State
-        boost::property<vertex_level_t, VertexLevel, // An extra dimension for task level
+typedef boost::property<vertex_state_t, base::State*, // State
         boost::property<boost::vertex_predecessor_t, VertexIndexType, // Disjoint Sets
         boost::property<boost::vertex_rank_t, VertexIndexType, // Disjoint Sets
         boost::property<vertex_type_t, VertexType, // Task Type TODO is this needed?
         boost::property<vertex_task_mirror_t, VertexIndexType // Link to corresponding free space TaskVertex, if one exists TODO is this needed?
-        > > > > > > TaskVertexProperties;
+        > > > > > TaskVertexProperties;
 // clang-format on
 
 /** Wrapper for the double assigned to an edge as its weight property. */
