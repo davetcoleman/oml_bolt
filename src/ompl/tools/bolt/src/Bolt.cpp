@@ -170,8 +170,6 @@ void Bolt::visualize()
       visual_->viz6()->trigger();
     }
   }
-  OMPL_WARN("disabled visualize smooth");
-  return;
 
   geometric::PathGeometric *solutionPath = static_cast<geometric::PathGeometric *>(pdef_->getSolutionPath().get());
 

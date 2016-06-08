@@ -90,26 +90,8 @@ public:
   /** \brief Wrapper function to show good user feedback while smoothing a path */
   bool simplifyPath(geometric::PathGeometric &path, Termination &ptc, std::size_t indent);
 
-  /** \brief Get information about the exploration data structure the planning from scratch motion planner used. */
-  //virtual void getPlannerData(base::PlannerData &data) const;
-
-  /**
-   *  \brief Get debug information about the top recalled paths that were chosen for further filtering
-   *  \return data - vector of PlannerData objects that each hold a single path
-   */
-  // const std::vector<PathGeometric> &getLastRecalledNearestPaths() const;
-
-  /**
-   *  \brief Get debug information about the top recalled paths that were chosen for further filtering
-   *  \return chosenID - the index of the PlannerData object that was chosen for repair
-   */
-  // std::size_t getLastRecalledNearestPathChosen() const;
-
-  /**
-   * \brief Get the chosen path used from database for repair
-   * \return PlannerData of chosen path
-   */
-  //const geometric::PathGeometric &getChosenRecallPath() const;
+  /** \brief Simplify a multi-modal path for different task levels */
+  bool simplifyTaskPath(geometric::PathGeometric &path, Termination &ptc, std::size_t indent);
 
   /** \brief Main entry function for finding a path plan */
   virtual base::PlannerStatus solve(Termination &ptc);
@@ -202,13 +184,6 @@ public:
   }
 
 protected:
-  /**
-   * \brief Count the number of states along the discretized path that are in collision
-   *        Note: This is kind of an ill-defined score though. It depends on the resolution of collision checking.
-   *        I am more inclined to try to compute the percent of the length of the motion that is valid.
-   *        That could go in SpaceInformation, as a utility function.
-   */
-  //std::size_t checkMotionScore(const base::State *s1, const base::State *s2) const;
 
   /** \brief The database of motions to search through */
   TaskGraphPtr taskGraph_;

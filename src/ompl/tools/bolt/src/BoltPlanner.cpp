@@ -160,11 +160,14 @@ base::PlannerStatus BoltPlanner::solve(Termination &ptc)
   // Smooth the result
   if (smoothingEnabled_)
   {
-    simplifyPath(geometricSolution, ptc, indent);
+    if (taskGraph_->taskPlanningEnabled())
+      simplifyTaskPath(geometricSolution, ptc, indent);
+    else
+      simplifyPath(geometricSolution, ptc, indent);
   }
 
   // Add more points to path
-  geometricSolution.interpolate();
+  //geometricSolution.interpolate();
 
   // Save solution
   double approximateDifference = -1;
@@ -177,8 +180,7 @@ base::PlannerStatus BoltPlanner::solve(Termination &ptc)
 }
 
 bool BoltPlanner::getPathOffGraph(const base::State *start, const base::State *goal,
-                                  og::PathGeometric &geometricSolution, Termination &ptc,
-                                  std::size_t indent)
+                                  og::PathGeometric &geometricSolution, Termination &ptc, std::size_t indent)
 {
   BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner::getPathOffGraph()");
   indent += 2;
@@ -276,9 +278,8 @@ bool BoltPlanner::getPathOffGraph(const base::State *start, const base::State *g
 
 bool BoltPlanner::getPathOnGraph(const std::vector<TaskVertex> &candidateStarts,
                                  const std::vector<TaskVertex> &candidateGoals, const base::State *actualStart,
-                                 const base::State *actualGoal, og::PathGeometric &geometricSolution,
-                                 Termination &ptc, bool debug, bool &feedbackStartFailed,
-                                 std::size_t indent)
+                                 const base::State *actualGoal, og::PathGeometric &geometricSolution, Termination &ptc,
+                                 bool debug, bool &feedbackStartFailed, std::size_t indent)
 {
   BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner::getPathOnGraph()");
   indent += 2;
@@ -323,9 +324,9 @@ bool BoltPlanner::getPathOnGraph(const std::vector<TaskVertex> &candidateStarts,
       }
 
       BOLT_DEBUG(indent, verbose_, "foreach_goal: Checking motion from " << actualGoal << " to "
-                 << taskGraph_->getVertexState(goal));
+                                                                         << taskGraph_->getVertexState(goal));
 
-      if (ptc == true) // Check if our planner is out of time
+      if (ptc)  // Check if our planner is out of time
       {
         OMPL_DEBUG("getPathOnGraph function interrupted because termination condition is true.");
         return false;
@@ -454,7 +455,7 @@ bool BoltPlanner::lazyCollisionSearch(const TaskVertex &start, const TaskVertex 
     BOLT_DEBUG(indent, verbose_, "  AStar: looking for path through graph between start and goal");
 
     // Check if our planner is out of time
-    if (ptc == true)
+    if (ptc)
     {
       OMPL_DEBUG("lazyCollisionSearch: function interrupted because termination condition is true.");
       return false;
@@ -463,19 +464,19 @@ bool BoltPlanner::lazyCollisionSearch(const TaskVertex &start, const TaskVertex 
     // Attempt to find a solution from start to goal
     if (!taskGraph_->astarSearch(start, goal, vertexPath, distance, indent))
     {
-      BOLT_DEBUG(indent, verbose_, "        unable to construct solution between start and goal using astar");
+      BOLT_DEBUG(indent, verbose_, "unable to construct solution between start and goal using astar");
 
       // no path found what so ever
       return false;
     }
 
-    BOLT_DEBUG(indent, verbose_, "        Has at least a partial solution, maybe exact solution");
-    BOLT_DEBUG(indent, verbose_, "        Solution has " << vertexPath.size() << " vertices");
+    BOLT_DEBUG(indent, verbose_, "Has at least a partial solution, maybe exact solution");
+    BOLT_DEBUG(indent, verbose_, "Solution has " << vertexPath.size() << " vertices");
 
     // Check if all the points in the potential solution are valid
     if (lazyCollisionCheck(vertexPath, ptc, indent))
     {
-      BOLT_DEBUG(indent, verbose_, "  Lazy collision check returned valid ");
+      BOLT_DEBUG(indent, verbose_, "Lazy collision check returned valid ");
 
       // the path is valid, we are done!
       convertVertexPathToStatePath(vertexPath, actualStart, actualGoal, geometricSolution);
@@ -488,8 +489,7 @@ bool BoltPlanner::lazyCollisionSearch(const TaskVertex &start, const TaskVertex 
   return false;
 }
 
-bool BoltPlanner::lazyCollisionCheck(std::vector<TaskVertex> &vertexPath, Termination &ptc,
-                                     std::size_t indent)
+bool BoltPlanner::lazyCollisionCheck(std::vector<TaskVertex> &vertexPath, Termination &ptc, std::size_t indent)
 {
   BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner::lazyCollisionCheck()");
   indent += 2;
@@ -522,7 +522,7 @@ bool BoltPlanner::lazyCollisionCheck(std::vector<TaskVertex> &vertexPath, Termin
       if (!si_->checkMotion(taskGraph_->getVertexState(fromVertex), taskGraph_->getVertexState(toVertex)))
       {
         // Path between (from, to) states not valid, disable the edge
-        BOLT_DEBUG(indent, verbose_, "  DISABLING EDGE from vertex " << fromVertex << " to vertex " << toVertex);
+        BOLT_DEBUG(indent, verbose_, "DISABLING EDGE from vertex " << fromVertex << " to vertex " << toVertex);
 
         // Disable edge
         taskGraph_->edgeCollisionStatePropertyTask_[thisEdge] = IN_COLLISION;
@@ -545,7 +545,7 @@ bool BoltPlanner::lazyCollisionCheck(std::vector<TaskVertex> &vertexPath, Termin
     fromVertex = toVertex;
   }
 
-  BOLT_DEBUG(indent, verbose_, "  Done lazy collision checking");
+  BOLT_DEBUG(indent, verbose_, "Done lazy collision checking");
 
   // Only return true if nothing was found invalid
   return !hasInvalidEdges;
@@ -660,18 +660,13 @@ bool BoltPlanner::convertVertexPathToStatePath(std::vector<TaskVertex> &vertexPa
   return true;
 }
 
-bool BoltPlanner::simplifyPath(og::PathGeometric &path, Termination &ptc,
-                               std::size_t indent)
+bool BoltPlanner::simplifyPath(og::PathGeometric &path, Termination &ptc, std::size_t indent)
 {
-  BOLT_DEBUG(indent, verbose_, "BoltPlanner: Simplifying solution (smoothing)...");
+  BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner: simplifyPath()");
   indent += 2;
 
   time::point simplifyStart = time::now();
   std::size_t numStates = path.getStateCount();
-
-  // Dave method:
-  // std::size_t indent = 0;
-  // taskGraph_->smoothQualityPath(&path, indent);
 
   path_simplifier_->simplify(path, ptc);
   double simplifyTime = time::seconds(time::now() - simplifyStart);
@@ -684,7 +679,73 @@ bool BoltPlanner::simplifyPath(og::PathGeometric &path, Termination &ptc,
   return true;
 }
 
+bool BoltPlanner::simplifyTaskPath(og::PathGeometric &path, Termination &ptc, std::size_t indent)
+{
+  BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner: simplifyTaskPath()");
+  indent += 2;
 
+  time::point simplifyStart = time::now();
+  std::size_t origNumStates = path.getStateCount();
+
+  // Number of levels
+  const std::size_t NUM_LEVELS = 3;
+
+  // Create three path segments
+  std::vector<og::PathGeometric> pathSegment;
+  for (int segmentLevel = 0; segmentLevel < int(NUM_LEVELS); ++segmentLevel)
+    pathSegment.push_back(og::PathGeometric(si_));
+
+  // Create the solution path
+  og::PathGeometric smoothedPath(si_);
+
+  // Divide the path into different levels
+  VertexLevel previousLevel = 0; // Error check ordering of input path
+  for (std::size_t i = 0; i < path.getStateCount(); ++i)
+  {
+    base::State* state = path.getState(i);
+    VertexLevel level = si_->getStateSpace()->getLevel(state);
+
+    assert(level >= 0 && level < NUM_LEVELS);
+
+    pathSegment[level].append(state);
+
+    if (previousLevel > level) // Error check ordering of input path
+      throw Exception(name_, "Level increasing in wrong order");
+    previousLevel = level;
+  }
+
+  // Smooth the freespace paths
+  path_simplifier_->simplify(pathSegment[0], ptc);
+  path_simplifier_->simplify(pathSegment[2], ptc);
+
+  // Combine the path segments back together
+  for (int segmentLevel = 0; segmentLevel < int(NUM_LEVELS); ++segmentLevel)
+  {
+    for (std::size_t i = 0; i < pathSegment[segmentLevel].getStateCount(); ++i)
+    {
+      base::State* state = pathSegment[segmentLevel].getState(i);
+
+      // Enforce the correct level on the state because the OMPL components don't understand the concept
+      si_->getStateSpace()->setLevel(state, segmentLevel);
+
+      // Add to solution path
+      smoothedPath.append(state);
+    }
+  }
+
+  // Replace the input path with the new smoothed path
+  path = smoothedPath;
+
+  double simplifyTime = time::seconds(time::now() - simplifyStart);
+
+  std::size_t diff = origNumStates - path.getStateCount();
+  BOLT_DEBUG(indent, verbose_, "BoltPlanner: Path simplification took " << simplifyTime << " seconds and removed "
+             << diff << " states");
+
+  return true;
+}
+
+// This is used to check connectivity of graph
 // bool BoltPlanner::canConnect(const base::State *randomState, Termination &ptc,
 //                              std::size_t indent)
 // {
@@ -738,7 +799,7 @@ bool BoltPlanner::simplifyPath(og::PathGeometric &path, Termination &ptc,
 //         for (base::State *interState : states)
 //         {
 //           // Check if our planner is out of time
-//           if (ptc == true)
+//           if (ptc)
 //           {
 //             BOLT_DEBUG(indent, verbose_, "Quit requested");
 //             return false;
