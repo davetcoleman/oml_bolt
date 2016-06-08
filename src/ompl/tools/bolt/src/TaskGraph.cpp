@@ -182,7 +182,8 @@ bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::
 
   if (visualizeAstar_)
   {
-    visual_->viz4()->deleteAllMarkers();
+    // Assume this was cleared by the parent program
+    //visual_->viz4()->deleteAllMarkers();
   }
 
   try
@@ -190,9 +191,10 @@ bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::
     double popularityBias = 0;
     bool popularityBiasEnabled = false;
     boost::astar_search(
-        g_,                                                            // graph
-        start,                                                         // start state
-        boost::bind(&otb::TaskGraph::astarHeuristic, this, _1, goal),  // the heuristic
+        g_,     // graph
+        start,  // start state
+        // boost::bind(&otb::TaskGraph::astarHeuristic, this, _1, goal),  // the heuristic
+        boost::bind(&otb::TaskGraph::astarTaskHeuristic, this, _1, goal),  // the heuristic
         // ability to disable edges (set cost to inifinity):
         boost::weight_map(TaskEdgeWeightMap(g_, edgeCollisionStatePropertyTask_, popularityBias, popularityBiasEnabled))
             .predecessor_map(vertexPredecessors)
@@ -318,7 +320,7 @@ double TaskGraph::astarHeuristic(const TaskVertex a, const TaskVertex b) const
 
 double TaskGraph::distanceFunction(const TaskVertex a, const TaskVertex b) const
 {
-  // Special case: query vertices store their states elsewhere
+  // Special case: query vertices store their states elsewhere. Both cannot be query vertices
   if (a < numThreads_)
   {
     return si_->distance(queryStates_[a], getVertexState(b));
@@ -328,11 +330,121 @@ double TaskGraph::distanceFunction(const TaskVertex a, const TaskVertex b) const
     return si_->distance(getVertexState(a), queryStates_[b]);
   }
 
-  // Error check
-  assert(getVertexState(a) != NULL);
-  assert(getVertexState(b) != NULL);
+  if (superDebug_)  // Error check
+  {
+    assert(getVertexState(a) != NULL);
+    assert(getVertexState(b) != NULL);
+  }
 
   return si_->distance(getVertexState(a), getVertexState(b));
+}
+
+double TaskGraph::astarTaskHeuristic(const TaskVertex a, const TaskVertex b) const
+{
+  // Do not use task distance if that mode is not enabled
+  if (!taskPlanningEnabled_)
+    return distanceFunction(a, b);
+
+  const bool verbose = true;
+  std::size_t indent = 0;
+
+  // Reorder a & b so that we are sure that a.level <= b.level
+  int taskLevelA = getTaskLevel(a);
+  int taskLevelB = getTaskLevel(b);
+  if (taskLevelA > taskLevelB)
+  {
+    // Call itself again, this time switching ordering
+    BOLT_DEBUG(indent, verbose, "Switched ordering for distanceFunctionTasks()");
+    return astarTaskHeuristic(b, a);
+  }
+
+  double dist = 0;  // the result
+
+  // Note: this value should be synced with TaskGraph
+  static const double TASK_LEVEL_COST = 100.0;  // cost to change levels/tasks
+
+  // Error check
+  assert(vertexStateProperty_[a]);
+  assert(vertexStateProperty_[b]);
+  assert(vertexStateProperty_[startConnectorVertex_]);
+  assert(vertexStateProperty_[endConnectorVertex_]);
+
+  if (taskLevelA == 0)
+  {
+    if (taskLevelB == 0)  // regular distance for bottom level
+    {
+      BOLT_DEBUG(indent, verbose, "Distance Mode a");
+      dist = si_->distance(vertexStateProperty_[a], vertexStateProperty_[b]);
+    }
+    else if (taskLevelB == 1)
+    {
+      BOLT_DEBUG(indent, verbose, "Distance Mode b");
+      dist = si_->distance(vertexStateProperty_[a], vertexStateProperty_[startConnectorVertex_]) + TASK_LEVEL_COST +
+             si_->distance(vertexStateProperty_[startConnectorVertex_], vertexStateProperty_[b]);
+    }
+    else if (taskLevelB == 2)
+    {
+      BOLT_DEBUG(indent, verbose, "Distance Mode c");
+      dist = si_->distance(vertexStateProperty_[a], vertexStateProperty_[startConnectorVertex_]) + TASK_LEVEL_COST +
+             distanceAcrossCartPath_ + TASK_LEVEL_COST +
+             si_->distance(vertexStateProperty_[endConnectorVertex_], vertexStateProperty_[b]);
+    }
+    else
+    {
+      OMPL_ERROR("Unknown task level mode");
+      exit(-1);
+    }
+  }
+  else if (taskLevelA == 1)
+  {
+    if (taskLevelB == 0)
+    {
+      OMPL_ERROR("Unknown task level mode");
+      exit(-1);
+    }
+    else if (taskLevelB == 1)
+    {
+      BOLT_DEBUG(indent, verbose, "Distance Mode d");
+      dist = si_->distance(vertexStateProperty_[a], vertexStateProperty_[b]);
+    }
+    else if (taskLevelB == 2)
+    {
+      BOLT_DEBUG(indent, verbose, "Distance Mode e");
+
+      dist = si_->distance(vertexStateProperty_[a], vertexStateProperty_[endConnectorVertex_]) + TASK_LEVEL_COST +
+             si_->distance(vertexStateProperty_[endConnectorVertex_], vertexStateProperty_[b]);
+    }
+    else
+    {
+      OMPL_WARN("Unknown task level mode");
+    }
+  }
+  else if (taskLevelA == 2)
+  {
+    if (taskLevelB == 0 || taskLevelB == 1)
+    {
+      OMPL_ERROR("Unknown task level mode");
+      exit(-1);
+    }
+    else if (taskLevelB == 2)
+    {
+      BOLT_DEBUG(indent, verbose, "Distance Mode f");
+      dist = si_->distance(vertexStateProperty_[a], vertexStateProperty_[b]);
+    }
+    else
+    {
+      OMPL_WARN("Unknown task level mode");
+    }
+  }
+  else
+  {
+    OMPL_WARN("Unknown task level mode");
+  }
+
+  if (verbose)
+    std::cout << "Vertex " << a << " @level " << taskLevelA << " to Vertex " << b << " @level " << taskLevelB
+              << " has distance " << dist << std::endl;
+  return dist;
 }
 
 bool TaskGraph::isEmpty() const
@@ -365,9 +477,9 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
     if (sparseV < sg_->getNumQueryVertices())
       continue;
 
-    //const StateID sparseStateID = sg_->getStateID(sparseV);
+    // const StateID sparseStateID = sg_->getStateID(sparseV);
     const VertexType type = DISCRETIZED;  // TODO: remove this, seems meaningless
-    const base::State* state = sg_->getVertexState(sparseV);
+    const base::State *state = sg_->getVertexState(sparseV);
 
     // Create level 0 vertex
     VertexLevel level = 0;
@@ -431,7 +543,7 @@ bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
   TaskVertex goalVertex = addVertex(path.back(), CARTESIAN, level, indent);
 
   // Record min cost for cost-to-go heurstic distance function later
-  // distanceAcrossCartesian_ = distanceFunction(startVertex, goalVertex);
+  distanceAcrossCartPath_ = distanceFunction(startVertex, goalVertex);
 
   // Connect Start to graph --------------------------------------
   BOLT_DEBUG(indent, verbose_, "Creating start connector");
@@ -459,7 +571,6 @@ bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
 
   for (std::size_t i = 1; i < path.size(); ++i)
   {
-
     // Check if we are on the goal vertex
     if (i == path.size() - 1)
     {
@@ -502,7 +613,7 @@ void TaskGraph::clearCartesianVertices(std::size_t indent)
     {
       BOLT_DEBUG(indent, verbose_, "Removing CARTESIAN TaskVertex " << *v);
 
-      boost::clear_vertex(*v, g_); // delete the edges
+      boost::clear_vertex(*v, g_);  // delete the edges
       boost::remove_vertex(*v, g_);
 
       numRemoved++;
@@ -623,7 +734,7 @@ void TaskGraph::getNeighborsAtLevel(const TaskVertex origVertex, const VertexLev
     if (!si_->checkMotion(origState, getVertexState(nearVertex)))  // is not valid motion
     {
       BOLT_DEBUG(indent, verbose_, "Skipping neighbor " << nearVertex << ", i=" << i << ", at level="
-                                                    << getTaskLevel(nearVertex) << " because invalid motion");
+                                                        << getTaskLevel(nearVertex) << " because invalid motion");
       neighbors.erase(neighbors.begin() + i);
       i--;
       continue;
@@ -791,8 +902,8 @@ std::size_t TaskGraph::getDisjointSetsCount(bool verbose)
 
     if (boost::get(boost::get(boost::vertex_predecessor, g_), v) == v)
     {
-      if (verbose)
-        OMPL_INFORM("Disjoint set: %u", v);
+      std::size_t indent = 0;
+      BOLT_DEBUG(indent, verbose, "Disjoint set: " << v);
       ++numSets;
     }
   }
@@ -821,7 +932,7 @@ void TaskGraph::getDisjointSets(TaskDisjointSetsMap &disjointSets)
 
 void TaskGraph::printDisjointSets(TaskDisjointSetsMap &disjointSets, std::size_t indent)
 {
-  OMPL_INFORM("Print disjoint sets");
+  BOLT_DEBUG(indent, verbose_, "Print disjoint sets");
   for (TaskDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end(); iterator++)
   {
     const TaskVertex v = iterator->first;
@@ -830,9 +941,9 @@ void TaskGraph::printDisjointSets(TaskDisjointSetsMap &disjointSets, std::size_t
   }
 }
 
-void TaskGraph::visualizeDisjointSets(TaskDisjointSetsMap &disjointSets)
+void TaskGraph::visualizeDisjointSets(TaskDisjointSetsMap &disjointSets, std::size_t indent)
 {
-  OMPL_INFORM("Visualizing disjoint sets");
+  BOLT_DEBUG(indent, verbose_, "Visualizing disjoint sets");
 
   // Find the disjoint set that is the 'main' large one
   std::size_t maxDisjointSetSize = 0;
@@ -848,14 +959,14 @@ void TaskGraph::visualizeDisjointSets(TaskDisjointSetsMap &disjointSets)
       maxDisjointSetParent = v;
     }
   }
-  OMPL_INFORM("The largest disjoint set is of size %u and parent vertex %u", maxDisjointSetSize, maxDisjointSetParent);
+  BOLT_DEBUG(indent, verbose_, "The largest disjoint set is of size " << maxDisjointSetSize << " and parent vertex "
+                                                                      << maxDisjointSetParent);
 
   // Display size of disjoint sets and visualize small ones
   for (TaskDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end(); iterator++)
   {
     const TaskVertex v1 = iterator->first;
     const std::size_t freq = iterator->second.size();
-
 
     BOOST_ASSERT_MSG(freq > 0, "Frequency must be at least 1");
 
@@ -932,7 +1043,7 @@ StateID TaskGraph::addState(base::State *state)
 
 TaskVertex TaskGraph::addVertex(StateID stateID, const VertexType &type, VertexLevel level, std::size_t indent)
 {
-  base::State* state = si_->cloneState(sg_->getState(stateID));
+  base::State *state = si_->cloneState(sg_->getState(stateID));
   return addVertex(state, type, level, indent);
 }
 
@@ -940,8 +1051,7 @@ TaskVertex TaskGraph::addVertex(base::State *state, const VertexType &type, Vert
 {
   // Create vertex
   TaskVertex v = boost::add_vertex(g_);
-  BOLT_CYAN_DEBUG(indent, vAdd_, "addVertex(): v: " << v  << " type " << type
-                                                    << " level: " << level);
+  BOLT_CYAN_DEBUG(indent, vAdd_, "addVertex(): v: " << v << " type " << type << " level: " << level);
 
   // Add level to state
   setStateTaskLevel(state, level);
@@ -1157,12 +1267,8 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       std::cout << "Displaying task edges: " << std::flush;
     foreach (TaskEdge e, boost::edges(g_))
     {
-      // Add edge
-      TaskVertex v1 = boost::source(e, g_);
-      TaskVertex v2 = boost::target(e, g_);
-
       // Visualize
-      visualizeEdge(v1, v2);
+      visualizeEdge(e);
 
       // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
@@ -1228,7 +1334,7 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
   usleep(0.001 * 1000000);
 }
 
-void TaskGraph::visualizeVertex(TaskVertex v)
+void TaskGraph::visualizeVertex(TaskVertex v, std::size_t windowID)
 {
   tools::VizColors color;
   tools::VizSizes size;
@@ -1254,10 +1360,19 @@ void TaskGraph::visualizeVertex(TaskVertex v)
   }
 
   // Show vertex
-  visual_->viz2()->state(getVertexState(v), size, color, 0);
+  visual_->viz(windowID)->state(getVertexState(v), size, color, 0);
 }
 
-void TaskGraph::visualizeEdge(TaskVertex v1, TaskVertex v2)
+void TaskGraph::visualizeEdge(TaskEdge e, std::size_t windowID)
+{
+  // Add edge
+  TaskVertex v1 = boost::source(e, g_);
+  TaskVertex v2 = boost::target(e, g_);
+
+  visualizeEdge(v1, v2, windowID);
+}
+
+void TaskGraph::visualizeEdge(TaskVertex v1, TaskVertex v2, std::size_t windowID)
 {
   VertexLevel level1 = getTaskLevel(v1);
   VertexLevel level2 = getTaskLevel(v2);
@@ -1275,7 +1390,7 @@ void TaskGraph::visualizeEdge(TaskVertex v1, TaskVertex v2)
     OMPL_ERROR("Unknown task level combination");
 
   // Visualize
-  visual_->viz2()->edge(getVertexState(v1), getVertexState(v2), ompl::tools::MEDIUM, color);
+  visual_->viz(windowID)->edge(getVertexState(v1), getVertexState(v2), ompl::tools::MEDIUM, color);
 }
 
 void TaskGraph::debugState(const ompl::base::State *state)
@@ -1334,14 +1449,24 @@ void otb::TaskAstarVisitor::discover_vertex(TaskVertex v, const TaskAdjList &) c
 
 void otb::TaskAstarVisitor::examine_vertex(TaskVertex v, const TaskAdjList &) const
 {
-  // Statistics
-  parent_->recordNodeClosed();
+  parent_->recordNodeClosed(); // Statistics
 
-  if (parent_->visualizeAstar_)
+  if (parent_->visualizeAstar_) // Visualize
   {
-    parent_->getVisual()->viz4()->state(parent_->getVertexState(v), tools::LARGE, tools::BLACK, 1);
+    BOLT_GREEN_DEBUG(0, true, "Examined vertex " << v);
+
+    // Show state
+    parent_->visualizeVertex(v, 4 /*windowID*/);
+
+    // Show edges
+    foreach (const TaskEdge e, boost::out_edges(v, parent_->getGraph()))
+    {
+      parent_->visualizeEdge(e, 4 /*windowID*/);
+    }
+
     parent_->getVisual()->viz4()->trigger();
-    usleep(parent_->visualizeAstarSpeed_ * 1000000);
+    //usleep(parent_->visualizeAstarSpeed_ * 1000000);
+    parent_->getVisual()->waitForUserFeedback("astar");
   }
 
   if (v == goal_)

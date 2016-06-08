@@ -156,6 +156,9 @@ public:
   /** \brief Compute distance between two milestones (this is simply distance between the states of the milestones) */
   double distanceFunction(const TaskVertex a, const TaskVertex b) const;
 
+  /** \brief Distance between two vertices in a task space */
+  double astarTaskHeuristic(const TaskVertex a, const TaskVertex b) const;
+
   /** \brief Custom A* visitor statistics */
   void recordNodeOpened()  // discovered
   {
@@ -283,7 +286,7 @@ public:
   std::size_t getDisjointSetsCount(bool verbose = false);
   void getDisjointSets(TaskDisjointSetsMap& disjointSets);
   void printDisjointSets(TaskDisjointSetsMap& disjointSets, std::size_t indent);
-  void visualizeDisjointSets(TaskDisjointSetsMap& disjointSets);
+  void visualizeDisjointSets(TaskDisjointSetsMap& disjointSets, std::size_t indent);
   std::size_t checkConnectedComponents();
   bool sameComponent(TaskVertex v1, TaskVertex v2);
 
@@ -329,9 +332,11 @@ public:
   void displayDatabase(bool showVertices = false, std::size_t indent = 0);
 
   /** \brief Display in viewer */
-  void visualizeVertex(TaskVertex v);
+  void visualizeVertex(TaskVertex v, std::size_t windowID = 2);
 
-  void visualizeEdge(TaskVertex v1, TaskVertex v2);
+  void visualizeEdge(TaskEdge e, std::size_t windowID = 2);
+
+  void visualizeEdge(TaskVertex v1, TaskVertex v2, std::size_t windowID = 2);
 
   /* ---------------------------------------------------------------------------------
    * Debug Utilities
@@ -407,6 +412,9 @@ protected:
   /** \brief Remember which cartesian start/goal states should be used for distanceFunction */
   TaskVertex startConnectorVertex_;
   TaskVertex endConnectorVertex_;
+
+  /** \brief Remeber the distances to used for the task distance heuristic */
+  double distanceAcrossCartPath_;
 
   /** \brief Flag if we are in task planning mode or not. If false, just plan in free space mode */
   bool taskPlanningEnabled_ = false;

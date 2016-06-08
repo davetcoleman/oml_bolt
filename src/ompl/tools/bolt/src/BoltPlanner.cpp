@@ -44,7 +44,6 @@
 
 // Boost
 #include <boost/thread.hpp>
-//#include <boost/foreach.hpp>
 
 // C++
 #include <limits>
@@ -176,76 +175,6 @@ base::PlannerStatus BoltPlanner::solve(Termination &ptc)
   BOLT_DEBUG(indent, verbose_, "Finished BoltPlanner.solve()");
   return base::PlannerStatus(solved, approximate);
 }
-
-bool BoltPlanner::simplifyPath(og::PathGeometric &path, Termination &ptc,
-                               std::size_t indent)
-{
-  BOLT_DEBUG(indent, verbose_, "BoltPlanner: Simplifying solution (smoothing)...");
-  indent += 2;
-
-  time::point simplifyStart = time::now();
-  std::size_t numStates = path.getStateCount();
-
-  // Dave method:
-  // std::size_t indent = 0;
-  // taskGraph_->smoothQualityPath(&path, indent);
-
-  path_simplifier_->simplify(path, ptc);
-  double simplifyTime = time::seconds(time::now() - simplifyStart);
-
-  BOLT_DEBUG(indent, verbose_, "BoltPlanner: Path simplification took " << simplifyTime << " seconds and removed "
-                                                                        << numStates - path.getStateCount()
-                                                                        << " states");
-  return true;
-}
-
-// void BoltPlanner::getPlannerData(base::PlannerData &data) const
-// {
-//   std::size_t indent = 0;
-//   BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner::getPlannerData()");
-//   indent += 2;
-
-//   for (std::size_t j = 1; j < originalSolutionPath_->getStateCount(); ++j)
-//   {
-//     data.addEdge(base::PlannerDataVertex(originalSolutionPath_->getState(j - 1)),
-//                  base::PlannerDataVertex(originalSolutionPath_->getState(j)));
-//   }
-// }
-
-// const geometric::PathGeometric &BoltPlanner::getChosenRecallPath() const
-// {
-//   return *originalSolutionPath_;
-// }
-
-// std::size_t BoltPlanner::checkMotionScore(const base::State *s1, const base::State *s2) const
-// {
-//   int segmentCount = si_->getStateSpace()->validSegmentCount(s1, s2);
-
-//   std::size_t invalidStatesScore = 0;  // count number of interpolated states in collision
-
-//   // temporary storage for the checked state
-//   base::State *test = si_->allocState();
-
-//   // Linerarly step through motion between state 0 to state 1
-//   double iteration_step = 1.0 / double(segmentCount);
-//   for (double location = 0.0; location <= 1.0; location += iteration_step)
-//   {
-//     si_->getStateSpace()->interpolate(s1, s2, location, test);
-
-//     if (!si_->isValid(test))
-//     {
-//       // OMPL_DEBUG("Found INVALID location between states at gradient %f", location);
-//       invalidStatesScore++;
-//     }
-//     else
-//     {
-//       // OMPL_DEBUG("Found valid location between states at gradient %f", location);
-//     }
-//   }
-//   si_->freeState(test);
-
-//   return invalidStatesScore;
-// }
 
 bool BoltPlanner::getPathOffGraph(const base::State *start, const base::State *goal,
                                   og::PathGeometric &geometricSolution, Termination &ptc,
@@ -730,6 +659,31 @@ bool BoltPlanner::convertVertexPathToStatePath(std::vector<TaskVertex> &vertexPa
 
   return true;
 }
+
+bool BoltPlanner::simplifyPath(og::PathGeometric &path, Termination &ptc,
+                               std::size_t indent)
+{
+  BOLT_DEBUG(indent, verbose_, "BoltPlanner: Simplifying solution (smoothing)...");
+  indent += 2;
+
+  time::point simplifyStart = time::now();
+  std::size_t numStates = path.getStateCount();
+
+  // Dave method:
+  // std::size_t indent = 0;
+  // taskGraph_->smoothQualityPath(&path, indent);
+
+  path_simplifier_->simplify(path, ptc);
+  double simplifyTime = time::seconds(time::now() - simplifyStart);
+
+  std::cout << "numStates " << numStates << std::endl;
+  std::cout << "path.getStateCount(): " << path.getStateCount() << std::endl;
+  BOLT_DEBUG(indent, verbose_, "BoltPlanner: Path simplification took " << simplifyTime << " seconds and removed "
+                                                                        << numStates - path.getStateCount()
+                                                                        << " states");
+  return true;
+}
+
 
 // bool BoltPlanner::canConnect(const base::State *randomState, Termination &ptc,
 //                              std::size_t indent)
