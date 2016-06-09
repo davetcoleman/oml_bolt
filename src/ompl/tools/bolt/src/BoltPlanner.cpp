@@ -746,86 +746,86 @@ bool BoltPlanner::simplifyTaskPath(og::PathGeometric &path, Termination &ptc, st
 }
 
 // This is used to check connectivity of graph
-// bool BoltPlanner::canConnect(const base::State *randomState, Termination &ptc,
-//                              std::size_t indent)
-// {
-//   BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner::canConnect()");
-//   indent += 2;
+bool BoltPlanner::canConnect(const base::State *randomState, Termination &ptc,
+                             std::size_t indent)
+{
+  BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner::canConnect()");
+  indent += 2;
 
-//   std::vector<TaskVertex> candidateNeighbors;
+  std::vector<TaskVertex> candidateNeighbors;
 
-//   // Find neighbors to rand state
-//   BOLT_DEBUG(indent, verbose_, "Looking for a node near the random state");
-//   if (!findGraphNeighbors(randomState, candidateNeighbors))
-//   {
-//     BOLT_DEBUG(indent, verbose_, "No graph neighbors found for randomState");
-//     return false;
-//   }
-//   BOLT_DEBUG(indent, verbose_, "Found " << candidateNeighbors.size() << " nodes near randomState");
+  // Find neighbors to rand state
+  BOLT_DEBUG(indent, verbose_, "Looking for a node near the random state");
+  if (!findGraphNeighbors(randomState, candidateNeighbors))
+  {
+    BOLT_DEBUG(indent, verbose_, "No graph neighbors found for randomState");
+    return false;
+  }
+  BOLT_DEBUG(indent, verbose_, "Found " << candidateNeighbors.size() << " nodes near randomState");
 
-//   // Try every combination of nearby start and goal pairs
-//   std::size_t count = 0;
-//   for (TaskVertex nearState : candidateNeighbors)
-//   {
-//     const base::State *s1 = randomState;
-//     const base::State *s2 = taskGraph_->getVertexState(nearState);
+  // Try every combination of nearby start and goal pairs
+  std::size_t count = 0;
+  for (TaskVertex nearState : candidateNeighbors)
+  {
+    const base::State *s1 = randomState;
+    const base::State *s2 = taskGraph_->getVertexState(nearState);
 
-//     // Check if this nearState is visible from the random state
-//     if (!si_->checkMotion(s1, s2))
-//     {
-//       OMPL_WARN("NEIGHBOR %u NOT VISIBLE ", count++);
+    // Check if this nearState is visible from the random state
+    if (!si_->checkMotion(s1, s2))
+    {
+      OMPL_WARN("NEIGHBOR %u NOT VISIBLE ", count++);
 
-//       if (false)
-//       {
-//         visual_->viz5()->state(s2, tools::MEDIUM, tools::BLUE, 1);
-//         visual_->viz5()->edge(s1, s2, 100);
-//         visual_->viz5()->trigger();
-//         usleep(1 * 1000000);
-//       }
+      if (false)
+      {
+        visual_->viz5()->state(s2, tools::MEDIUM, tools::BLUE, 1);
+        visual_->viz5()->edge(s1, s2, 100);
+        visual_->viz5()->trigger();
+        usleep(1 * 1000000);
+      }
 
-//       // Optional Debug
-//       if (false)
-//       {
-//         std::cout << "checking path " << std::endl;
-//         std::vector<base::State *> states;
-//         unsigned int count = si_->getStateSpace()->validSegmentCount(s1, s2);
-//         // std::cout << "count: " << count << std::endl;
+      // Optional Debug
+      if (false)
+      {
+        std::cout << "checking path " << std::endl;
+        std::vector<base::State *> states;
+        unsigned int count = si_->getStateSpace()->validSegmentCount(s1, s2);
+        // std::cout << "count: " << count << std::endl;
 
-//         bool endpoints = false;
-//         bool alloc = true;
-//         si_->getMotionStates(s1, s2, states, count, endpoints, alloc);
-//         // std::cout << "state size: " << states.size() << std::endl;
+        bool endpoints = false;
+        bool alloc = true;
+        si_->getMotionStates(s1, s2, states, count, endpoints, alloc);
+        // std::cout << "state size: " << states.size() << std::endl;
 
-//         for (base::State *interState : states)
-//         {
-//           // Check if our planner is out of time
-//           if (ptc)
-//           {
-//             BOLT_DEBUG(indent, verbose_, "Quit requested");
-//             return false;
-//           }
+        for (base::State *interState : states)
+        {
+          // Check if our planner is out of time
+          if (ptc)
+          {
+            BOLT_DEBUG(indent, verbose_, "Quit requested");
+            return false;
+          }
 
-//           if (!si_->isValid(interState))
-//           {
-//             visual_->viz5()->state(interState, tools::LARGE, tools::RED, 1);
-//             visual_->viz5()->trigger();
-//             usleep(1 * 1000000);
-//           }
-//           else
-//           {
-//             // visual_->viz5()->state(interState, /*mode=*/1, 1); // GREEN
-//           }
-//         }
-//       }
-//     }
-//     else
-//     {
-//       BOLT_DEBUG(indent, verbose_, "Has connection");
-//       return true;
-//     }
-//   }
-//   return false;
-// }
+          if (!si_->isValid(interState))
+          {
+            visual_->viz5()->state(interState, tools::LARGE, tools::RED, 1);
+            visual_->viz5()->trigger();
+            usleep(1 * 1000000);
+          }
+          else
+          {
+            // visual_->viz5()->state(interState, /*mode=*/1, 1); // GREEN
+          }
+        }
+      }
+    }
+    else
+    {
+      BOLT_DEBUG(indent, verbose_, "Has connection");
+      return true;
+    }
+  }
+  return false;
+}
 
 }  // namespace bolt
 }  // namespace tools

@@ -171,7 +171,7 @@ public:
   bool lazyCollisionCheck(std::vector<bolt::TaskVertex> &vertexPath, Termination &ptc, std::size_t indent);
 
   /** \brief Test if the passed in random state can connect to a nearby vertex in the graph */
-  //bool canConnect(const base::State *randomState, Termination &ptc, std::size_t indent);
+  bool canConnect(const base::State *randomState, Termination &ptc, std::size_t indent);
 
   TaskGraphPtr getTaskGraph()
   {

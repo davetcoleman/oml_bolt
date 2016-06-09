@@ -46,6 +46,9 @@
 #include <boost/thread.hpp>
 #include <boost/filesystem.hpp>
 
+// Profiling
+#include <valgrind/callgrind.h>
+
 #define foreach BOOST_FOREACH
 
 namespace ompl
@@ -60,16 +63,24 @@ SparseStorage::SparseStorage(const base::SpaceInformationPtr &si, SparseGraph *s
   numQueryVertices_ = boost::thread::hardware_concurrency();
 }
 
-void SparseStorage::save(const std::string &filePath)
+void SparseStorage::save(const std::string &filePath, std::size_t indent)
 {
+  indent += 2;
+  std::size_t diffEdges = sparseGraph_->getNumEdges() - prevNumEdges_;
+  std::size_t diffVertices = sparseGraph_->getNumVertices() - prevNumVertices_;
+
+  BOLT_DEBUG(indent, true, "------------------------------------------------");
+  BOLT_DEBUG(indent, true, "Saving Sparse Graph");
+  BOLT_DEBUG(indent, true, "  Path:            " << filePath.c_str());
+  BOLT_DEBUG(indent, true, "  Edges:           " << sparseGraph_->getNumEdges() << " (Change: " << diffEdges << ")");
+  BOLT_DEBUG(indent, true, "  Vertices:        " << sparseGraph_->getNumVertices() << " (Change: " << diffVertices << ")");
+  BOLT_DEBUG(indent, true, "------------------------------------------------");
+
   std::ofstream out(filePath.c_str(), std::ios::binary);
 
-  OMPL_INFORM("------------------------------------------------");
-  OMPL_INFORM("Saving Sparse Graph");
-  OMPL_INFORM("  Path:            %s", filePath.c_str());
-  OMPL_INFORM("  Edges:           %u", sparseGraph_->getNumEdges());
-  OMPL_INFORM("  Vertices:        %u", sparseGraph_->getNumVertices());
-  OMPL_INFORM("------------------------------------------------");
+  // Save previous graph size
+  prevNumEdges_ = sparseGraph_->getNumEdges();
+  prevNumVertices_ = sparseGraph_->getNumVertices();
 
   save(out);
   out.close();
@@ -180,17 +191,18 @@ void SparseStorage::saveEdges(boost::archive::binary_oarchive &oa)
   std::cout << std::endl;
 }
 
-bool SparseStorage::load(const std::string &filePath)
+bool SparseStorage::load(const std::string &filePath, std::size_t indent)
 {
-  OMPL_INFORM("------------------------------------------------");
-  OMPL_INFORM("SparseStorage: Loading Sparse Graph");
-  OMPL_INFORM("Path: %s", filePath.c_str());
+  BOLT_DEBUG(indent, true, "------------------------------------------------");
+  BOLT_DEBUG(indent, true, "SparseStorage: Loading Sparse Graph");
+  indent += 2;
+  BOLT_DEBUG(indent, true, "Path: " <<  filePath.c_str());
 
   // Error checking
   if (sparseGraph_->getNumEdges() > numQueryVertices_ ||
       sparseGraph_->getNumVertices() > numQueryVertices_)  // the search verticie may already be there
   {
-    OMPL_INFORM("Database is not empty, unable to load from file");
+    BOLT_DEBUG(indent, true, "Database is not empty, unable to load from file");
     return false;
   }
   if (filePath.empty())
@@ -200,19 +212,33 @@ bool SparseStorage::load(const std::string &filePath)
   }
   if (!boost::filesystem::exists(filePath))
   {
-    OMPL_INFORM("Database file does not exist: %s.", filePath.c_str());
+    BOLT_DEBUG(indent, true, "Database file does not exist: " << filePath.c_str());
     return false;
   }
 
+  // Disable visualizations while loading
+  bool visualizeSparseGraph = sparseGraph_->visualizeSparseGraph_;
+  sparseGraph_->visualizeSparseGraph_ = false;
+
+  // Open file stream
   std::ifstream in(filePath.c_str(), std::ios::binary);
   bool result = load(in);
   in.close();
+
+  // Re-enable visualizations
+  sparseGraph_->visualizeSparseGraph_ = visualizeSparseGraph;
+
+  // Save previous graph size
+  prevNumEdges_ = sparseGraph_->getNumEdges();
+  prevNumVertices_ = sparseGraph_->getNumVertices();
 
   return result;
 }
 
 bool SparseStorage::load(std::istream &in)
 {
+  BOOST_ASSERT_MSG(!sparseGraph_->visualizeSparseGraph_, "Visualizations should be off when loading sparse graph");
+
   if (!in.good())
   {
     OMPL_ERROR("Failed to load BoltData: input stream is invalid");
@@ -243,8 +269,17 @@ bool SparseStorage::load(std::istream &in)
       return false;
     }
 
+    // Pre-allocate memory in graph
+    sparseGraph_->getGraphNonConst().m_vertices.resize(h.vertex_count);
+    sparseGraph_->getGraphNonConst().m_edges.resize(h.edge_count);
+
+    // Read from file
     loadVertices(h.vertex_count, ia);
     loadEdges(h.edge_count, ia);
+
+    // Profiler
+    CALLGRIND_TOGGLE_COLLECT;
+    CALLGRIND_DUMP_STATS;
   }
   catch (boost::archive::archive_exception &ae)
   {
@@ -254,67 +289,99 @@ bool SparseStorage::load(std::istream &in)
   return true;
 }
 
-void SparseStorage::loadVertices(unsigned int numVertices, boost::archive::binary_iarchive &ia)
+void SparseStorage::loadVertices(unsigned int numVertices, boost::archive::binary_iarchive &ia, std::size_t indent)
 {
-  OMPL_INFORM("Loading %u vertices from file", numVertices);
+  BOLT_DEBUG(indent, true, "Loading vertices from file: " << numVertices);
+  indent += 2;
+
+  // Create thread to populate nearest neighbor structure, because that is the slowest component
+  loadVerticesFinished_ = false;
+  SparseVertex startingVertex = sparseGraph_->getNumVertices();
+  boost::thread nnThread(boost::bind(&SparseStorage::populateNNThread, this, startingVertex));
 
   const base::StateSpacePtr &space = si_->getStateSpace();
   std::size_t feedbackFrequency = numVertices / 10;
+  BoltVertexData vertexData;
 
   std::cout << "         Vertices loaded: ";
+
+  std::cout << std::endl; // TODO remove
   for (unsigned int i = 0; i < numVertices; ++i)
   {
     // Copy in data from file
-    BoltVertexData vertexData;
     ia >> vertexData;
 
     // Allocating a new state and deserializing it from the buffer
     base::State *state = space->allocState();
     space->deserialize(state, &vertexData.stateSerialized_[0]);
 
-    // vertexData.state_ = state;
-    // // Add to Sparse graph
-    // sparseGraph_->addVertexFromFile(vertexData);
-
     // Add to Sparse graph
     VertexType type = static_cast<VertexType>(vertexData.type_);
-    sparseGraph_->addVertex(state, type, 0);
+    sparseGraph_->addVertexFromFile(state, type, indent);
 
     // Feedback
     if ((i + 1) % feedbackFrequency == 0)
       std::cout << std::fixed << std::setprecision(0) << (i / double(numVertices)) * 100.0 << "% " << std::flush;
   }
   std::cout << std::endl;
+
+  // Join thread
+  loadVerticesFinished_ = true;
+
+  time::point startTime = time::now(); // Benchmark
+  nnThread.join();
+  OMPL_INFORM("NN thread took %f seconds to catch up", time::seconds(time::now() - startTime)); // Benchmark
 }
 
-void SparseStorage::loadEdges(unsigned int numEdges, boost::archive::binary_iarchive &ia)
+void SparseStorage::populateNNThread(std::size_t startingVertex)
 {
-  OMPL_INFORM("Loading %u edges from file", numEdges);
+  SparseVertex vertexID = startingVertex; // skip the query vertices
+
+  while (!loadVerticesFinished_)
+  {
+    // Check if there are any vertices ready to be inserted into the NN
+    // We subtract 1 because we do not want to process the newest vertex for threading reasons
+    while (vertexID < sparseGraph_->getNumVertices() - 1)
+    {
+      // There are vertices ready to be inserted
+      sparseGraph_->getNN()->add(vertexID);
+      vertexID++;
+    }
+
+    if (!loadVerticesFinished_) // only wait if the parent thread isn't already done
+    {
+      //std::cout << "sleeping in NN, current vertexID: " << vertexID << " total: " << sparseGraph_->getNumVertices() << std::endl;
+      usleep(0.0001*1000000);
+    }
+  }
+
+  // There should be one vertex left
+  BOOST_ASSERT_MSG(vertexID == sparseGraph_->getNumVertices() - 1, "There should only be one vertex left");
+
+  // Add the last vertex
+  sparseGraph_->getNN()->add(vertexID);
+}
+
+void SparseStorage::loadEdges(unsigned int numEdges, boost::archive::binary_iarchive &ia, std::size_t indent)
+{
+  BOLT_DEBUG(indent, true, "Loading edges from file: " << numEdges);
+  indent += 2;
+
   std::size_t feedbackFrequency = std::max(10.0, numEdges / 10.0);
+  BoltEdgeData edgeData;
 
   std::cout << "         Edges loaded: ";
   for (unsigned int i = 0; i < numEdges; ++i)
   {
-    BoltEdgeData edgeData;
     ia >> edgeData;
 
     // Note: we increment all vertex indexes by the number of query vertices
     const SparseVertex v1 = edgeData.endpoints_.first += numQueryVertices_;
     const SparseVertex v2 = edgeData.endpoints_.second += numQueryVertices_;
 
-    // Error check
-    BOOST_ASSERT_MSG(v1 <= sparseGraph_->getNumVertices(), "Vertex 1 out of range of possible vertices");
-    BOOST_ASSERT_MSG(v2 <= sparseGraph_->getNumVertices(), "Vertex 2 out of range of possible vertices");
-    BOOST_ASSERT_MSG(v1 != v2, "Vertices of an edge loaded from file are the same");
-
     // Add
     EdgeType type = static_cast<EdgeType>(edgeData.type_);
-    std::size_t indent = 2;
     sparseGraph_->addEdge(v1, v2, type, indent);
-
-    // We deserialized the edge object pointer, and we own it.
-    // Since addEdge copies the object, it is safe to free here.
-    // delete edgeData.e_;
 
     // Feedback
     if ((i + 1) % feedbackFrequency == 0)
@@ -324,5 +391,7 @@ void SparseStorage::loadEdges(unsigned int numEdges, boost::archive::binary_iarc
 }
 
 }  // namespace bolt
+
+
 }  // namespace tools
 }  // namespace ompl

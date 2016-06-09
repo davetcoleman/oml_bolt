@@ -41,6 +41,7 @@
 #include <ompl/tools/bolt/SparseCriteria.h>
 #include <ompl/util/Console.h>
 #include <ompl/datastructures/NearestNeighborsGNAT.h>
+#include <ompl/datastructures/NearestNeighborsGNATNoThreadSafety.h>
 #include <ompl/base/DiscreteMotionValidator.h>
 
 // Boost
@@ -76,11 +77,11 @@ namespace bolt
 SparseGraph::SparseGraph(base::SpaceInformationPtr si, VisualizerPtr visual)
   : si_(si)
   , visual_(visual)
-  // Property accessors of edges
+    // Property accessors of edges
   , edgeWeightProperty_(boost::get(boost::edge_weight, g_))
   , edgeTypeProperty_(boost::get(edge_type_t(), g_))
   , edgeCollisionStatePropertySparse_(boost::get(edge_collision_state_t(), g_))
-  // Property accessors of vertices
+    // Property accessors of vertices
   , vertexStateProperty_(boost::get(vertex_state_cache_t(), g_))
   , vertexTypeProperty_(boost::get(vertex_type_t(), g_))
   , vertexInterfaceProperty_(boost::get(vertex_interface_data_t(), g_))
@@ -97,8 +98,11 @@ SparseGraph::SparseGraph(base::SpaceInformationPtr si, VisualizerPtr visual)
   // Add search state
   initializeQueryState();
 
+  // Saving and loading from file
+  storage_.reset(new SparseStorage(si_, this));
+
   // Initialize nearest neighbor datastructure
-  nn_.reset(new NearestNeighborsGNAT<SparseVertex>());
+  nn_.reset(new NearestNeighborsGNATNoThreadSafety<SparseVertex>());
   nn_->setDistanceFunction(boost::bind(&otb::SparseGraph::distanceFunction, this, _1, _2));
 
   if (superDebug_)
@@ -172,8 +176,7 @@ bool SparseGraph::load()
   // Benchmark
   time::point start = time::now();
 
-  SparseStorage storage_(si_, this);
-  if (!storage_.load(filePath_.c_str()))
+  if (!storage_->load(filePath_.c_str()))
     return false;
 
   // Benchmark
@@ -182,24 +185,15 @@ bool SparseGraph::load()
   // Error check
   if (!getNumVertices() || !getNumEdges())
   {
-    OMPL_ERROR("Corrupted sparse graph loaded");
+    OMPL_ERROR("Corrupted sparse graph looaded");
     return false;
   }
 
-  // Get the average vertex degree (number of connected edges)
-  double averageDegree = (getNumEdges() * 2) / static_cast<double>(getNumVertices());
+  OMPL_INFORM("Loading time: %f", duration);
+  exit(0);
 
-  // Check how many disjoint sets are in the sparse graph (should be none)
-  std::size_t numSets = checkConnectedComponents();
-
-  OMPL_INFORM("------------------------------------------------------");
-  OMPL_INFORM("Loaded graph stats:");
-  OMPL_INFORM("   Total vertices:         %u (including %u query vertices)", getNumVertices(), getNumQueryVertices());
-  OMPL_INFORM("   Total edges:            %u", getNumEdges());
-  OMPL_INFORM("   Average degree:         %f", averageDegree);
-  OMPL_INFORM("   Connected Components:   %u", numSets);
-  OMPL_INFORM("   Loading time:           %f", duration);
-  OMPL_INFORM("------------------------------------------------------");
+  // Show more data
+  printGraphStats();
 
   // Nothing to save because was just loaded from file
   graphUnsaved_ = false;
@@ -207,18 +201,21 @@ bool SparseGraph::load()
   return true;
 }
 
-bool SparseGraph::saveIfChanged()
+bool SparseGraph::saveIfChanged(std::size_t indent)
 {
   if (graphUnsaved_)
   {
-    return save();
+    return save(indent);
   }
   else
-    OMPL_INFORM("Not saving because database has not changed");
+  {
+    BOLT_DEBUG(indent, true, "Not saving because database has not changed. Time: " << time::as_string(time::now()));
+  }
+
   return true;
 }
 
-bool SparseGraph::save()
+bool SparseGraph::save(std::size_t indent)
 {
   if (!graphUnsaved_)
     OMPL_WARN("No need to save because graphUnsaved_ is false, but saving anyway because requested");
@@ -241,15 +238,14 @@ bool SparseGraph::save()
   time::point start = time::now();
 
   // Save
-  SparseStorage storage_(si_, this);
-  storage_.save(filePath_.c_str());
+  storage_->save(filePath_.c_str());
 
   // Save collision cache
   denseCache_->save();
 
   // Benchmark
   double loadTime = time::seconds(time::now() - start);
-  OMPL_INFORM("Saved database to file in %f sec", loadTime);
+  BOLT_DEBUG(indent, true, "Saved database to file in " << loadTime << " seconds. Time: " << time::as_string(time::now()));
 
   graphUnsaved_ = false;
   return true;
@@ -287,9 +283,9 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
                         // ability to disable edges (set cost to inifinity):
                         boost::weight_map(SparseEdgeWeightMap(g_, edgeCollisionStatePropertySparse_, popularityBias,
                                                               popularityBiasEnabled))
-                            .predecessor_map(vertexPredecessors)
-                            .distance_map(&vertexDistances[0])
-                            .visitor(SparsestarVisitor(goal, this)));
+                        .predecessor_map(vertexPredecessors)
+                        .distance_map(&vertexDistances[0])
+                        .visitor(SparsestarVisitor(goal, this)));
   }
   catch (FoundGoalException &)
   {
@@ -298,7 +294,7 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
     // the custom exception from SparsestarVisitor
     BOLT_DEBUG(indent, vSearch_, "AStar found solution. Distance to goal: " << vertexDistances[goal]);
     BOLT_DEBUG(indent, vSearch_, "Number nodes opened: " << numNodesOpened_
-                                                         << ", Number nodes closed: " << numNodesClosed_);
+               << ", Number nodes closed: " << numNodesClosed_);
 
     if (isinf(vertexDistances[goal]))  // TODO(davetcoleman): test that this works
     {
@@ -422,8 +418,11 @@ double SparseGraph::distanceFunction(const SparseVertex a, const SparseVertex b)
   }
 
   // Error check
-  assert(getVertexState(a) != NULL);
-  assert(getVertexState(b) != NULL);
+  if (superDebug_)
+  {
+    assert(getVertexState(a) != NULL);
+    assert(getVertexState(b) != NULL);
+  }
 
   return si_->distance(getVertexState(a), getVertexState(b));
 }
@@ -478,7 +477,7 @@ bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std:
   }
 
   BOLT_DEBUG(indent, visualizeQualityPathSimp_, "Created 'quality path' candidate with " << path->getStateCount()
-                                                                                         << " states");
+             << " states");
   if (visualizeQualityPathSimp_)
     visual_->waitForUserFeedback("path simplification");
 
@@ -509,13 +508,13 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
   }
 
   BOLT_DEBUG(indent, visualizeQualityPathSimp_, "Created 'quality path' candidate with " << path->getStateCount()
-                                                                                         << " states");
+             << " states");
   if (visualizeQualityPathSimp_)
     visual_->waitForUserFeedback("path simplification");
 
   // Set the motion validator to use clearance, this way isValid() checks clearance before confirming valid
   base::DiscreteMotionValidator *dmv =
-      dynamic_cast<base::DiscreteMotionValidator *>(si_->getMotionValidatorNonConst().get());
+    dynamic_cast<base::DiscreteMotionValidator *>(si_->getMotionValidatorNonConst().get());
   dmv->setRequiredStateClearance(clearance);
 
   for (std::size_t i = 0; i < 3; ++i)
@@ -621,7 +620,7 @@ void SparseGraph::visualizeDisjointSets(SparseDisjointSetsMap &disjointSets)
 
   // Find the disjoint set that is the 'main' large one
   std::size_t maxDisjointSetSize = 0;
-  SparseVertex maxDisjointSetParent;
+  SparseVertex maxDisjointSetParent = 0;
   for (SparseDisjointSetsMap::const_iterator iterator = disjointSets.begin(); iterator != disjointSets.end();
        iterator++)
   {
@@ -729,6 +728,8 @@ SparseVertex SparseGraph::addVertex(StateID stateID, const VertexType &type, std
 {
   // Create vertex
   SparseVertex v = boost::add_vertex(g_);
+
+  // Feedback
   BOLT_CYAN_DEBUG(indent, vAdd_, "addVertex(): v: " << v << ", stateID: " << stateID << " type " << type);
   indent += 2;
 
@@ -736,10 +737,6 @@ SparseVertex SparseGraph::addVertex(StateID stateID, const VertexType &type, std
   vertexTypeProperty_[v] = type;
   vertexStateProperty_[v] = stateID;
   vertexPopularity_[v] = MAX_POPULARITY_WEIGHT;  // 100 means the vertex is very unpopular
-
-  // Debug
-  // std::cout << "New Vertex: " << v << " - stateID: " << stateID << " state: ";
-  // debugState(getState(stateID));
 
   // Clear all nearby interface data whenever a new vertex is added
   if (sparseCriteria_->useFourthCriteria_)
@@ -790,6 +787,25 @@ SparseVertex SparseGraph::addVertex(StateID stateID, const VertexType &type, std
 
   // Enable saving
   graphUnsaved_ = true;
+
+  return v;
+}
+
+SparseVertex SparseGraph::addVertexFromFile(base::State *state, const VertexType &type, std::size_t indent)
+{
+  // Save state in cache
+  StateID stateID = addState(state);
+
+  // Create vertex
+  SparseVertex v = boost::add_vertex(g_);
+
+  // Add properties
+  vertexTypeProperty_[v] = type;
+  vertexStateProperty_[v] = stateID;
+  vertexPopularity_[v] = MAX_POPULARITY_WEIGHT;  // 100 means the vertex is very unpopular
+
+  // Connected component tracking
+  disjointSets_.make_set(v);
 
   return v;
 }
@@ -891,7 +907,7 @@ SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type,
     BOOST_ASSERT_MSG(v1 != v2, "Verticex IDs are the same");
     BOOST_ASSERT_MSG(!hasEdge(v1, v2), "There already exists an edge between two vertices requested");
     BOOST_ASSERT_MSG(hasEdge(v1, v2) == hasEdge(v2, v1), "There already exists an edge between two vertices requested, "
-                                                         "other direction");
+                     "other direction");
     BOOST_ASSERT_MSG(getVertexState(v1) != getVertexState(v2), "States on both sides of an edge are the same");
     BOOST_ASSERT_MSG(!si_->getStateSpace()->equalStates(getVertexState(v1), getVertexState(v2)),
                      "Vertex IDs are different but states are the equal");
@@ -1072,8 +1088,9 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
 
   // Clear previous visualization
   visual_->viz1()->deleteAllMarkers();
+  visual_->viz1()->trigger();
 
-  const std::size_t MIN_FEEDBACK = 10000;
+  const std::size_t MIN_FEEDBACK = 1000;
   if (visualizeDatabaseEdges_)
   {
     // Loop through each edge
@@ -1140,7 +1157,7 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
         std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumVertices()) * 100.0
                   << "% " << std::flush;
         visual_->viz1()->trigger();
-        // usleep(0.01 * 1000000);
+        usleep(0.01 * 1000000);
       }
       count++;
     }
@@ -1234,6 +1251,46 @@ void SparseGraph::debugNN()
   std::cout << std::endl;
 }
 
+void SparseGraph::printGraphStats()
+{
+  // Get the average vertex degree (number of connected edges)
+  double averageDegree = (getNumEdges() * 2) / static_cast<double>(getNumVertices());
+
+  // Check how many disjoint sets are in the sparse graph (should be none)
+  std::size_t numSets = checkConnectedComponents();
+
+  // Find min, max, and average edge length
+  double totalEdgeLength = 0;
+  double maxEdgeLength = -1 * std::numeric_limits<double>::infinity();
+  double minEdgeLength = std::numeric_limits<double>::infinity();
+  foreach (const SparseEdge e, boost::edges(g_))
+  {
+    const double length = edgeWeightProperty_[e];
+    totalEdgeLength += length;
+    if (maxEdgeLength < length)
+      maxEdgeLength = length;
+    if (minEdgeLength > length)
+      minEdgeLength = length;
+  }
+  double averageEdgeLength = getNumEdges() ? totalEdgeLength / getNumEdges() : 0;
+
+  std::size_t indent = 0;
+  BOLT_DEBUG(indent, 1, "------------------------------------------------------");
+  BOLT_DEBUG(indent, 1, "Graph stats:");
+  BOLT_DEBUG(indent, 1, "   Total vertices:         " << getNumVertices());
+  BOLT_DEBUG(indent, 1, "   Total edges:            " << getNumEdges());
+  BOLT_DEBUG(indent, 1, "   Average degree:         " << averageDegree);
+  BOLT_DEBUG(indent, 1, "   Connected Components:   " << numSets);
+  BOLT_DEBUG(indent, 1, "   Edge Lengths:           ");
+  BOLT_DEBUG(indent, 1, "      Max:                 " << maxEdgeLength);
+  BOLT_DEBUG(indent, 1, "      Min:                 " << minEdgeLength);
+  BOLT_DEBUG(indent, 1, "      Average:             " << averageEdgeLength);
+  BOLT_DEBUG(indent, 1, "      SparseDelta:         " << sparseCriteria_->sparseDelta_);
+  BOLT_DEBUG(indent, 1, "      Difference:          " << averageEdgeLength - sparseCriteria_->sparseDelta_);
+  BOLT_DEBUG(indent, 1, "      Penetration:         " << sparseCriteria_->discretizePenetrationDist_);
+  BOLT_DEBUG(indent, 1, "------------------------------------------------------");
+}
+
 }  // namespace bolt
 }  // namespace tools
 }  // namespace ompl
@@ -1249,7 +1306,7 @@ double get(const ompl::tools::bolt::SparseEdgeWeightMap &m, const ompl::tools::b
 }
 
 BOOST_CONCEPT_ASSERT(
-    (boost::ReadablePropertyMapConcept<ompl::tools::bolt::SparseEdgeWeightMap, ompl::tools::bolt::SparseEdge>));
+                     (boost::ReadablePropertyMapConcept<ompl::tools::bolt::SparseEdgeWeightMap, ompl::tools::bolt::SparseEdge>));
 
 // SparsestarVisitor methods ////////////////////////////////////////////////////////////////////////////
 

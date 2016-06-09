@@ -137,11 +137,11 @@ private:
   void generateVertices(std::size_t indent);
 
   void generateVerticesThread(std::size_t threadID, double startJointValue, double endJointValue,
-                              base::SpaceInformationPtr si);
+                              base::SpaceInformationPtr si, std::size_t indent);
 
   void recursiveDiscretization(std::size_t threadID, std::vector<double>& values, std::size_t jointID,
                                base::SpaceInformationPtr si, base::State* candidateState,
-                               std::size_t maxDiscretizationLevel);
+                               std::size_t maxDiscretizationLevel, std::size_t indent);
 
   /** \brief The created space information */
   base::SpaceInformationPtr si_;
@@ -169,6 +169,7 @@ private:
 public:
   /** \brief Show more debug info */
   bool verbose_ = false;
+  bool vThread_ = false;
 
   /** \brief Various options for visualizing the algorithmns performance */
   bool visualizeGridGeneration_ = false;

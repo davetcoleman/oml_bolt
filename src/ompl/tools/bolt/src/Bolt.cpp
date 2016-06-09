@@ -372,7 +372,7 @@ bool Bolt::loadOrGenerate()
   {
     return false;
   }
-  sparseGraph_->displayDatabase();
+  //sparseGraph_->displayDatabase();
 
   return true;
 }

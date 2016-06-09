@@ -79,23 +79,22 @@ static const boost::uint32_t OMPL_PLANNER_DATA_ARCHIVE_MARKER = 0x5044414D;  // 
 class SparseStorage
 {
 public:
-  /// \brief Information stored at the beginning of the SparseStorage archive
+  /* \brief Information stored at the beginning of the SparseStorage archive */
   struct Header
   {
-    /// \brief OMPL specific marker (fixed value)
+    /* \brief OMPL specific marker (fixed value) */
     boost::uint32_t marker;
 
-    /// \brief Number of vertices stored in the archive
+    /* \brief Number of vertices stored in the archive */
     std::size_t vertex_count;
 
-    /// \brief Number of edges stored in the archive
+    /* \brief Number of edges stored in the archive */
     std::size_t edge_count;
 
-    /// \brief Signature of state space that allocated the saved states in the vertices (see
-    /// ompl::base::StateSpace::computeSignature()) */
+    /* \brief Signature of state space that allocated the saved states in the vertices (see */
     std::vector<int> signature;
 
-    /// \brief boost::serialization routine
+    /* \brief boost::serialization routine */
     template <typename Archive>
     void serialize(Archive &ar, const unsigned int /*version*/)
     {
@@ -106,7 +105,7 @@ public:
     }
   };
 
-  /// \brief The object containing all vertex data that will be stored
+  /* \brief The object containing all vertex data that will be stored */
   struct BoltVertexData
   {
     template <typename Archive>
@@ -120,7 +119,7 @@ public:
     int type_;
   };
 
-  /// \brief The object containing all edge data that will be stored
+  /* \brief The object containing all edge data that will be stored */
   struct BoltEdgeData
   {
     template <typename Archive>
@@ -139,33 +138,42 @@ public:
   /** \brief Constructor */
   SparseStorage(const base::SpaceInformationPtr &si, SparseGraph *sparseGraph);
 
-  void save(const std::string &filePath);
+  void save(const std::string &filePath, std::size_t indent = 0);
 
   void save(std::ostream &out);
 
-  /// \brief Serialize and save all vertices in \e pd to the binary archive.
+  /* \brief Serialize and save all vertices in \e pd to the binary archive. */
   void saveVertices(boost::archive::binary_oarchive &oa);
 
-  /// \brief Serialize and store all edges in \e pd to the binary archive.
+  /* \brief Serialize and store all edges in \e pd to the binary archive. */
   void saveEdges(boost::archive::binary_oarchive &oa);
 
-  bool load(const std::string &filePath);
+  bool load(const std::string &filePath, std::size_t indent = 0);
 
   bool load(std::istream &in);
 
-  /// \brief Read \e numVertices from the binary input \e ia and store them as SparseStorage
-  void loadVertices(unsigned int numVertices, boost::archive::binary_iarchive &ia);
+  /* \brief Read \e numVertices from the binary input \e ia and store them as SparseStorage */
+  void loadVertices(unsigned int numVertices, boost::archive::binary_iarchive &ia, std::size_t indent = 0);
 
-  /// \brief Read \e numEdges from the binary input \e ia and store them as SparseStorage
-  void loadEdges(unsigned int numEdges, boost::archive::binary_iarchive &ia);
+  /** \brief Thread to populate nearest neighbor structure, because that is the slowest component */
+  void populateNNThread(std::size_t startingVertex);
 
-  /// \brief The space information instance for this data.
+  /* \brief Read \e numEdges from the binary input \e ia and store them as SparseStorage  */
+  void loadEdges(unsigned int numEdges, boost::archive::binary_iarchive &ia, std::size_t indent = 0);
+
+  /* \brief The space information instance for this data. */
   base::SpaceInformationPtr si_;
 
   SparseGraph *sparseGraph_;
 
   /** \brief Based on number of threads system is using */
   std::size_t numQueryVertices_;
+
+  /** \brief Size of graph at last load/save */
+  std::size_t prevNumEdges_ = 0;
+  std::size_t prevNumVertices_ = 0;
+
+  bool loadVerticesFinished_;
 };  // end of class SparseStorage
 
 }  // namespace bolt

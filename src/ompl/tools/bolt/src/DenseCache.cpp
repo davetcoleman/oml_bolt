@@ -186,7 +186,7 @@ bool DenseCache::load()
 {
   if (disableCache_)
   {
-    OMPL_INFORM("DenseCache: disabled, not loading");
+    //OMPL_INFORM("DenseCache: disabled, not loading");
     return false;
   }
 

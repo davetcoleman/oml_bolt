@@ -132,6 +132,12 @@ public:
     return visual_;
   }
 
+  /** \brief Get the nearest neifhbor structure */
+  std::shared_ptr<NearestNeighbors<SparseVertex> > getNN()
+  {
+    return nn_;
+  }
+
   /** \brief Free all the memory allocated by the database */
   void freeMemory();
 
@@ -164,13 +170,13 @@ public:
    * \brief Save loaded database to file, except skips saving if no paths have been added
    * \return true if file saved successfully
    */
-  bool saveIfChanged();
+  bool saveIfChanged(std::size_t indent = 0);
 
   /**
    * \brief Save loaded database to file
    * \return true if file saved successfully
    */
-  bool save();
+  bool save(std::size_t indent = 0);
 
   /** \brief Given two milestones from the same connected component, construct a path connecting them and set it as
    * the solution
@@ -274,9 +280,12 @@ public:
   /** \brief Add a state to the DenseCache */
   StateID addState(base::State* state);
 
-  /** \brief Add vertices to graph */
+  /** \brief Add vertex to graph */
   SparseVertex addVertex(base::State* state, const VertexType& type, std::size_t indent);
   SparseVertex addVertex(StateID stateID, const VertexType& type, std::size_t indent);
+
+  /** \brief Quickly add vertex to graph when loading from file */
+  SparseVertex addVertexFromFile(base::State *state, const VertexType &type, std::size_t indent);
 
   /** \brief Remove vertex from graph */
   void removeVertex(SparseVertex v);
@@ -345,6 +354,9 @@ public:
   /** \brief Print nearest neighbor info to console */
   void debugNN();
 
+  /** \brief Information about the loaded graph */
+  void printGraphStats();
+
 protected:
   /** \brief Short name of this class */
   const std::string name_ = "SparseGraph";
@@ -360,6 +372,9 @@ protected:
 
   /** \brief Speed up collision checking by saving redundant checks and using file storage */
   DenseCachePtr denseCache_;
+
+  /** \brief For saving and loading to file */
+  SparseStoragePtr storage_;
 
   /** \brief Nearest neighbors data structure */
   std::shared_ptr<NearestNeighbors<SparseVertex> > nn_;
@@ -434,7 +449,7 @@ public:  // user settings from other applications
   bool vSearch_ = false;
 
   /** \brief Run with extra safety checks */
-  bool superDebug_ = true;
+  bool superDebug_ = false;
 
   /** \brief Show the sparse graph being generated */
   bool visualizeSparseGraph_ = false;

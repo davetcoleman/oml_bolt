@@ -260,6 +260,9 @@ public:
   void getNeighborsAtLevel(const TaskVertex nearVertex, const VertexLevel level, const std::size_t kNeighbors,
                            std::vector<TaskVertex>& neighbors, std::size_t indent);
 
+  /** \brief Error checking function to ensure solution has correct task path/level changes */
+  bool checkTaskPathSolution(geometric::PathGeometric &path, base::State *start, base::State *goal);
+
   /* ---------------------------------------------------------------------------------
    * Error checking
    * --------------------------------------------------------------------------------- */

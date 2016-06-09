@@ -106,7 +106,7 @@ typedef std::unordered_map<VertexPair, InterfaceData> InterfaceHash;
 typedef VertexIndexType StateID;
 
 /** \brief Task level dimension data type */
-typedef std::size_t VertexLevel;
+typedef std::size_t VertexLevel; // TODO(davetcoleman): rename to TaskLevel
 
 /** \brief Boost vertex properties */
 struct vertex_state_t

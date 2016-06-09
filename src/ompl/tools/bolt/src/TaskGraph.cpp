@@ -57,7 +57,7 @@
 #include <algorithm>  // std::random_shuffle
 
 // Profiling
-#include <valgrind/callgrind.h>
+//#include <valgrind/callgrind.h>
 
 #define foreach BOOST_FOREACH
 
@@ -349,8 +349,8 @@ double TaskGraph::astarTaskHeuristic(const TaskVertex a, const TaskVertex b) con
   std::size_t indent = 0;
 
   // Reorder a & b so that we are sure that a.level <= b.level
-  int taskLevelA = getTaskLevel(a);
-  int taskLevelB = getTaskLevel(b);
+  VertexLevel taskLevelA = getTaskLevel(a);
+  VertexLevel taskLevelB = getTaskLevel(b);
   if (taskLevelA > taskLevelB)
   {
     // Call itself again, this time switching ordering
@@ -759,6 +759,71 @@ void TaskGraph::getNeighborsAtLevel(const TaskVertex origVertex, const VertexLev
       neighbors[i] = newVertex;
     }
   }
+}
+
+bool TaskGraph::checkTaskPathSolution(og::PathGeometric &path, ob::State *start, ob::State *goal)
+{
+  bool error = false;
+  VertexLevel current_level = 0;
+
+  for (std::size_t i = 0; i < path.getStateCount(); ++i)
+  {
+    VertexLevel level = si_->getStateSpace()->getLevel(path.getState(i));
+
+    // Check if start state is correct
+    if (i == 0)
+    {
+      if (!si_->getStateSpace()->equalStates(path.getState(i), start))
+      {
+        OMPL_ERROR("Start state of path is not same as original problem");
+        error = true;
+      }
+
+      if (level != 0)
+      {
+        OMPL_ERROR("Start state is not at level 0, instead %i", level);
+        error = true;
+      }
+    }
+
+    // Check if goal state is correct
+    if (i == path.getStateCount() - 1)
+    {
+      if (!si_->getStateSpace()->equalStates(path.getState(i), goal))
+      {
+        OMPL_ERROR("Goal state of path is not same as original problem");
+        error = true;
+      }
+
+      if (level != 2)
+      {
+        OMPL_ERROR("Goal state is not at level 2, instead %i", level);
+        error = true;
+      }
+    }
+
+    // Ensure that level is always increasing
+    if (level < current_level)
+    {
+      OMPL_ERROR("State decreased in level (%i) from previous level of ", current_level);
+      error = true;
+    }
+    current_level = level;
+
+  }  // for loop
+
+  // Show more data if error
+  if (error)
+  {
+    OMPL_ERROR("Showing data on path:");
+    for (std::size_t i = 0; i < path.getStateCount(); ++i)
+    {
+      VertexLevel level = si_->getStateSpace()->getLevel(path.getState(i));
+      OMPL_INFORM(" - Path state %i has level %i", i, level);
+    }
+  }
+
+  return error;
 }
 
 void TaskGraph::clearEdgeCollisionStates()
@@ -1376,7 +1441,7 @@ void TaskGraph::visualizeEdge(TaskVertex v1, TaskVertex v2, std::size_t windowID
 {
   VertexLevel level1 = getTaskLevel(v1);
   VertexLevel level2 = getTaskLevel(v2);
-  ompl::tools::VizColors color;
+  ompl::tools::VizColors color = DEFAULT;
 
   if (level1 == 0 && level2 == 0)
     color = BLUE;

@@ -268,7 +268,7 @@ protected:
   /** \brief Distance to the nearest possible vertex in the grid, referred to as z */
   double nearestDiscretizedV_;
 
-  bool useFourthCriteria_;
+  bool useFourthCriteria_ = false;
 
   std::size_t numConsecutiveFailures_;
 
@@ -299,6 +299,9 @@ public:
   /** \brief Number of failed state insertion attempts before starting to apply the fourth quality criteria from SPARS
    */
   std::size_t fourthCriteriaAfterFailures_ = 500;
+
+  /** \brief How often to save */
+  std::size_t saveInterval_ = 1000;
 
   /** \brief Testing parameter */
   // double magicMultiple_ = 0;
@@ -332,12 +335,12 @@ public:
   bool visualizeNodePopularity_ = false;
 
   /** \brief Method for ordering of vertex insertion */
-  int sparseCreationInsertionOrder_ = 0;
+  std::size_t sparseCreationInsertionOrder_ = 0;
 
   /** \brief For statistics */
-  int numGraphGenerations_ = 0;
-  int numRandSamplesAdded_ = 0;
-  int numVerticesMoved_ = 0;
+  std::size_t numGraphGenerations_ = 0;
+  std::size_t numRandSamplesAdded_ = 0;
+  std::size_t numVerticesMoved_ = 0;
 
 };  // end SparseCriteria
 
