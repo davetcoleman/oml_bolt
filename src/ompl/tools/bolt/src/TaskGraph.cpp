@@ -1329,7 +1329,10 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
     std::size_t count = 1;
     std::size_t debugFrequency = MIN_FEEDBACK;
     if (getNumEdges() > MIN_FEEDBACK)
+    {
+      std::string(indent, ' ');
       std::cout << "Displaying task edges: " << std::flush;
+    }
     foreach (TaskEdge e, boost::edges(g_))
     {
       // Visualize
@@ -1356,7 +1359,10 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
     std::size_t count = 1;
     std::size_t debugFrequency = MIN_FEEDBACK;  // getNumVertices() / 10;
     if (getNumVertices() > MIN_FEEDBACK)
+    {
+      std::string(indent, ' ');
       std::cout << "Displaying task vertices: " << std::flush;
+    }
     foreach (TaskVertex v, boost::vertices(g_))
     {
       // Skip query vertices

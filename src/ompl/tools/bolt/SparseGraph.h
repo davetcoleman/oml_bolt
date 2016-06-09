@@ -457,6 +457,7 @@ public:  // user settings from other applications
   bool visualizeDatabaseVertices_ = true;
   bool visualizeDatabaseEdges_ = true;
   bool visualizeDatabaseCoverage_ = true;
+  bool visualizeGraphAfterLoading_ = true;
 
 };  // end class SparseGraph
 

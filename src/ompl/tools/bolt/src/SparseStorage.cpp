@@ -304,8 +304,6 @@ void SparseStorage::loadVertices(unsigned int numVertices, boost::archive::binar
   BoltVertexData vertexData;
 
   std::cout << "         Vertices loaded: ";
-
-  std::cout << std::endl; // TODO remove
   for (unsigned int i = 0; i < numVertices; ++i)
   {
     // Copy in data from file
@@ -328,9 +326,9 @@ void SparseStorage::loadVertices(unsigned int numVertices, boost::archive::binar
   // Join thread
   loadVerticesFinished_ = true;
 
-  time::point startTime = time::now(); // Benchmark
+  //time::point startTime = time::now(); // Benchmark
   nnThread.join();
-  OMPL_INFORM("NN thread took %f seconds to catch up", time::seconds(time::now() - startTime)); // Benchmark
+  //OMPL_INFORM("NN thread took %f seconds to catch up", time::seconds(time::now() - startTime)); // Benchmark
 }
 
 void SparseStorage::populateNNThread(std::size_t startingVertex)
@@ -352,6 +350,14 @@ void SparseStorage::populateNNThread(std::size_t startingVertex)
     {
       //std::cout << "sleeping in NN, current vertexID: " << vertexID << " total: " << sparseGraph_->getNumVertices() << std::endl;
       usleep(0.0001*1000000);
+    }
+
+    // When we wake up, check if there are more vertices ready again, before checking if we are done
+    while (vertexID < sparseGraph_->getNumVertices() - 1)
+    {
+      // There are vertices ready to be inserted
+      sparseGraph_->getNN()->add(vertexID);
+      vertexID++;
     }
   }
 

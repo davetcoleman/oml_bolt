@@ -181,6 +181,7 @@ bool SparseGraph::load()
 
   // Benchmark
   double duration = time::seconds(time::now() - start);
+  OMPL_INFORM("Graph total loading time: %f", duration);
 
   // Error check
   if (!getNumVertices() || !getNumEdges())
@@ -189,14 +190,14 @@ bool SparseGraph::load()
     return false;
   }
 
-  OMPL_INFORM("Loading time: %f", duration);
-  exit(0);
-
   // Show more data
   printGraphStats();
 
   // Nothing to save because was just loaded from file
   graphUnsaved_ = false;
+
+  if (visualizeGraphAfterLoading_)
+    displayDatabase();
 
   return true;
 }
@@ -1117,11 +1118,15 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
       }
 
       count++;
+
+      std::cout << "count: " << count << std::endl;
+      visual_->viz1()->trigger();
+      usleep(1*1000000);
     }
     if (getNumEdges() > MIN_FEEDBACK)
       std::cout << std::endl;
   }
-
+  exit(0);
   if (visualizeDatabaseVertices_)
   {
     // Loop through each vertex

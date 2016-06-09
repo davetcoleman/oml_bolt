@@ -198,15 +198,15 @@ void SparseCriteria::createSPARS()
     addRandomSamples(indent);
   }
 
-  if (!sg_->visualizeSparseGraph_)
-    sg_->displayDatabase(true, indent);
-
-  // Cleanup removed vertices
-  sg_->removeDeletedVertices(indent);
-
   // Profiler
   CALLGRIND_TOGGLE_COLLECT;
   CALLGRIND_DUMP_STATS;
+
+  // if (!sg_->visualizeSparseGraph_)
+  //   sg_->displayDatabase(true, indent);
+
+  // Cleanup removed vertices
+  sg_->removeDeletedVertices(indent);
 
   // Benchmark runtime
   double duration = time::seconds(time::now() - startTime);
@@ -267,8 +267,8 @@ void SparseCriteria::createSPARS()
   BOLT_DEBUG(indent, 1, "    Missing interfaces:      " << interfaceStats.second);
   BOLT_DEBUG(indent, 1, "-----------------------------------------");
 
-  if (!sg_->visualizeSparseGraph_)
-    sg_->displayDatabase(true, indent);
+  //if (!sg_->visualizeSparseGraph_)
+  //sg_->displayDatabase(true, indent);
 
   OMPL_INFORM("Finished creating sparse database");
 }
@@ -576,7 +576,7 @@ bool SparseCriteria::addSample(StateID candidateStateID, std::size_t indent)
   }
 
   // Check consequitive successes to determine termination
-  if (numRandSamplesAdded_ > 10)
+  if (numRandSamplesAdded_ >= 5 && false)
   {
     BOLT_YELLOW_DEBUG(indent, true, "SPARS creation finished because " << numRandSamplesAdded_
                                                                        << " consecutive insertion successes reached");
@@ -622,7 +622,7 @@ bool SparseCriteria::addStateToRoadmap(StateID candidateStateID, SparseVertex &n
   // Always add a node if no other nodes around it are visible (GUARD)
   if (checkAddCoverage(candidateStateID, visibleNeighborhood, newVertex, indent))
   {
-    BOLT_DEBUG(indent, vAddedReason_, "Graph updated for: COVERAGE, stateID: "
+    BOLT_DEBUG(indent, vAddedReason_, "Graph updated: COVERAGE, stateID: "
                                           << candidateStateID << " RandSamplesAdded: " << numRandSamplesAdded_
                                           << " ConsecutiveFailures: " << numConsecutiveFailures_
                                           << " Fourth: " << useFourthCriteria_);
@@ -632,7 +632,7 @@ bool SparseCriteria::addStateToRoadmap(StateID candidateStateID, SparseVertex &n
   }
   else if (checkAddConnectivity(candidateStateID, visibleNeighborhood, newVertex, indent + 6))
   {
-    BOLT_MAGENTA_DEBUG(indent, vAddedReason_, "Graph updated for: CONNECTIVITY, stateID: "
+    BOLT_MAGENTA_DEBUG(indent, vAddedReason_, "Graph updated: CONNECTIVITY, stateID: "
                                                   << candidateStateID << " RandSamplesAdded: " << numRandSamplesAdded_
                                                   << " ConsecutiveFailures: " << numConsecutiveFailures_
                                                   << " Fourth: " << useFourthCriteria_);
@@ -642,7 +642,7 @@ bool SparseCriteria::addStateToRoadmap(StateID candidateStateID, SparseVertex &n
   }
   else if (checkAddInterface(candidateStateID, graphNeighborhood, visibleNeighborhood, newVertex, indent + 10))
   {
-    BOLT_BLUE_DEBUG(indent, vAddedReason_, "Graph updated for: INTERFACE, stateID: "
+    BOLT_BLUE_DEBUG(indent, vAddedReason_, "Graph updated: INTERFACE, stateID: "
                                                << candidateStateID << " RandSamplesAdded: " << numRandSamplesAdded_
                                                << " ConsecutiveFailures: " << numConsecutiveFailures_
                                                << " Fourth: " << useFourthCriteria_);
@@ -653,7 +653,7 @@ bool SparseCriteria::addStateToRoadmap(StateID candidateStateID, SparseVertex &n
   else if (useFourthCriteria_ &&
            checkAddQuality(candidateStateID, graphNeighborhood, visibleNeighborhood, workState, newVertex, indent + 14))
   {
-    BOLT_GREEN_DEBUG(indent, vAddedReason_, "Graph updated for: QUALITY, stateID: "
+    BOLT_GREEN_DEBUG(indent, vAddedReason_, "Graph updated: QUALITY, stateID: "
                                                 << candidateStateID << " RandSamplesAdded: " << numRandSamplesAdded_
                                                 << " ConsecutiveFailures: " << numConsecutiveFailures_
                                                 << " Fourth: " << useFourthCriteria_);
@@ -663,7 +663,7 @@ bool SparseCriteria::addStateToRoadmap(StateID candidateStateID, SparseVertex &n
   }
   else if (discretizedSamplesInsertion_)
   {
-    BOLT_DEBUG(indent, vAddedReason_, "Graph updated for: DISCRETIZED, stateID: "
+    BOLT_DEBUG(indent, vAddedReason_, "Graph updated: DISCRETIZED, stateID: "
                                           << candidateStateID << " RandSamplesAdded: " << numRandSamplesAdded_
                                           << " ConsecutiveFailures: " << numConsecutiveFailures_
                                           << " Fourth: " << useFourthCriteria_);
