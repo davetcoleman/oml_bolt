@@ -156,6 +156,7 @@ void SparseStorage::saveVertices(boost::archive::binary_oarchive &oa)
                                                                     "as threads that were skipped while saving");
 
   std::cout << std::endl;
+  std::cout << std::scientific;
 }
 
 void SparseStorage::saveEdges(boost::archive::binary_oarchive &oa)
@@ -189,6 +190,7 @@ void SparseStorage::saveEdges(boost::archive::binary_oarchive &oa)
 
   }  // for each edge
   std::cout << std::endl;
+  std::cout << std::scientific;
 }
 
 bool SparseStorage::load(const std::string &filePath, std::size_t indent)

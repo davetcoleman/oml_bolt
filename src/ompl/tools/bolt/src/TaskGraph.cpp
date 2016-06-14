@@ -1351,7 +1351,7 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       count++;
     }
     if (getNumEdges() > MIN_FEEDBACK)
-      std::cout << std::endl;
+      std::cout << std::endl << std::scientific;
   }
 
   if (visualizeDatabaseVertices_)
@@ -1398,7 +1398,7 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       count++;
     }
     if (getNumVertices() > MIN_FEEDBACK)
-      std::cout << std::endl;
+      std::cout << std::endl << std::scientific;
   }
 
   // Publish remaining edges

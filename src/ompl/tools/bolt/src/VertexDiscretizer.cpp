@@ -239,6 +239,7 @@ void VertexDiscretizer::generateVertices(std::size_t indent)
   BOLT_DEBUG(indent, verbose_, "  Total states:           " << pow(jointIncrements, dim));
   BOLT_DEBUG(indent, verbose_, "  Num Threads:            " << numThreads_);
   BOLT_DEBUG(indent, verbose_, "-------------------------------------------------------");
+std::cout << std::scientific;
 
   // Setup threading
   std::vector<boost::thread *> threads(numThreads_);

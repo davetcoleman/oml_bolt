@@ -311,6 +311,7 @@ void DenseCache::saveStates(boost::archive::binary_oarchive &oa)
   }
 
   std::cout << std::endl;
+std::cout << std::scientific;
 }
 
 void DenseCache::loadStates(unsigned int numStates, boost::archive::binary_iarchive &ia)
@@ -337,6 +338,7 @@ void DenseCache::loadStates(unsigned int numStates, boost::archive::binary_iarch
       std::cout << std::fixed << std::setprecision(0) << (i / double(numStates)) * 100.0 << "% " << std::flush;
   }
   std::cout << std::endl;
+std::cout << std::scientific;
 }
 
 StateID DenseCache::addState(base::State *state)

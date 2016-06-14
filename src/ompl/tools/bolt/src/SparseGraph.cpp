@@ -1120,12 +1120,11 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
 
       count++;
 
-      std::cout << "count: " << count << std::endl;
       visual_->viz1()->trigger();
       usleep(1*1000000);
     }
     if (getNumEdges() > MIN_FEEDBACK)
-      std::cout << std::endl;
+      std::cout << std::endl << std::scientific;
   }
   exit(0);
   if (visualizeDatabaseVertices_)
@@ -1169,6 +1168,7 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
     }
     if (getNumVertices() > MIN_FEEDBACK)
       std::cout << std::endl;
+    std::cout << std::scientific;
   }
 
   // Publish remaining edges

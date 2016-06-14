@@ -459,6 +459,7 @@ bool SparseCriteria::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInser
       sucessfulInsertions++;
     }
   }  // end for
+  std::cout << std::scientific;
 
   return true;
 }
