@@ -1090,7 +1090,8 @@ std::size_t TaskGraph::checkConnectedComponents()
   std::size_t numSets = getDisjointSetsCount();
   if (numSets > 1)
   {
-    OMPL_ERROR("More than 1 connected component is in the task graph: %u", numSets);
+    std::size_t indent = 0;
+    BOLT_YELLOW_DEBUG(indent, true, "More than 1 connected component is in the sparse graph: " << numSets);
   }
 
   return numSets;

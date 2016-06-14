@@ -186,7 +186,7 @@ bool SparseGraph::load()
   // Error check
   if (!getNumVertices() || !getNumEdges())
   {
-    OMPL_ERROR("Corrupted sparse graph looaded");
+    OMPL_ERROR("Corrupted sparse graph loaded");
     return false;
   }
 
@@ -704,7 +704,8 @@ std::size_t SparseGraph::checkConnectedComponents()
   std::size_t numSets = getDisjointSetsCount();
   if (numSets > 1)
   {
-    OMPL_ERROR("More than 1 connected component is in the sparse graph: %u", numSets);
+    std::size_t indent = 0;
+    BOLT_YELLOW_DEBUG(indent, true, "More than 1 connected component is in the sparse graph: " << numSets);
   }
 
   return numSets;
