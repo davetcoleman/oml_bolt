@@ -166,7 +166,7 @@ void TaskGraph::initializeQueryState()
 bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::vector<TaskVertex> &vertexPath,
                             double &distance, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, vSearch_, "astarSearch()");
+  BOLT_CYAN_DEBUG(indent, vSearch_, "TaskGraph.astarSearch()");
   indent += 2;
 
   // Hold a list of the shortest path parent to each vertex
@@ -345,7 +345,6 @@ double TaskGraph::astarTaskHeuristic(const TaskVertex a, const TaskVertex b) con
   if (!taskPlanningEnabled_)
     return distanceFunction(a, b);
 
-  const bool verbose = true;
   std::size_t indent = 0;
 
   // Reorder a & b so that we are sure that a.level <= b.level
@@ -354,7 +353,7 @@ double TaskGraph::astarTaskHeuristic(const TaskVertex a, const TaskVertex b) con
   if (taskLevelA > taskLevelB)
   {
     // Call itself again, this time switching ordering
-    BOLT_DEBUG(indent, verbose, "Switched ordering for distanceFunctionTasks()");
+    BOLT_DEBUG(indent, vHeuristic_, "Switched ordering for distanceFunctionTasks()");
     return astarTaskHeuristic(b, a);
   }
 
@@ -373,18 +372,18 @@ double TaskGraph::astarTaskHeuristic(const TaskVertex a, const TaskVertex b) con
   {
     if (taskLevelB == 0)  // regular distance for bottom level
     {
-      BOLT_DEBUG(indent, verbose, "Distance Mode a");
+      BOLT_DEBUG(indent, vHeuristic_, "Distance Mode a");
       dist = si_->distance(vertexStateProperty_[a], vertexStateProperty_[b]);
     }
     else if (taskLevelB == 1)
     {
-      BOLT_DEBUG(indent, verbose, "Distance Mode b");
+      BOLT_DEBUG(indent, vHeuristic_, "Distance Mode b");
       dist = si_->distance(vertexStateProperty_[a], vertexStateProperty_[startConnectorVertex_]) + TASK_LEVEL_COST +
              si_->distance(vertexStateProperty_[startConnectorVertex_], vertexStateProperty_[b]);
     }
     else if (taskLevelB == 2)
     {
-      BOLT_DEBUG(indent, verbose, "Distance Mode c");
+      BOLT_DEBUG(indent, vHeuristic_, "Distance Mode c");
       dist = si_->distance(vertexStateProperty_[a], vertexStateProperty_[startConnectorVertex_]) + TASK_LEVEL_COST +
              distanceAcrossCartPath_ + TASK_LEVEL_COST +
              si_->distance(vertexStateProperty_[endConnectorVertex_], vertexStateProperty_[b]);
@@ -404,12 +403,12 @@ double TaskGraph::astarTaskHeuristic(const TaskVertex a, const TaskVertex b) con
     }
     else if (taskLevelB == 1)
     {
-      BOLT_DEBUG(indent, verbose, "Distance Mode d");
+      BOLT_DEBUG(indent, vHeuristic_, "Distance Mode d");
       dist = si_->distance(vertexStateProperty_[a], vertexStateProperty_[b]);
     }
     else if (taskLevelB == 2)
     {
-      BOLT_DEBUG(indent, verbose, "Distance Mode e");
+      BOLT_DEBUG(indent, vHeuristic_, "Distance Mode e");
 
       dist = si_->distance(vertexStateProperty_[a], vertexStateProperty_[endConnectorVertex_]) + TASK_LEVEL_COST +
              si_->distance(vertexStateProperty_[endConnectorVertex_], vertexStateProperty_[b]);
@@ -428,7 +427,7 @@ double TaskGraph::astarTaskHeuristic(const TaskVertex a, const TaskVertex b) con
     }
     else if (taskLevelB == 2)
     {
-      BOLT_DEBUG(indent, verbose, "Distance Mode f");
+      BOLT_DEBUG(indent, vHeuristic_, "Distance Mode f");
       dist = si_->distance(vertexStateProperty_[a], vertexStateProperty_[b]);
     }
     else
@@ -441,9 +440,8 @@ double TaskGraph::astarTaskHeuristic(const TaskVertex a, const TaskVertex b) con
     OMPL_WARN("Unknown task level mode");
   }
 
-  if (verbose)
-    std::cout << "Vertex " << a << " @level " << taskLevelA << " to Vertex " << b << " @level " << taskLevelB
-              << " has distance " << dist << std::endl;
+  BOLT_DEBUG(indent, vHeuristic_, "Vertex " << a << " @level " << taskLevelA << " to Vertex " << b << " @level " << taskLevelB
+             << " has distance " << dist);
   return dist;
 }
 
@@ -455,13 +453,13 @@ bool TaskGraph::isEmpty() const
 
 void TaskGraph::generateTaskSpace(std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "generateTaskSpace()");
+  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.generateTaskSpace()");
   indent += 2;
 
   // Clear pre-existing graphs
   if (!isEmpty())
   {
-    BOLT_DEBUG(indent, verbose_, "clearing previous graph");
+    BOLT_DEBUG(indent, vGenerateTask_, "clearing previous graph");
     clear();
   }
 
@@ -470,7 +468,7 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
   std::vector<TaskVertex> sparseToTaskVertex2(sg_->getNumVertices());
 
   // Loop through every vertex in sparse graph and copy twice to task graph
-  BOLT_DEBUG(indent + 2, true, "Adding task space vertices");
+  BOLT_DEBUG(indent + 2, vGenerateTask_, "Adding task space vertices");
   foreach (SparseVertex sparseV, boost::vertices(sg_->getGraph()))
   {
     // The first thread number of verticies are used for queries and should be skipped
@@ -497,7 +495,7 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
   }
 
   // Loop through every edge in sparse graph and copy twice to task graph
-  BOLT_DEBUG(indent + 2, true, "Adding task space edges");
+  BOLT_DEBUG(indent + 2, vGenerateTask_, "Adding task space edges");
   foreach (const SparseEdge sparseE, boost::edges(sg_->getGraph()))
   {
     const SparseVertex sparseE_v1 = boost::source(sparseE, sg_->getGraph());
@@ -518,12 +516,12 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
   }
 
   // Visualize
-  displayDatabase();
+  //displayDatabase();
 }
 
 bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "addCartPath()");
+  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.addCartPath()");
   indent += 2;
 
   // Error check
@@ -593,7 +591,7 @@ bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
 
 void TaskGraph::clearCartesianVertices(std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "removeDeletedVertices()");
+  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.removeDeletedVertices()");
   indent += 2;
 
   // Remove all vertices that are of type CARTESIAN
@@ -611,7 +609,7 @@ void TaskGraph::clearCartesianVertices(std::size_t indent)
 
     if (getVertexTypeProperty(*v) == CARTESIAN)  // Found vertex to delete
     {
-      BOLT_DEBUG(indent, verbose_, "Removing CARTESIAN TaskVertex " << *v);
+      BOLT_DEBUG(indent, vClear_, "Removing CARTESIAN TaskVertex " << *v);
 
       boost::clear_vertex(*v, g_);  // delete the edges
       boost::remove_vertex(*v, g_);
@@ -620,15 +618,15 @@ void TaskGraph::clearCartesianVertices(std::size_t indent)
     }
     else  // only proceed if no deletion happened
     {
-      // BOLT_DEBUG(indent, verbose_, "Checking TaskVertex " << *v << " stateID: " << getStateID(*v));
+      // BOLT_DEBUG(indent, vClear_, "Checking TaskVertex " << *v << " stateID: " << getStateID(*v));
       v++;
     }
   }
-  BOLT_DEBUG(indent, verbose_, "Removed " << numRemoved << " vertices from graph of type CARTESIAN");
+  BOLT_DEBUG(indent, vClear_, "Removed " << numRemoved << " vertices from graph of type CARTESIAN");
 
   if (numRemoved == 0)
   {
-    BOLT_DEBUG(indent, verbose_, "No verticies deleted, skipping resetting NN and disjointSets");
+    BOLT_DEBUG(indent, vClear_, "No verticies deleted, skipping resetting NN and disjointSets");
     return;
   }
 
@@ -659,14 +657,14 @@ void TaskGraph::clearCartesianVertices(std::size_t indent)
   }
 
   // Clear the visualization and redisplay
-  bool showVertices = true;
-  displayDatabase(showVertices, indent);
+  // bool showVertices = true;
+  // displayDatabase(showVertices, indent);
 }
 
 bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const VertexLevel level,
                                                 TaskVertex &minConnectorVertex, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "connectVertexToNeighborsAtLevel()");
+  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.connectVertexToNeighborsAtLevel()");
   indent += 2;
 
   // Get nearby states to goal
@@ -711,7 +709,7 @@ bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const Ver
 void TaskGraph::getNeighborsAtLevel(const TaskVertex origVertex, const VertexLevel level, const std::size_t kNeighbors,
                                     std::vector<TaskVertex> &neighbors, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "getNeighborsAtLevel()");
+  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.getNeighborsAtLevel()");
   indent += 2;
 
   if (level == 1)
@@ -733,20 +731,20 @@ void TaskGraph::getNeighborsAtLevel(const TaskVertex origVertex, const VertexLev
     // Collision check
     if (!si_->checkMotion(origState, getVertexState(nearVertex)))  // is not valid motion
     {
-      BOLT_DEBUG(indent, verbose_, "Skipping neighbor " << nearVertex << ", i=" << i << ", at level="
+      BOLT_DEBUG(indent, vGenerateTask_, "Skipping neighbor " << nearVertex << ", i=" << i << ", at level="
                                                         << getTaskLevel(nearVertex) << " because invalid motion");
       neighbors.erase(neighbors.begin() + i);
       i--;
       continue;
     }
 
-    BOLT_DEBUG(indent, verbose_, "Keeping neighbor " << nearVertex);
+    BOLT_DEBUG(indent, vGenerateTask_, "Keeping neighbor " << nearVertex);
   }
 
   // Convert our list of neighbors to the proper level
   if (level == 2)
   {
-    BOLT_DEBUG(indent, verbose_, "Converting vector of level 0 neighbors to level 2 neighbors");
+    BOLT_DEBUG(indent, vGenerateTask_, "Converting vector of level 0 neighbors to level 2 neighbors");
 
     for (std::size_t i = 0; i < neighbors.size(); ++i)
     {
@@ -834,7 +832,7 @@ void TaskGraph::clearEdgeCollisionStates()
 
 void TaskGraph::errorCheckDuplicateStates(std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "errorCheckDuplicateStates() - part of super debug");
+  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.errorCheckDuplicateStates() - part of super debug");
   indent += 2;
 
   bool found = false;
@@ -888,7 +886,7 @@ bool TaskGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::s
 
 bool TaskGraph::smoothQualityPath(geometric::PathGeometric *path, double clearance, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, visualizeQualityPathSimp_, "smoothQualityPath()");
+  BOLT_CYAN_DEBUG(indent, visualizeQualityPathSimp_, "TaskGraph.smoothQualityPath()");
   indent += 2;
 
   // Visualize path
@@ -1117,7 +1115,7 @@ TaskVertex TaskGraph::addVertex(base::State *state, const VertexType &type, Vert
 {
   // Create vertex
   TaskVertex v = boost::add_vertex(g_);
-  BOLT_CYAN_DEBUG(indent, vAdd_, "addVertex(): v: " << v << " type " << type << " level: " << level);
+  BOLT_CYAN_DEBUG(indent, vAdd_, "TaskGraph.addVertex(): v: " << v << " type " << type << " level: " << level);
 
   // Add level to state
   setStateTaskLevel(state, level);
@@ -1173,9 +1171,9 @@ void TaskGraph::removeVertex(TaskVertex v)
 
 void TaskGraph::removeDeletedVertices(std::size_t indent)
 {
-  bool verbose = true;
-  BOLT_CYAN_DEBUG(indent, verbose, "removeDeletedVertices()");
+  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.removeDeletedVertices()");
   indent += 2;
+  bool verbose = true;
 
   // Remove all vertices that are set to 0
   std::size_t numRemoved = 0;
@@ -1238,7 +1236,7 @@ void TaskGraph::removeDeletedVertices(std::size_t indent)
 
 TaskEdge TaskGraph::addEdge(TaskVertex v1, TaskVertex v2, EdgeType type, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, vAdd_, "addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
+  BOLT_CYAN_DEBUG(indent, vAdd_, "TaskGraph.addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
 
   if (superDebug_)  // Extra checks
   {
@@ -1268,6 +1266,7 @@ TaskEdge TaskGraph::addEdge(TaskVertex v1, TaskVertex v2, EdgeType type, std::si
   // Visualize
   if (visualizeTaskGraph_)
   {
+    std::cout << "visualizeTaskGraph_ " << std::endl;
     visualizeEdge(v1, v2);
 
     if (visualizeTaskGraphSpeed_ > std::numeric_limits<double>::epsilon())
@@ -1310,7 +1309,7 @@ const base::State *TaskGraph::getState(StateID stateID) const
 
 void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, vVisualize_, "displayDatabase()");
+  BOLT_CYAN_DEBUG(indent, vVisualize_, "TaskGraph.displayDatabase()");
   indent += 2;
 
   // Error check
@@ -1525,8 +1524,6 @@ void otb::TaskAstarVisitor::examine_vertex(TaskVertex v, const TaskAdjList &) co
 
   if (parent_->visualizeAstar_) // Visualize
   {
-    BOLT_GREEN_DEBUG(0, true, "Examined vertex " << v);
-
     // Show state
     parent_->visualizeVertex(v, 4 /*windowID*/);
 

@@ -429,17 +429,20 @@ public:  // user settings from other applications
   bool visualizeQualityPathSimp_ = false;
 
   /** \brief Change verbosity levels */
+  bool verbose_ = true; // general verbosity level for everything else
   bool vVisualize_ = false;
   bool vAdd_ = false;  // message when adding edges and vertices
   bool vSearch_ = false;
-  bool verbose_ = true; // general verbosity level for everything else
+  bool vHeuristic_ = false;
+  bool vClear_ = false; // clearing cartesian vertices
+  bool vGenerateTask_ = false;
 
   /** \brief Run with extra safety checks */
   bool superDebug_ = true;
 
   /** \brief Show the task graph being generated */
   bool visualizeCartPath_ = false;
-  bool visualizeTaskGraph_ = true;
+  bool visualizeTaskGraph_ = false;
   double visualizeTaskGraphSpeed_ = 0.0;
   bool visualizeDatabaseVertices_ = true;
   bool visualizeDatabaseEdges_ = true;

@@ -372,7 +372,6 @@ bool Bolt::loadOrGenerate()
   {
     return false;
   }
-  //sparseGraph_->displayDatabase();
 
   return true;
 }
@@ -482,9 +481,6 @@ bool Bolt::doPostProcessing()
   // Ensure graph doesn't get too popular
   if (sparseGraph_->getPopularityBiasEnabled())
     sparseGraph_->normalizeGraphEdgeWeights();
-
-  // Show changes
-  sparseGraph_->displayDatabase();
 
   // Recreate the sparse graph, too
 
