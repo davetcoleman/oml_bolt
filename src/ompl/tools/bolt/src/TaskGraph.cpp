@@ -455,11 +455,12 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
 {
   BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.generateTaskSpace()");
   indent += 2;
+  time::point startTime = time::now(); // Benchmark
 
   // Clear pre-existing graphs
   if (!isEmpty())
   {
-    BOLT_DEBUG(indent, vGenerateTask_, "clearing previous graph");
+    BOLT_DEBUG(indent, vGenerateTask_, "Clearing previous graph");
     clear();
   }
 
@@ -517,6 +518,8 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
 
   // Visualize
   //displayDatabase();
+
+  BOLT_DEBUG(indent, verbose_, "Generated task space in " << time::seconds(time::now() - startTime) << " seconds");
 }
 
 bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
@@ -862,7 +865,7 @@ bool TaskGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::s
   if (visualizeQualityPathSimp_)
   {
     visual_->viz2()->deleteAllMarkers();
-    visual_->viz2()->path(path, 1, tools::BLUE);
+    visual_->viz2()->path(path, tools::SMALL, tools::BLUE);
     visual_->viz2()->trigger();
     usleep(0.001 * 1000000);
   }
@@ -893,7 +896,7 @@ bool TaskGraph::smoothQualityPath(geometric::PathGeometric *path, double clearan
   if (visualizeQualityPathSimp_)
   {
     visual_->viz2()->deleteAllMarkers();
-    visual_->viz2()->path(path, 1, tools::BLUE);
+    visual_->viz2()->path(path, tools::SMALL, tools::BLUE);
     visual_->viz2()->trigger();
     usleep(0.001 * 1000000);
   }
@@ -915,7 +918,7 @@ bool TaskGraph::smoothQualityPath(geometric::PathGeometric *path, double clearan
     if (visualizeQualityPathSimp_)
     {
       visual_->viz2()->deleteAllMarkers();
-      visual_->viz2()->path(path, 1, tools::ORANGE);
+      visual_->viz2()->path(path, tools::SMALL, tools::ORANGE);
       visual_->viz2()->trigger();
       usleep(0.1 * 1000000);
       // visual_->waitForUserFeedback("optimizing path");
@@ -926,7 +929,7 @@ bool TaskGraph::smoothQualityPath(geometric::PathGeometric *path, double clearan
     if (visualizeQualityPathSimp_)
     {
       visual_->viz2()->deleteAllMarkers();
-      visual_->viz2()->path(path, 1, tools::BLUE);
+      visual_->viz2()->path(path, tools::SMALL, tools::BLUE);
       visual_->viz2()->trigger();
       usleep(0.1 * 1000000);
       // visual_->waitForUserFeedback("optimizing path");
@@ -940,7 +943,7 @@ bool TaskGraph::smoothQualityPath(geometric::PathGeometric *path, double clearan
   if (visualizeQualityPathSimp_)
   {
     visual_->viz2()->deleteAllMarkers();
-    visual_->viz2()->path(path, 1, tools::GREEN);
+    visual_->viz2()->path(path, tools::SMALL, tools::GREEN);
     visual_->viz2()->trigger();
     visual_->waitForUserFeedback("finished quality path");
   }

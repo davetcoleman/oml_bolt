@@ -165,6 +165,8 @@ base::PlannerStatus BoltPlanner::solve(Termination &ptc)
     else
       simplifyPath(geometricSolution, ptc, indent);
   }
+  else
+    BOLT_YELLOW_DEBUG(indent, true, "Smoothing not enabled");
 
   // Add more points to path
   //geometricSolution.interpolate();
@@ -715,8 +717,8 @@ bool BoltPlanner::simplifyTaskPath(og::PathGeometric &path, Termination &ptc, st
   }
 
   // Smooth the freespace paths
-  path_simplifier_->simplify(pathSegment[0], ptc);
-  path_simplifier_->simplify(pathSegment[2], ptc);
+  path_simplifier_->simplifyMax(pathSegment[0]);
+  path_simplifier_->simplifyMax(pathSegment[2]);
 
   // Combine the path segments back together
   for (int segmentLevel = 0; segmentLevel < int(NUM_LEVELS); ++segmentLevel)
@@ -738,7 +740,7 @@ bool BoltPlanner::simplifyTaskPath(og::PathGeometric &path, Termination &ptc, st
 
   double simplifyTime = time::seconds(time::now() - simplifyStart);
 
-  std::size_t diff = origNumStates - path.getStateCount();
+  int diff = origNumStates - path.getStateCount();
   BOLT_DEBUG(indent, verbose_, "BoltPlanner: Path simplification took " << simplifyTime << " seconds and removed "
              << diff << " states");
 

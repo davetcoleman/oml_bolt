@@ -1266,7 +1266,7 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
       if (visualizeQualityCriteria_)
       {
         visual_->viz2()->deleteAllMarkers();
-        visual_->viz2()->path(path, 1, tools::RED);
+        visual_->viz2()->path(path, tools::SMALL, tools::RED);
         visual_->viz2()->trigger();
         usleep(0.001 * 1000000);
 

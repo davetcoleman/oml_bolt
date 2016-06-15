@@ -472,7 +472,7 @@ bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std:
   if (visualizeQualityPathSimp_)
   {
     visual_->viz2()->deleteAllMarkers();
-    visual_->viz2()->path(path, 1, tools::BLUE);
+    visual_->viz2()->path(path, tools::SMALL, tools::BLUE);
     visual_->viz2()->trigger();
     usleep(0.001 * 1000000);
   }
@@ -503,7 +503,7 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
   if (visualizeQualityPathSimp_)
   {
     visual_->viz2()->deleteAllMarkers();
-    visual_->viz2()->path(path, 1, tools::BLUE);
+    visual_->viz2()->path(path, tools::SMALL, tools::BLUE);
     visual_->viz2()->trigger();
     usleep(0.001 * 1000000);
   }
@@ -525,7 +525,7 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
     if (visualizeQualityPathSimp_)
     {
       visual_->viz2()->deleteAllMarkers();
-      visual_->viz2()->path(path, 1, tools::ORANGE);
+      visual_->viz2()->path(path, tools::SMALL, tools::ORANGE);
       visual_->viz2()->trigger();
       usleep(0.1 * 1000000);
       // visual_->waitForUserFeedback("optimizing path");
@@ -536,7 +536,7 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
     if (visualizeQualityPathSimp_)
     {
       visual_->viz2()->deleteAllMarkers();
-      visual_->viz2()->path(path, 1, tools::BLUE);
+      visual_->viz2()->path(path, tools::SMALL, tools::BLUE);
       visual_->viz2()->trigger();
       usleep(0.1 * 1000000);
       // visual_->waitForUserFeedback("optimizing path");
@@ -550,7 +550,7 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
   if (visualizeQualityPathSimp_)
   {
     visual_->viz2()->deleteAllMarkers();
-    visual_->viz2()->path(path, 1, tools::GREEN);
+    visual_->viz2()->path(path, tools::SMALL, tools::GREEN);
     visual_->viz2()->trigger();
     visual_->waitForUserFeedback("finished quality path");
   }
