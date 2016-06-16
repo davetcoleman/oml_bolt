@@ -149,14 +149,13 @@ void SparseStorage::saveVertices(boost::archive::binary_oarchive &oa)
 
     // Feedback
     if ((++count) % feedbackFrequency == 0)
-      std::cout << std::fixed << std::setprecision(0) << (count / double(sparseGraph_->getNumVertices())) * 100.0
+      std::cout << static_cast<int>(count / double(sparseGraph_->getNumVertices())) * 100.0
                 << "% " << std::flush;
   }
   BOOST_ASSERT_MSG(errorCheckNumQueryVertices == numQueryVertices_, "There should be the same number of query vertex "
                                                                     "as threads that were skipped while saving");
 
   std::cout << std::endl;
-  std::cout << std::scientific;
 }
 
 void SparseStorage::saveEdges(boost::archive::binary_oarchive &oa)
@@ -185,12 +184,11 @@ void SparseStorage::saveEdges(boost::archive::binary_oarchive &oa)
 
     // Feedback
     if ((++count) % feedbackFrequency == 0)
-      std::cout << std::fixed << std::setprecision(0) << (count / double(sparseGraph_->getNumEdges())) * 100.0 << "% "
+      std::cout << static_cast<int>(count / double(sparseGraph_->getNumEdges())) * 100.0 << "% "
                 << std::flush;
 
   }  // for each edge
   std::cout << std::endl;
-  std::cout << std::scientific;
 }
 
 bool SparseStorage::load(const std::string &filePath, std::size_t indent)
@@ -321,7 +319,7 @@ void SparseStorage::loadVertices(unsigned int numVertices, boost::archive::binar
 
     // Feedback
     if ((i + 1) % feedbackFrequency == 0)
-      std::cout << std::fixed << std::setprecision(0) << (i / double(numVertices)) * 100.0 << "% " << std::flush;
+      std::cout << static_cast<int>(i / double(numVertices) * 100.0) << "% " << std::flush;
   }
   std::cout << std::endl;
 
@@ -393,7 +391,7 @@ void SparseStorage::loadEdges(unsigned int numEdges, boost::archive::binary_iarc
 
     // Feedback
     if ((i + 1) % feedbackFrequency == 0)
-      std::cout << std::setprecision(0) << (i / double(numEdges)) * 100.0 << "% " << std::flush;
+      std::cout << static_cast<int>(i / static_cast<double>(numEdges) * 100.0) << "% " << std::flush;
   }
   std::cout << std::endl;
 }

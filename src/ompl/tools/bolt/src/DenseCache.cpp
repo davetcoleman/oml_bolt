@@ -306,12 +306,11 @@ void DenseCache::saveStates(boost::archive::binary_oarchive &oa)
 
     // Feedback
     if (stateID % feedbackFrequency == 0)
-      std::cout << std::fixed << std::setprecision(0) << (stateID / double(stateCache_.size())) * 100.0 << "% "
+      std::cout << static_cast<int>(stateID / double(stateCache_.size()) * 100.0) << "% "
                 << std::flush;
   }
 
   std::cout << std::endl;
-std::cout << std::scientific;
 }
 
 void DenseCache::loadStates(unsigned int numStates, boost::archive::binary_iarchive &ia)
@@ -335,10 +334,9 @@ void DenseCache::loadStates(unsigned int numStates, boost::archive::binary_iarch
 
     // Feedback
     if ((i + 1) % feedbackFrequency == 0)
-      std::cout << std::fixed << std::setprecision(0) << (i / double(numStates)) * 100.0 << "% " << std::flush;
+      std::cout << static_cast<int>((i / double(numStates)) * 100.0) << "% " << std::flush;
   }
   std::cout << std::endl;
-std::cout << std::scientific;
 }
 
 StateID DenseCache::addState(base::State *state)

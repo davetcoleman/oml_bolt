@@ -519,6 +519,8 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
   // Visualize
   //displayDatabase();
 
+  printGraphStats();
+
   BOLT_DEBUG(indent, verbose_, "Generated task space in " << time::seconds(time::now() - startTime) << " seconds");
 }
 
@@ -1269,7 +1271,6 @@ TaskEdge TaskGraph::addEdge(TaskVertex v1, TaskVertex v2, EdgeType type, std::si
   // Visualize
   if (visualizeTaskGraph_)
   {
-    std::cout << "visualizeTaskGraph_ " << std::endl;
     visualizeEdge(v1, v2);
 
     if (visualizeTaskGraphSpeed_ > std::numeric_limits<double>::epsilon())
@@ -1344,7 +1345,7 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
       {
-        std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumEdges()) * 100.0
+        std::cout << static_cast<int>((static_cast<double>(count + 1) / getNumEdges()) * 100.0)
                   << "% " << std::flush;
         visual_->viz2()->trigger();
         usleep(0.01 * 1000000);
@@ -1352,8 +1353,6 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
 
       count++;
     }
-    if (getNumEdges() > MIN_FEEDBACK)
-      std::cout << std::endl << std::scientific;
   }
 
   if (visualizeDatabaseVertices_)
@@ -1392,15 +1391,13 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
       {
-        std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumVertices()) * 100.0
+        std::cout << static_cast<int>((static_cast<double>(count + 1) / getNumVertices()) * 100.0)
                   << "% " << std::flush;
         visual_->viz2()->trigger();
         // usleep(0.01 * 1000000);
       }
       count++;
     }
-    if (getNumVertices() > MIN_FEEDBACK)
-      std::cout << std::endl << std::scientific;
   }
 
   // Publish remaining edges
@@ -1435,6 +1432,9 @@ void TaskGraph::visualizeVertex(TaskVertex v, std::size_t windowID)
 
   // Show vertex
   visual_->viz(windowID)->state(getVertexState(v), size, color, 0);
+
+  // Show robot state
+  //visual_->viz(windowID)->state(getVertexState(v), tools::ROBOT, tools::DEFAULT, 0);
 }
 
 void TaskGraph::visualizeEdge(TaskEdge e, std::size_t windowID)
@@ -1485,6 +1485,43 @@ void TaskGraph::debugNN()
   NearestNeighborsGNAT<TaskVertex> *gnat = dynamic_cast<NearestNeighborsGNAT<TaskVertex> *>(nn_.get());
   std::cout << "GNAT: " << *gnat << std::endl;
   std::cout << std::endl;
+}
+
+void TaskGraph::printGraphStats()
+{
+  // Get the average vertex degree (number of connected edges)
+  double averageDegree = (getNumEdges() * 2) / static_cast<double>(getNumVertices());
+
+  // Check how many disjoint sets are in the task graph (should be none)
+  std::size_t numSets = checkConnectedComponents();
+
+  // Find min, max, and average edge length
+  double totalEdgeLength = 0;
+  double maxEdgeLength = -1 * std::numeric_limits<double>::infinity();
+  double minEdgeLength = std::numeric_limits<double>::infinity();
+  foreach (const TaskEdge e, boost::edges(g_))
+  {
+    const double length = edgeWeightProperty_[e];
+    totalEdgeLength += length;
+    if (maxEdgeLength < length)
+      maxEdgeLength = length;
+    if (minEdgeLength > length)
+      minEdgeLength = length;
+  }
+  double averageEdgeLength = getNumEdges() ? totalEdgeLength / getNumEdges() : 0;
+
+  std::size_t indent = 0;
+  BOLT_DEBUG(indent, 1, "------------------------------------------------------");
+  BOLT_DEBUG(indent, 1, "TaskGraph stats:");
+  BOLT_DEBUG(indent, 1, "   Total vertices:         " << getNumVertices());
+  BOLT_DEBUG(indent, 1, "   Total edges:            " << getNumEdges());
+  BOLT_DEBUG(indent, 1, "   Average degree:         " << averageDegree);
+  BOLT_DEBUG(indent, 1, "   Connected Components:   " << numSets);
+  BOLT_DEBUG(indent, 1, "   Edge Lengths:           ");
+  BOLT_DEBUG(indent, 1, "      Max:                 " << maxEdgeLength);
+  BOLT_DEBUG(indent, 1, "      Min:                 " << minEdgeLength);
+  BOLT_DEBUG(indent, 1, "      Average:             " << averageEdgeLength);
+  BOLT_DEBUG(indent, 1, "------------------------------------------------------");
 }
 
 }  // namespace bolt

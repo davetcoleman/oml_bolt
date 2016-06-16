@@ -1112,7 +1112,7 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
       // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
       {
-        std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumEdges()) * 100.0
+        std::cout << static_cast<int>((static_cast<double>(count + 1) / getNumEdges()) * 100.0)
                   << "% " << std::flush;
         visual_->viz1()->trigger();
         usleep(0.01 * 1000000);
@@ -1123,8 +1123,6 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
       visual_->viz1()->trigger();
       usleep(1*1000000);
     }
-    if (getNumEdges() > MIN_FEEDBACK)
-      std::cout << std::endl << std::scientific;
   }
   exit(0);
   if (visualizeDatabaseVertices_)
@@ -1159,7 +1157,7 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
       // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
       {
-        std::cout << std::fixed << std::setprecision(0) << (static_cast<double>(count + 1) / getNumVertices()) * 100.0
+        std::cout << static_cast<int>((static_cast<double>(count + 1) / getNumVertices()) * 100.0)
                   << "% " << std::flush;
         visual_->viz1()->trigger();
         usleep(0.01 * 1000000);
@@ -1168,7 +1166,6 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
     }
     if (getNumVertices() > MIN_FEEDBACK)
       std::cout << std::endl;
-    std::cout << std::scientific;
   }
 
   // Publish remaining edges
@@ -1282,7 +1279,7 @@ void SparseGraph::printGraphStats()
 
   std::size_t indent = 0;
   BOLT_DEBUG(indent, 1, "------------------------------------------------------");
-  BOLT_DEBUG(indent, 1, "Graph stats:");
+  BOLT_DEBUG(indent, 1, "SparseGraph stats:");
   BOLT_DEBUG(indent, 1, "   Total vertices:         " << getNumVertices());
   BOLT_DEBUG(indent, 1, "   Total edges:            " << getNumEdges());
   BOLT_DEBUG(indent, 1, "   Average degree:         " << averageDegree);

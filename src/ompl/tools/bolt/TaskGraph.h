@@ -354,6 +354,9 @@ public:
   /** \brief Print nearest neighbor info to console */
   void debugNN();
 
+  /** \brief Information about the loaded graph */
+  void printGraphStats();
+
 protected:
 
   /** \brief Short name of this class */

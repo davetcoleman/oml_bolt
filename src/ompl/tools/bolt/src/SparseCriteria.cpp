@@ -415,8 +415,7 @@ bool SparseCriteria::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInser
     if (loopCount++ % debugFrequency == 0)
     {
       std::cout << ANSI_COLOR_BLUE;
-      std::cout << std::fixed << std::setprecision(1)
-                << "Sparse generation progress: " << (static_cast<double>(loopCount) / originalVertexInsertion) * 100.0
+      std::cout << "Sparse generation progress: " << static_cast<int>(static_cast<double>(loopCount) / originalVertexInsertion * 100.0)
                 << "% Cache size: " << denseCache_->getEdgeCacheSize()
                 << " Cache usage: " << denseCache_->getPercentCachedCollisionChecks() << "%" << std::endl;
       std::cout << ANSI_COLOR_RESET;
@@ -459,7 +458,6 @@ bool SparseCriteria::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInser
       sucessfulInsertions++;
     }
   }  // end for
-  std::cout << std::scientific;
 
   return true;
 }
