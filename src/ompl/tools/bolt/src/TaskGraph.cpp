@@ -366,7 +366,7 @@ double TaskGraph::astarTaskHeuristic(const TaskVertex a, const TaskVertex b) con
   assert(vertexStateProperty_[a]);
   assert(vertexStateProperty_[b]);
   assert(vertexStateProperty_[startConnectorVertex_]);
-  assert(vertexStateProperty_[endConnectorVertex_]);
+  assert(vertexStateProperty_[goalConnectorVertex_]);
 
   if (taskLevelA == 0)
   {
@@ -385,8 +385,8 @@ double TaskGraph::astarTaskHeuristic(const TaskVertex a, const TaskVertex b) con
     {
       BOLT_DEBUG(indent, vHeuristic_, "Distance Mode c");
       dist = si_->distance(vertexStateProperty_[a], vertexStateProperty_[startConnectorVertex_]) + TASK_LEVEL_COST +
-             distanceAcrossCartPath_ + TASK_LEVEL_COST +
-             si_->distance(vertexStateProperty_[endConnectorVertex_], vertexStateProperty_[b]);
+             shortestDistAcrossCartGraph_ + TASK_LEVEL_COST +
+             si_->distance(vertexStateProperty_[goalConnectorVertex_], vertexStateProperty_[b]);
     }
     else
     {
@@ -410,8 +410,8 @@ double TaskGraph::astarTaskHeuristic(const TaskVertex a, const TaskVertex b) con
     {
       BOLT_DEBUG(indent, vHeuristic_, "Distance Mode e");
 
-      dist = si_->distance(vertexStateProperty_[a], vertexStateProperty_[endConnectorVertex_]) + TASK_LEVEL_COST +
-             si_->distance(vertexStateProperty_[endConnectorVertex_], vertexStateProperty_[b]);
+      dist = si_->distance(vertexStateProperty_[a], vertexStateProperty_[goalConnectorVertex_]) + TASK_LEVEL_COST +
+             si_->distance(vertexStateProperty_[goalConnectorVertex_], vertexStateProperty_[b]);
     }
     else
     {
@@ -546,12 +546,13 @@ bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
   TaskVertex goalVertex = addVertex(path.back(), CARTESIAN, level, indent);
 
   // Record min cost for cost-to-go heurstic distance function later
-  distanceAcrossCartPath_ = distanceFunction(startVertex, goalVertex);
+  shortestDistAcrossCartGraph_ = distanceFunction(startVertex, goalVertex);
 
   // Connect Start to graph --------------------------------------
   BOLT_DEBUG(indent, verbose_, "Creating start connector");
   const VertexLevel level0 = 0;
-  if (!connectVertexToNeighborsAtLevel(startVertex, level0, startConnectorVertex_, indent))
+  bool isStart = true;
+  if (!connectVertexToNeighborsAtLevel(startVertex, level0, isStart, indent))
   {
     OMPL_ERROR("Failed to connect start of cartesian path");
     return false;
@@ -560,7 +561,8 @@ bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
   // Connect goal to graph --------------------------------------
   BOLT_DEBUG(indent, verbose_, "Creating goal connector");
   const VertexLevel level2 = 2;
-  if (!connectVertexToNeighborsAtLevel(goalVertex, level2, endConnectorVertex_, indent))
+  isStart = false;
+  if (!connectVertexToNeighborsAtLevel(goalVertex, level2, isStart, indent))
   {
     OMPL_ERROR("Failed to connect goal of cartesian path");
     return false;
@@ -596,7 +598,7 @@ bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
 
 void TaskGraph::clearCartesianVertices(std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.removeDeletedVertices()");
+  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.clearCartesianVertices()");
   indent += 2;
 
   // Remove all vertices that are of type CARTESIAN
@@ -628,6 +630,12 @@ void TaskGraph::clearCartesianVertices(std::size_t indent)
     }
   }
   BOLT_DEBUG(indent, vClear_, "Removed " << numRemoved << " vertices from graph of type CARTESIAN");
+
+  // Reset min connector vars
+  startConnectorVertex_ = 0;
+  goalConnectorVertex_ = 0;
+  startConnectorMinCost_ = std::numeric_limits<double>::infinity();
+  goalConnectorMinCost_ = std::numeric_limits<double>::infinity();
 
   if (numRemoved == 0)
   {
@@ -666,32 +674,30 @@ void TaskGraph::clearCartesianVertices(std::size_t indent)
   // displayDatabase(showVertices, indent);
 }
 
-bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const VertexLevel level,
-                                                TaskVertex &minConnectorVertex, std::size_t indent)
+bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const VertexLevel level, bool isStart,
+                                                std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.connectVertexToNeighborsAtLevel()");
+  BOLT_CYAN_DEBUG(indent, vGenerateTask_, "TaskGraph.connectVertexToNeighborsAtLevel()");
   indent += 2;
 
   // Get nearby states to goal
   std::vector<TaskVertex> neighbors;
-  const std::size_t kNeighbors = 20;
-  getNeighborsAtLevel(fromVertex, level, kNeighbors, neighbors, indent);
+  getNeighborsAtLevel(fromVertex, level, numNeighborsConnectToCart_, neighbors, indent);
 
   // Error check
   if (neighbors.empty())
   {
-    BOLT_RED_DEBUG(indent, verbose_, "No neighbors found when connecting cartesian path");
+    BOLT_RED_DEBUG(indent, vGenerateTask_, "No neighbors found when connecting cartesian path");
     return false;
   }
   else if (neighbors.size() < 3)
   {
-    BOLT_DEBUG(indent, verbose_, "Only found " << neighbors.size() << " neighbors on level " << level);
+    BOLT_DEBUG(indent, vGenerateTask_, "Only found " << neighbors.size() << " neighbors on level " << level);
   }
   else
-    BOLT_DEBUG(indent, verbose_, "Found " << neighbors.size() << " neighbors on level " << level);
+    BOLT_DEBUG(indent, vGenerateTask_, "Found " << neighbors.size() << " neighbors on level " << level);
 
   // Find the shortest connector out of all the options
-  double minConnectorCost = std::numeric_limits<double>::infinity();
 
   // Loop through each neighbor
   for (TaskVertex v : neighbors)
@@ -700,11 +706,16 @@ bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const Ver
     double connectorCost = distanceFunction(fromVertex, v);
     addEdge(fromVertex, v, eCARTESIAN, indent);
 
-    // Get min cost connector
-    if (connectorCost < minConnectorCost)
+    // Remember which cartesian start/goal states should be used for distanceFunction
+    if (isStart && connectorCost < startConnectorMinCost_)
     {
-      minConnectorCost = connectorCost;  // TODO(davetcoleman): should we save the cost, or just use 1.0?
-      minConnectorVertex = v;
+      startConnectorMinCost_ = connectorCost;  // TODO(davetcoleman): should we save the cost, or just use 1.0?
+      startConnectorVertex_ = v;
+    }
+    else if (!isStart && connectorCost < goalConnectorMinCost_)
+    {
+      goalConnectorMinCost_ = connectorCost;  // TODO(davetcoleman): should we save the cost, or just use 1.0?
+      goalConnectorVertex_ = v;
     }
   }
 
@@ -714,11 +725,10 @@ bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const Ver
 void TaskGraph::getNeighborsAtLevel(const TaskVertex origVertex, const VertexLevel level, const std::size_t kNeighbors,
                                     std::vector<TaskVertex> &neighbors, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.getNeighborsAtLevel()");
+  BOLT_CYAN_DEBUG(indent, vGenerateTask_, "TaskGraph.getNeighborsAtLevel()");
   indent += 2;
 
-  if (level == 1)
-    OMPL_ERROR("Unhandled level, does not support 1");
+  BOOST_ASSERT_MSG(level != 1, "Unhandled level, does not support level 1");
 
   const std::size_t threadID = 0;
   base::State *origState = getVertexStateNonConst(origVertex);
@@ -753,13 +763,10 @@ void TaskGraph::getNeighborsAtLevel(const TaskVertex origVertex, const VertexLev
 
     for (std::size_t i = 0; i < neighbors.size(); ++i)
     {
-      TaskVertex nearVertex = neighbors[i];
+      const TaskVertex nearVertex = neighbors[i];
 
       // Get the vertex on the opposite level and replace it in the vector
-      TaskVertex newVertex = vertexTaskMirrorProperty_[nearVertex];
-
-      // Replace
-      neighbors[i] = newVertex;
+      neighbors[i] = vertexTaskMirrorProperty_[nearVertex];
     }
   }
 }

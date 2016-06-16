@@ -276,10 +276,6 @@ bool SparseStorage::load(std::istream &in)
     // Read from file
     loadVertices(h.vertex_count, ia);
     loadEdges(h.edge_count, ia);
-
-    // Profiler
-    CALLGRIND_TOGGLE_COLLECT;
-    CALLGRIND_DUMP_STATS;
   }
   catch (boost::archive::archive_exception &ae)
   {

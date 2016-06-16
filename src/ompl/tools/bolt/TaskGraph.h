@@ -249,12 +249,11 @@ public:
    * \brief Helper for connecting both sides of a cartesian path into a dual level graph
    * \param fromVertex - the endpoint (start or goal) we are connecting from the cartesian path to the graph
    * \param level - what task level we are connecting to - either 0 or 2 (bottom layer or top layer)
-   * \param minConnectorVertex - the vertex on the main graph that has the shortest path to connecting to the
-   * cartesian path (returned value)
+   * \param isStart - is this a start or goal vertex we are connecting?
    * \return true on success
    */
-  bool connectVertexToNeighborsAtLevel(const TaskVertex fromVertex, const VertexLevel level,
-                                      TaskVertex& minConnectorVertex, std::size_t indent);
+  bool connectVertexToNeighborsAtLevel(const TaskVertex fromVertex, const VertexLevel level, bool isStart,
+                                       std::size_t indent);
 
   /** \brief Get k number of neighbors near a state at a certain level that have valid motions */
   void getNeighborsAtLevel(const TaskVertex nearVertex, const VertexLevel level, const std::size_t kNeighbors,
@@ -262,6 +261,19 @@ public:
 
   /** \brief Error checking function to ensure solution has correct task path/level changes */
   bool checkTaskPathSolution(geometric::PathGeometric &path, base::State *start, base::State *goal);
+
+  /** \brief Getter for ShortestDistAcrossCart */
+  const double& getShortestDistAcrossCart() const
+  {
+    OMPL_WARN("shortest_path_across_cart: %f", shortestDistAcrossCartGraph_);
+    return shortestDistAcrossCartGraph_;
+  }
+
+  /** \brief Setter for ShortestDistAcrossCart */
+  void setShortestDistAcrossCart(const double& shortestDistAcrossCartGraph)
+  {
+    shortestDistAcrossCartGraph_ = shortestDistAcrossCartGraph;
+  }
 
   /* ---------------------------------------------------------------------------------
    * Error checking
@@ -416,29 +428,36 @@ protected:
   bool graphUnsaved_ = false;
 
   /** \brief Remember which cartesian start/goal states should be used for distanceFunction */
-  TaskVertex startConnectorVertex_;
-  TaskVertex endConnectorVertex_;
+  TaskVertex startConnectorVertex_ = 0;
+  TaskVertex goalConnectorVertex_ = 0;
+  // Find the lowest cost edge between TaskGraph and CartesianGraph
+  double startConnectorMinCost_ = std::numeric_limits<double>::infinity();
+  double goalConnectorMinCost_ = std::numeric_limits<double>::infinity();
 
   /** \brief Remeber the distances to used for the task distance heuristic */
-  double distanceAcrossCartPath_;
+  double shortestDistAcrossCartGraph_;
 
   /** \brief Flag if we are in task planning mode or not. If false, just plan in free space mode */
   bool taskPlanningEnabled_ = false;
 
 public:  // user settings from other applications
+
+  /** \brief How many neighbors to a Cartesian start or goal point to attempt to connect to in the free space graph */
+  std::size_t numNeighborsConnectToCart_ = 10;
+
   /** \brief Visualization speed of astar search, num of seconds to show each vertex */
   bool visualizeAstar_ = false;
   double visualizeAstarSpeed_ = 0.1;
   bool visualizeQualityPathSimp_ = false;
 
   /** \brief Change verbosity levels */
-  bool verbose_ = true; // general verbosity level for everything else
-  bool vVisualize_ = false;
   bool vAdd_ = false;  // message when adding edges and vertices
   bool vSearch_ = false;
+  bool vVisualize_ = false;
   bool vHeuristic_ = false;
   bool vClear_ = false; // clearing cartesian vertices
-  bool vGenerateTask_ = false;
+  bool vGenerateTask_ = false; // functions that deal with Cartesian paths
+  bool verbose_ = true; // general verbosity level for everything else
 
   /** \brief Run with extra safety checks */
   bool superDebug_ = true;
