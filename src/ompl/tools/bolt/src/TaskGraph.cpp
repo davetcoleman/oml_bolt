@@ -743,14 +743,19 @@ void TaskGraph::getNeighborsAtLevel(const TaskVertex origVertex, const VertexLev
   {
     TaskVertex nearVertex = neighbors[i];
 
-    // Collision check
-    if (!si_->checkMotion(origState, getVertexState(nearVertex)))  // is not valid motion
+    bool useCollisionChecking = false;
+
+    if (useCollisionChecking)
     {
-      BOLT_DEBUG(indent, vGenerateTask_, "Skipping neighbor " << nearVertex << ", i=" << i << ", at level="
-                                                        << getTaskLevel(nearVertex) << " because invalid motion");
-      neighbors.erase(neighbors.begin() + i);
-      i--;
-      continue;
+      // Collision check
+      if (!si_->checkMotion(origState, getVertexState(nearVertex)))  // is not valid motion
+      {
+        BOLT_DEBUG(indent, vGenerateTask_, "Skipping neighbor " << nearVertex << ", i=" << i << ", at level="
+                   << getTaskLevel(nearVertex) << " because invalid motion");
+        neighbors.erase(neighbors.begin() + i);
+        i--;
+        continue;
+      }
     }
 
     BOLT_DEBUG(indent, vGenerateTask_, "Keeping neighbor " << nearVertex);

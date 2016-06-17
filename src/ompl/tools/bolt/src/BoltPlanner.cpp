@@ -665,6 +665,7 @@ bool BoltPlanner::convertVertexPathToStatePath(std::vector<TaskVertex> &vertexPa
 bool BoltPlanner::simplifyPath(og::PathGeometric &path, Termination &ptc, std::size_t indent)
 {
   BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner: simplifyPath()");
+  BOLT_RED_DEBUG(indent, true, "BoltPlanner: simplifyPath() - why no task??");
   indent += 2;
 
   time::point simplifyStart = time::now();
@@ -673,11 +674,10 @@ bool BoltPlanner::simplifyPath(og::PathGeometric &path, Termination &ptc, std::s
   path_simplifier_->simplify(path, ptc);
   double simplifyTime = time::seconds(time::now() - simplifyStart);
 
-  std::cout << "numStates " << numStates << std::endl;
-  std::cout << "path.getStateCount(): " << path.getStateCount() << std::endl;
+  int diff = numStates - path.getStateCount();
   BOLT_DEBUG(indent, verbose_, "BoltPlanner: Path simplification took " << simplifyTime << " seconds and removed "
-                                                                        << numStates - path.getStateCount()
-                                                                        << " states");
+                                                                        << diff << " states");
+
   return true;
 }
 
@@ -714,6 +714,32 @@ bool BoltPlanner::simplifyTaskPath(og::PathGeometric &path, Termination &ptc, st
     if (previousLevel > level) // Error check ordering of input path
       throw Exception(name_, "Level increasing in wrong order");
     previousLevel = level;
+  }
+
+  // Add the start and end vertex of the Cartesian path into the respective freespace paths
+  if (pathSegment[1].getStateCount() >= 2)
+  {
+    // For checking for errors
+    std::size_t seg0Size = pathSegment[0].getStateCount();
+    std::size_t seg1Size = pathSegment[1].getStateCount();
+    std::size_t seg2Size = pathSegment[2].getStateCount();
+
+    // Move first state
+    pathSegment[0].append(pathSegment[1].getStates().front());
+    pathSegment[1].getStates().erase(pathSegment[1].getStates().begin());
+
+    // Move last state
+    pathSegment[2].prepend(pathSegment[1].getStates().back());
+    pathSegment[1].getStates().pop_back();
+
+    // Check the operations were correct
+    BOOST_ASSERT_MSG(seg0Size + 1 == pathSegment[0].getStateCount(), "Invalid size of pathSegement after rearrangment");
+    BOOST_ASSERT_MSG(seg1Size - 2 == pathSegment[1].getStateCount(), "Invalid size of pathSegement after rearrangment");
+    BOOST_ASSERT_MSG(seg2Size + 1 == pathSegment[2].getStateCount(), "Invalid size of pathSegement after rearrangment");
+  }
+  else
+  {
+    OMPL_WARN("The Cartesian path segement 1 has only %u states", pathSegment[1].getStateCount());
   }
 
   // Smooth the freespace paths

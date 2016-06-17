@@ -173,12 +173,12 @@ void Bolt::visualize()
 
   geometric::PathGeometric *solutionPath = static_cast<geometric::PathGeometric *>(pdef_->getSolutionPath().get());
 
-  // Make a copy
+  // Make a copy so that we can interpolate it
   geometric::PathGeometric solutionPathCopy(*solutionPath);
   solutionPathCopy.interpolate();
 
   // Show smoothed & interpolated path
-  visual_->viz6()->path(&solutionPathCopy, tools::LARGE, tools::BLUE);
+  visual_->viz6()->path(&solutionPathCopy, tools::LARGE, tools::PURPLE);
   visual_->viz6()->trigger();
 
   // Show robot animated robot

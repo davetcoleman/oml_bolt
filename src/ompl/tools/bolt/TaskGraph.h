@@ -227,9 +227,14 @@ public:
     si_->getStateSpace()->setLevel(state, level);
   }
 
-  bool taskPlanningEnabled()
+  bool taskPlanningEnabled() const
   {
     return taskPlanningEnabled_;
+  }
+
+  void setTaskPlanningEnabled(bool enable = true)
+  {
+    taskPlanningEnabled_ = enable;
   }
 
   /* ---------------------------------------------------------------------------------
