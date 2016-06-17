@@ -255,7 +255,7 @@ void Bolt::logResults()
       og::PathGeometric solutionPath = og::SimpleSetup::getSolutionPath();  // copied so that it is non-const
 
       std::cout << ANSI_COLOR_BLUE;
-      std::cout << "Bolt Finished - solution found in " << std::setprecision(5) << planTime_ << " seconds with "
+      std::cout << "Bolt Finished - solution found in " << planTime_ << " seconds with "
                 << solutionPath.getStateCount() << " states" << std::endl;
       std::cout << ANSI_COLOR_RESET;
 
@@ -403,8 +403,7 @@ void Bolt::printLogs(std::ostream &out) const
   if (!recallEnabled_)
     out << "Scratch Task Logging Results (inside Bolt Framework)" << std::endl;
   else
-    out << "Bolt Framework Logging Results" << std::endl
-        << std::setprecision(0);
+    out << "Bolt Framework Logging Results" << std::endl;
   out << "  Solutions Attempted:           " << stats_.numProblems_ << std::endl;
   out << "    Solved:                      " << stats_.numSolutionsFromRecall_ << " (" << solvedPercent << "%)\n";
   out << "    Failed:                      " << stats_.numSolutionsFailed_ << std::endl;
@@ -417,7 +416,7 @@ void Bolt::printLogs(std::ostream &out) const
   out << "    Regenerations:               " << sparseCriteria_->numGraphGenerations_ << std::endl;
   out << "    Disjoint Samples Added:      " << sparseCriteria_->numRandSamplesAdded_ << std::endl;
   out << "    Sparse Delta:                " << sparseCriteria_->getSparseDelta() << std::endl;
-  out << "  Average planning time:         " << std::setprecision(4) << stats_.getAveragePlanningTime() << " seconds"
+  out << "  Average planning time:         " << stats_.getAveragePlanningTime() << " seconds"
       << std::endl;
   out << "  Average insertion time:        " << stats_.getAverageInsertionTime() << " seconds" << std::endl;
   out << std::endl;
