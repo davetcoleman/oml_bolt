@@ -408,7 +408,7 @@ double SparseGraph::astarHeuristic(const SparseVertex a, const SparseVertex b) c
 
 double SparseGraph::distanceFunction(const SparseVertex a, const SparseVertex b) const
 {
-  std::cout << "sg.distancefunction() " << a << ", " << b << std::endl;
+  //std::cout << "sg.distancefunction() " << a << ", " << b << std::endl;
   // Special case: query vertices store their states elsewhere
   if (a < numThreads_)
   {
@@ -947,7 +947,7 @@ SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type,
     if (false)
     {
       visual_->viz4()->deleteAllMarkers();
-      visual_->viz4()->edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(eCONNECTIVITY));
+      visual_->viz4()->edge(getVertexState(v1), getVertexState(v2), ot::LARGE, convertEdgeTypeToColor(eCONNECTIVITY));
       visual_->viz4()->trigger();
       usleep(0.001 * 1000000);
     }
@@ -964,26 +964,29 @@ bool SparseGraph::hasEdge(SparseVertex v1, SparseVertex v2)
   return boost::edge(v1, v2, g_).second;
 }
 
-VizEdgeColors SparseGraph::convertEdgeTypeToColor(EdgeType edgeType)
+VizColors SparseGraph::convertEdgeTypeToColor(EdgeType edgeType)
 {
   switch (edgeType)
   {
     case eCONNECTIVITY:
-      return eGREEN;
+      return GREEN;
       break;
     case eINTERFACE:
-      return eYELLOW;
+      return YELLOW;
       break;
     case eQUALITY:
-      return eRED;
+      return RED;
       break;
     case eCARTESIAN:
-      return eORANGE;
+      return ORANGE;
+      break;
+    case eDISCRETIZED:
+      return BLUE;
       break;
     default:
       throw Exception(name_, "Unknown edge type");
   }
-  return eORANGE;  // dummy return value
+  return ORANGE;  // dummy return value
 }
 
 base::State *&SparseGraph::getQueryStateNonConst(SparseVertex v)
@@ -1111,7 +1114,7 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
       SparseVertex v2 = boost::target(e, g_);
 
       // Visualize
-      visual_->viz1()->edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(edgeTypeProperty_[e]));
+      visual_->viz1()->edge(getVertexState(v1), getVertexState(v2), ot::LARGE, convertEdgeTypeToColor(edgeTypeProperty_[e]));
 
       // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
@@ -1234,11 +1237,12 @@ void SparseGraph::visualizeEdge(SparseEdge e, EdgeType type, std::size_t windowI
 void SparseGraph::visualizeEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t windowID)
 {
   // Visualize
-  visual_->viz(windowID)->edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
+  visual_->viz(windowID)->edge(getVertexState(v1), getVertexState(v2), ot::LARGE, convertEdgeTypeToColor(type));
 
   // Hack: Project to 2D space
-  visual_->viz7()->edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
+  visual_->viz7()->edge(getVertexState(v1), getVertexState(v2), ot::LARGE, convertEdgeTypeToColor(type));
   visual_->viz7()->trigger();
+  usleep(0.0001*1000000);
 }
 
 VertexPair SparseGraph::interfaceDataIndex(SparseVertex vp, SparseVertex vpp)

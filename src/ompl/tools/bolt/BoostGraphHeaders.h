@@ -89,7 +89,8 @@ enum EdgeType
   eCONNECTIVITY,
   eINTERFACE,
   eQUALITY,
-  eCARTESIAN
+  eCARTESIAN,
+  eDISCRETIZED
 };
 
 /** \brief The type used internally for representing vertex IDs */

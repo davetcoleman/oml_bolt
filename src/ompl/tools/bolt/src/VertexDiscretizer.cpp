@@ -66,7 +66,7 @@ VertexDiscretizer::VertexDiscretizer(base::SpaceInformationPtr si, VisualizerPtr
   numThreads_ = boost::thread::hardware_concurrency();
 
   // Debugging
-  if (false)
+  if (true)
   {
     OMPL_WARN("Overriding number of threads for testing to 1");
     numThreads_ = 1;

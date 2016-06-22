@@ -111,6 +111,8 @@ public:
                             SparseVertex& newVertex, std::size_t indent);
   bool checkAddInterface(StateID candidateStateID, std::vector<SparseVertex>& graphNeighborhood,
                          std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex, std::size_t indent);
+  bool checkAddDiscretized(StateID candidateStateID, std::vector<SparseVertex> &graphNeighborhood,
+                           std::vector<SparseVertex> &visibleNeighborhood, SparseVertex &newVertex, std::size_t indent);
   bool checkAddQuality(StateID candidateStateID, std::vector<SparseVertex>& graphNeighborhood,
                        std::vector<SparseVertex>& visibleNeighborhood, base::State* workState, SparseVertex& newVertex,
                        std::size_t indent);
@@ -304,9 +306,6 @@ public:
 
   /** \brief How often to save */
   std::size_t saveInterval_ = 1000;
-
-  /** \brief Testing parameter */
-  // double magicMultiple_ = 0;
 
   /** \brief How much the popularity of a node can cause its cost-to-go heuristic to be underestimated */
   double percentMaxExtentUnderestimate_ = 0.01;

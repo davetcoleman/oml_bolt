@@ -305,7 +305,7 @@ public:
   bool hasEdge(SparseVertex v1, SparseVertex v2);
 
   /** \brief Helper for choosing an edge's display color based on type of edge */
-  VizEdgeColors convertEdgeTypeToColor(EdgeType edgeType);
+  VizColors convertEdgeTypeToColor(EdgeType edgeType);
 
   /** \brief Get the state of a vertex used for querying - i.e. vertices 0-11 for 12 thread system */
   base::State*& getQueryStateNonConst(SparseVertex v);
