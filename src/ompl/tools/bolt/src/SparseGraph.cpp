@@ -99,7 +99,7 @@ SparseGraph::SparseGraph(base::SpaceInformationPtr si, VisualizerPtr visual)
   initializeQueryState();
 
   // Saving and loading from file
-  storage_.reset(new SparseStorage(si_, this));
+  sparseStorage_.reset(new SparseStorage(si_, this));
 
   // Initialize nearest neighbor datastructure
   nn_.reset(new NearestNeighborsGNATNoThreadSafety<SparseVertex>());
@@ -176,7 +176,7 @@ bool SparseGraph::load()
   // Benchmark
   time::point start = time::now();
 
-  if (!storage_->load(filePath_.c_str()))
+  if (!sparseStorage_->load(filePath_.c_str()))
     return false;
 
   // Benchmark
@@ -239,7 +239,7 @@ bool SparseGraph::save(std::size_t indent)
   time::point start = time::now();
 
   // Save
-  storage_->save(filePath_.c_str());
+  sparseStorage_->save(filePath_.c_str());
 
   // Save collision cache
   denseCache_->save();

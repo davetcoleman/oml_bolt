@@ -84,6 +84,12 @@ void SparseStorage::save(const std::string &filePath, std::size_t indent)
 
   save(out);
   out.close();
+
+  // Log the graph size
+  std::ofstream loggingFile;                           // open to append
+  loggingFile.open(loggingPath_.c_str(), std::ios::out);  // no append | std::ios::app);
+  loggingFile << sparseGraph_->getNumEdges() << ", " << sparseGraph_->getNumVertices() << std::endl;
+  loggingFile.close();
 }
 
 void SparseStorage::save(std::ostream &out)
@@ -149,7 +155,7 @@ void SparseStorage::saveVertices(boost::archive::binary_oarchive &oa)
 
     // Feedback
     if ((++count) % feedbackFrequency == 0)
-      std::cout << static_cast<int>(count / double(sparseGraph_->getNumVertices())) * 100.0
+      std::cout << static_cast<int>(count / double(sparseGraph_->getNumVertices()) * 100.0)
                 << "% " << std::flush;
   }
   BOOST_ASSERT_MSG(errorCheckNumQueryVertices == numQueryVertices_, "There should be the same number of query vertex "
@@ -184,7 +190,7 @@ void SparseStorage::saveEdges(boost::archive::binary_oarchive &oa)
 
     // Feedback
     if ((++count) % feedbackFrequency == 0)
-      std::cout << static_cast<int>(count / double(sparseGraph_->getNumEdges())) * 100.0 << "% "
+      std::cout << static_cast<int>(count / double(sparseGraph_->getNumEdges()) * 100.0) << "% "
                 << std::flush;
 
   }  // for each edge

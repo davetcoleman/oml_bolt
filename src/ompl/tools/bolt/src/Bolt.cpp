@@ -332,6 +332,7 @@ bool Bolt::setFilePath(const std::string &filePath)
 {
   sparseGraph_->getDenseCache()->setFilePath(filePath + ".cache");
   sparseGraph_->setFilePath(filePath + ".ompl");
+  sparseGraph_->getSparseStorage()->setLoggingPath(filePath + ".logging");
   return true;
 }
 

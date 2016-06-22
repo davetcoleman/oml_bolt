@@ -121,6 +121,11 @@ public:
     return denseCache_;
   }
 
+  SparseStoragePtr getSparseStorage()
+  {
+    return sparseStorage_;
+  }
+
   base::SpaceInformationPtr getSpaceInformation()
   {
     return si_;
@@ -374,7 +379,7 @@ protected:
   DenseCachePtr denseCache_;
 
   /** \brief For saving and loading to file */
-  SparseStoragePtr storage_;
+  SparseStoragePtr sparseStorage_;
 
   /** \brief Nearest neighbors data structure */
   std::shared_ptr<NearestNeighbors<SparseVertex> > nn_;

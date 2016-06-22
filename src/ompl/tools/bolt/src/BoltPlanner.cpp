@@ -723,6 +723,9 @@ bool BoltPlanner::simplifyTaskPath(og::PathGeometric &path, Termination &ptc, st
     std::size_t seg0Size = pathSegment[0].getStateCount();
     std::size_t seg1Size = pathSegment[1].getStateCount();
     std::size_t seg2Size = pathSegment[2].getStateCount();
+    (void)seg0Size; // silence unused warning
+    (void)seg1Size; // silence unused warning
+    (void)seg2Size; // silence unused warning
 
     // Move first state
     pathSegment[0].append(pathSegment[1].getStates().front());

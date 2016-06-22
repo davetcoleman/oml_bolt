@@ -315,88 +315,6 @@ void SparseCriteria::addDiscretizedStates(std::size_t indent)
     sg_->errorCheckDuplicateStates(indent);
 }
 
-/*
-void SparseCriteria::createSPARSOuterLoop()
-{
-  std::size_t indent = 2;
-
-  // Reset parameters
-  setup();
-  visualizeOverlayNodes_ = false;  // DO NOT visualize all added nodes in a separate window
-  denseCache_->resetCounters();
-
-  // Get the ordering to insert vertices
-  std::list<WeightedVertex> vertexInsertionOrder;
-  getVertexInsertionOrdering(vertexInsertionOrder);
-
-  // Error check order creation
-  assert(vertexInsertionOrder.size() == getNumVertices() - queryVertices_.size());
-
-  // Attempt to insert the vertices multiple times until no more succesful insertions occur
-  secondSparseInsertionAttempt_ = false;
-  std::size_t loopAttempt = 0;
-  std::size_t sucessfulInsertions = 1;  // start with one so that while loop works
-  while (sucessfulInsertions > 0)
-  {
-    std::cout << "Attempting to insert " << vertexInsertionOrder.size() << " vertices for the " << loopAttempt
-              << " loop" << std::endl;
-
-    // Sanity check
-    if (loopAttempt > 3)
-      OMPL_WARN("Suprising number of loop when attempting to insert nodes into SPARS graph: %u", loopAttempt);
-
-    // Benchmark runtime
-    time::point startTime = time::now();
-
-    // ----------------------------------------------------------------------
-    // Attempt to insert each vertex using the first 3 criteria
-    if (!createSPARSInnerLoop(vertexInsertionOrder, sucessfulInsertions))
-      break;
-
-    // Benchmark runtime
-    double duration = time::seconds(time::now() - startTime);
-
-    // Visualize
-    if (visualizeSparseGraph_)
-      visual_->viz1()->trigger();
-
-    std::cout << "Succeeded in inserting " << sucessfulInsertions << " vertices on the " << loopAttempt
-              << " loop, remaining uninserted vertices: " << vertexInsertionOrder.size()
-              << " loop runtime: " << duration << " sec" << std::endl;
-    loopAttempt++;
-
-    // Increase the sparse delta a bit, but only after the first loop
-    if (loopAttempt == 1)
-    {
-      // sparseDelta_ = getSecondarySparseDelta();
-      std::cout << std::string(indent + 2, ' ') << "sparseDelta_ is now " << sparseDelta_ << std::endl;
-      secondSparseInsertionAttempt_ = true;
-
-      // Save collision cache, just in case there is a bug
-      denseCache_->save();
-    }
-
-    bool debugOverRideJustTwice = true;
-    if (debugOverRideJustTwice && loopAttempt == 1)
-    {
-      OMPL_WARN("Only attempting to add nodes twice for speed");
-      break;
-    }
-  }
-
-  // If we haven't animated the creation, just show it all at once
-  if (!visualizeSparseGraph_)
-  {
-    sg_->displayDatabase(true, indent+4);
-  }
-  else if (sg_->visualizeSparseGraphSpeed_ < std::numeric_limits<double>::epsilon())
-  {
-    visual_->viz1()->trigger();
-    usleep(0.001 * 1000000);
-  }
-}
-*/
-
 bool SparseCriteria::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOrder,
                                           std::size_t &sucessfulInsertions)
 {
@@ -785,9 +703,9 @@ bool SparseCriteria::checkAddConnectivity(StateID candidateStateID, std::vector<
     }
 
     // New vertex should not be connected to anything - there's no edge between the two states
-    if (sg_->hasEdge(newVertex, *vertexIt) == true)
+    if (sg_->hasEdge(newVertex, *vertexIt))
     {
-      BOLT_DEBUG(indent + 4, 1, "The new vertex " << newVertex << " is already connected to old vertex");
+      BOLT_DEBUG(indent + 4, vCriteria_, "The new vertex " << newVertex << " is already connected to old vertex");
       continue;
     }
 
@@ -1180,17 +1098,6 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
 
     // SparseEdge e =
     sg_->addEdge(vp, vpp, eQUALITY, indent + 2);
-
-    // if (edgeWeightProperty_[e] > ignoreEdgesSmallerThan_)  // discretization_ + small)
-    // {
-    //   if (visualizeQualityCriteria_)
-    //     visualizeCheckAddPath(v, vp, vpp, iData, indent + 4);
-
-    //   // TEMP:
-    //   // std::cout << "discretization_ + small: " << discretization_ + small << std::endl;
-    //   // BOLT_DEBUG(0, true, "Spanner property violated, edge added of length " << edgeWeightProperty_[e]);
-    //   // visual_->waitForUserFeedback();
-    // }
 
     return true;
   }
@@ -2100,10 +2007,6 @@ std::pair<std::size_t, std::size_t> SparseCriteria::getInterfaceStateStorageSize
       else
         numMissingInterfaces++;
 
-      // Debug
-      if (false)
-        if (!iData.hasInterface1() && !iData.hasInterface2())
-          std::cout << "has neither interfaces! " << std::endl;
     }
   }
   return std::pair<std::size_t, std::size_t>(numStates, numMissingInterfaces);

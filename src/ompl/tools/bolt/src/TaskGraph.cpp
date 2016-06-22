@@ -1106,7 +1106,7 @@ std::size_t TaskGraph::checkConnectedComponents()
   if (numSets > 1)
   {
     std::size_t indent = 0;
-    BOLT_YELLOW_DEBUG(indent, true, "More than 1 connected component is in the sparse graph: " << numSets);
+    BOLT_YELLOW_DEBUG(indent, true, "More than 1 connected component is in the TaskGraph: " << numSets);
   }
 
   return numSets;
