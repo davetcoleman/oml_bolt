@@ -324,7 +324,7 @@ public:
   void clearInterfaceData(base::State* st);
 
   /** \brief When a quality path is added with new vertices, remove all edges near the new vertex */
-  void clearEdgesNearVertex(SparseVertex vertex);
+  void clearEdgesNearVertex(SparseVertex vertex, std::size_t indent);
 
   /* ---------------------------------------------------------------------------------
    * Visualizations
@@ -335,6 +335,12 @@ public:
 
   /** \brief Display in viewer */
   void visualizeVertex(SparseVertex v, const VertexType& type);
+
+  /** \brief Display in viewer */
+  void visualizeEdge(SparseEdge e, EdgeType type, std::size_t windowID);
+
+  /** \brief Display in viewer */
+  void visualizeEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t windowID);
 
   /* ---------------------------------------------------------------------------------
    * Sparse Interfaces

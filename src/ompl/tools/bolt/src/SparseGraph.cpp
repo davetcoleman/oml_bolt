@@ -408,6 +408,7 @@ double SparseGraph::astarHeuristic(const SparseVertex a, const SparseVertex b) c
 
 double SparseGraph::distanceFunction(const SparseVertex a, const SparseVertex b) const
 {
+  std::cout << "sg.distancefunction() " << a << ", " << b << std::endl;
   // Special case: query vertices store their states elsewhere
   if (a < numThreads_)
   {
@@ -783,6 +784,7 @@ SparseVertex SparseGraph::addVertex(StateID stateID, const VertexType &type, std
     }
   }
 
+  // Optional Voronoi Diagram
   if (sparseCriteria_->visualizeVoronoiDiagramAnimated_ ||
       (sparseCriteria_->visualizeVoronoiDiagram_ && sparseCriteria_->useFourthCriteria_))
     visual_->vizVoronoiDiagram();
@@ -835,7 +837,7 @@ void SparseGraph::removeVertex(SparseVertex v)
 void SparseGraph::removeDeletedVertices(std::size_t indent)
 {
   bool verbose = true;
-  BOLT_CYAN_DEBUG(indent, verbose, "removeDeletedVertices()");
+  BOLT_RED_DEBUG(indent, verbose || true, "removeDeletedVertices()");
   indent += 2;
 
   // Remove all vertices that are set to 0
@@ -933,7 +935,8 @@ SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type,
   // Visualize
   if (visualizeSparseGraph_)
   {
-    visual_->viz1()->edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
+    visualizeEdge(v1, v2, type, /*windowID*/ 1);
+
     if (visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
       visual_->viz1()->trigger();
@@ -1049,9 +1052,10 @@ void SparseGraph::clearInterfaceData(base::State *state)
   }
 }
 
-void SparseGraph::clearEdgesNearVertex(SparseVertex vertex)
+void SparseGraph::clearEdgesNearVertex(SparseVertex vertex, std::size_t indent)
 {
-  std::size_t indent = 0;
+  BOLT_RED_DEBUG(indent, true, "clearEdgesNearVertex()");
+  indent += 2;
 
   // Optionally disable this feature
   if (!sparseCriteria_->useClearEdgesNearVertex_)
@@ -1078,7 +1082,7 @@ void SparseGraph::clearEdgesNearVertex(SparseVertex vertex)
 
 void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, vVisualize_, "Displaying Sparse database");
+  BOLT_RED_DEBUG(indent, vVisualize_ || true, "Displaying Sparse database");
   indent += 2;
 
   // Error check
@@ -1119,12 +1123,9 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
       }
 
       count++;
-
-      visual_->viz1()->trigger();
-      usleep(1*1000000);
     }
   }
-  exit(0);
+
   if (visualizeDatabaseVertices_)
   {
     // Loop through each vertex
@@ -1213,8 +1214,31 @@ void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
                            sparseCriteria_->sparseDelta_);
 
   // Show vertex
-  // visual_->viz1()->state(getVertexState(v), size, color, 0);
   visual_->viz1()->state(getVertexState(v), size, color, 0);
+
+  // Hack: Project to 2D space
+  visual_->viz7()->state(getVertexState(v), tools::LARGE, color, 0);
+  visual_->viz7()->state(getVertexState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseCriteria_->sparseDelta_);
+  visual_->viz7()->trigger();
+}
+
+void SparseGraph::visualizeEdge(SparseEdge e, EdgeType type, std::size_t windowID)
+{
+  // Add edge
+  SparseVertex v1 = boost::source(e, g_);
+  SparseVertex v2 = boost::target(e, g_);
+
+  visualizeEdge(v1, v2, type, windowID);
+}
+
+void SparseGraph::visualizeEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t windowID)
+{
+  // Visualize
+  visual_->viz(windowID)->edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
+
+  // Hack: Project to 2D space
+  visual_->viz7()->edge(getVertexState(v1), getVertexState(v2), convertEdgeTypeToColor(type));
+  visual_->viz7()->trigger();
 }
 
 VertexPair SparseGraph::interfaceDataIndex(SparseVertex vp, SparseVertex vpp)

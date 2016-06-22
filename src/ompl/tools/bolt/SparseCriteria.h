@@ -79,7 +79,7 @@ public:
 
   /** \brief Create a SPARS graph from the discretized dense graph and its popularity metric */
   void createSPARS();
-  bool createSPARSInnerLoop(std::list<WeightedVertex>& vertexInsertionOrder, std::size_t& sucessfulInsertions);
+  bool createSPARSInnerLoop(std::list<WeightedVertex>& vertexInsertionOrder, std::size_t& sucessfulInsertions, std::size_t indent);
 
   void addDiscretizedStates(std::size_t indent);
 
@@ -252,6 +252,9 @@ protected:
   /** \brief SPARS parameter for dense graph connection distance */
   double denseDelta_;
 
+  /** \brief How overlapping two visibility regions should be to each other, where 0 is just barely touching */
+  double discretizePenetrationDist_ = 0.001;
+
   /** \brief Number of sample points to use when trying to detect interfaces. */
   std::size_t nearSamplePoints_;
 
@@ -289,8 +292,8 @@ public:
   /** \brief The stretch factor in terms of graph spanners for SPARS to check against */
   double stretchFactor_ = 0.0;
 
-  /** \brief How overlapping two visibility regions should be to each other, where 0 is just barely touching */
-  double discretizePenetrationDist_ = 0.001;
+  /** \brief Percent of sparse fraction that should overlap via the discretization  */
+  double penetrationOverlapFraction_ = 0.1;
 
   /** \brief Number of failed state insertion attempts before stopping the algorithm */
   std::size_t terminateAfterFailures_ = 1000;

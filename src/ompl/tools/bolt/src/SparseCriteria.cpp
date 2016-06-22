@@ -91,12 +91,28 @@ bool SparseCriteria::setup()
   // Sampling for interfaces visibility size
   denseDelta_ = denseDeltaFraction_ * maxExtent_;
 
+  // How much overlap should the discretization factor provide for ensuring edge connection
+  discretizePenetrationDist_ = penetrationOverlapFraction_ * sparseDelta_;
+
   // Number of points to test for interfaces around a sample for the quality criterion
   nearSamplePoints_ = nearSamplePointsMultiple_ * si_->getStateDimension();
 
   // Discretization for initial input into sparse graph
-  const double discFactor = sparseDelta_ - discretizePenetrationDist_;
-  discretization_ = 2 * sqrt(std::pow(discFactor, 2) / dim);
+  bool useL2Norm = false;
+  if (useL2Norm) // this is for the 2D world
+  {
+    const double discFactor = sparseDelta_ - discretizePenetrationDist_;
+    discretization_ = 2.0 * sqrt(std::pow(discFactor, 2) / dim);
+  }
+  else // this is for joint space
+  {
+    // L1 Norm
+    //discretization_ = (sparseDelta_ - discretizePenetrationDist_) / dim;
+    discretization_ = sparseDelta_ - discretizePenetrationDist_;
+  }
+
+  // std::cout << "hack here at disc " << std::endl;
+  // discretization_ /= 2.0; // TODO(davetcoleman):hack
 
   ignoreEdgesSmallerThan_ = (discretization_ + 0.01);
 
@@ -124,6 +140,7 @@ bool SparseCriteria::setup()
   BOLT_DEBUG(indent + 2, 1, "State Dimension         = " << dim);
   BOLT_DEBUG(indent + 2, 1, "Near Sample Points      = " << nearSamplePoints_);
   BOLT_DEBUG(indent + 2, 1, "Discretization          = " << discretization_);
+  BOLT_DEBUG(indent + 2, 1, "Pentrat. Overlap Frac   = " << penetrationOverlapFraction_);
   BOLT_DEBUG(indent + 2, 1, "Discret Penetration     = " << discretizePenetrationDist_);
   BOLT_DEBUG(indent + 2, autoStretchFactor, "Nearest Discretized V   = " << nearestDiscretizedV_);
   BOLT_DEBUG(indent + 2, 1, "Stretch Factor          = " << stretchFactor_);
@@ -288,8 +305,19 @@ void SparseCriteria::addDiscretizedStates(std::size_t indent)
   // Generate discretization
   vertexDiscretizer_->generateLattice(indent);
 
+  if (visual_->viz1()->shutdownRequested()) // Check if shutdown requested
+  {
+    BOLT_DEBUG(indent, true, "Shutdown requested");
+    sg_->saveIfChanged(indent);
+    exit(0);
+  }
+
   // this tells SPARS to always add the vertex, no matter what
   setDiscretizedSamplesInsertion(true);
+
+  // this tells SPARS to not attempt to remove close vertices, even if user requested it
+  bool useCheckRemoveCloseVerticesTemp = useCheckRemoveCloseVertices_;
+  useCheckRemoveCloseVertices_ = false;
 
   // Convert to proper format
   std::vector<base::State *> &candidateVertices = vertexDiscretizer_->getCandidateVertices();
@@ -297,18 +325,16 @@ void SparseCriteria::addDiscretizedStates(std::size_t indent)
 
   for (base::State *state : candidateVertices)
   {
-    if (false)
-      sg_->debugState(state);
-
     // Move the ompl::base::State to the DenseCache, changing its ownership
     StateID candidateStateID = denseCache_->addState(state);
     vertexInsertionOrder.push_back(WeightedVertex(candidateStateID, 0));
   }
   candidateVertices.clear();  // clear the vector because we've moved all its memory pointers to DenseCache
   std::size_t sucessfulInsertions;
-  createSPARSInnerLoop(vertexInsertionOrder, sucessfulInsertions);
+  createSPARSInnerLoop(vertexInsertionOrder, sucessfulInsertions, indent);
 
   setDiscretizedSamplesInsertion(false);
+  useCheckRemoveCloseVertices_ = useCheckRemoveCloseVerticesTemp;
 
   // Make sure discretization doesn't have any bugs
   if (sg_->superDebug_)
@@ -316,14 +342,17 @@ void SparseCriteria::addDiscretizedStates(std::size_t indent)
 }
 
 bool SparseCriteria::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOrder,
-                                          std::size_t &sucessfulInsertions)
+                                          std::size_t &sucessfulInsertions, std::size_t indent)
 {
-  std::size_t indent = 0;
+  BOLT_CYAN_DEBUG(indent, true, "createSPARSInnerLoop()");
+  indent += 2;
 
   sucessfulInsertions = 0;
   std::size_t loopCount = 0;
   std::size_t originalVertexInsertion = vertexInsertionOrder.size();
   std::size_t debugFrequency = std::max(std::size_t(10), static_cast<std::size_t>(originalVertexInsertion / 20));
+
+  SparseVertex prevVertex; // For testing distances between vertices
 
   for (std::list<WeightedVertex>::iterator vertexIt = vertexInsertionOrder.begin();
        vertexIt != vertexInsertionOrder.end();
@@ -370,13 +399,29 @@ bool SparseCriteria::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInser
         // vertexPopularity_[newVertex] = vertexIt->weight_;
       }
 
+      // Testing - show distance
+      if (loopCount > 1)
+      {
+        std::cout << sg_->distanceFunction(prevVertex, newVertex) << " = Distance between vertices" << std::endl;
+      }
+      prevVertex = newVertex;
+
       // Remove this state from the candidates for insertion vector
       vertexIt = vertexInsertionOrder.erase(vertexIt);
 
       sucessfulInsertions++;
     }
-  }  // end for
 
+    // Check if shutdown requested
+    if (visual_->viz1()->shutdownRequested())
+    {
+      BOLT_DEBUG(indent, true, "Shutdown requested");
+      sg_->saveIfChanged(indent);
+      exit(0);
+    }
+
+  }  // end for
+  std::cout << "DONE createSPARSInnerLoop " << std::endl;
   return true;
 }
 
@@ -503,6 +548,7 @@ bool SparseCriteria::addSample(StateID candidateStateID, std::size_t indent)
   // Check if shutdown requested
   if (visual_->viz1()->shutdownRequested())
   {
+    BOLT_DEBUG(indent, true, "Shutdown requested");
     sg_->saveIfChanged(indent);
     exit(0);
   }
@@ -1201,7 +1247,7 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
       // New vertex replaced a nearby vertex, we can continue no further because graph has been re-indexed
 
       // Remove all edges from all vertices near our new vertex
-      sg_->clearEdgesNearVertex(newVertex);
+      sg_->clearEdgesNearVertex(newVertex, indent);
 
       // TODO should we clearEdgesNearVertex before return true ?
       delete path;
@@ -1209,7 +1255,7 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
     }
 
     // Remove all edges from all vertices near our new vertex
-    sg_->clearEdgesNearVertex(newVertex);
+    sg_->clearEdgesNearVertex(newVertex, indent);
 
     if (addEdgeEnabled)
     {
@@ -1732,7 +1778,7 @@ void SparseCriteria::findGraphNeighbors(StateID candidateStateID, std::vector<Sp
                                         std::vector<SparseVertex> &visibleNeighborhood, std::size_t threadID,
                                         std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, vCriteria_, "findGraphNeighbors()");
+  BOLT_CYAN_DEBUG(indent, vCriteria_, "findGraphNeighbors() within sparse delta " << sparseDelta_);
   const bool verbose = false;
 
   // Search

@@ -119,32 +119,53 @@ bool VertexDiscretizer::generateLattice(std::size_t indent)
   double startOffset = leftOver / 2;
 
   BOLT_DEBUG(indent, verbose_, "------------------------------------------");
-  BOLT_DEBUG(indent, verbose_, "Discretization:       " << discretization_);
-  BOLT_DEBUG(indent, verbose_, "High Bound:           " << bounds.high[jointID]);
-  BOLT_DEBUG(indent, verbose_, "Low Bound:            " << bounds.low[jointID]);
-  BOLT_DEBUG(indent, verbose_, "Range:                " << range);
-  BOLT_DEBUG(indent, verbose_, "Joint Increments:     " << jointIncrements);
-  BOLT_DEBUG(indent, verbose_, "Left Over:            " << leftOver);
-  BOLT_DEBUG(indent, verbose_, "Start Offset:         " << startOffset);
+  BOLT_DEBUG(indent, verbose_, "Multi-Pass Discretization");
+  BOLT_DEBUG(indent, verbose_, "  Discretization:       " << discretization_);
+  BOLT_DEBUG(indent, verbose_, "  High Bound:           " << bounds.high[jointID]);
+  BOLT_DEBUG(indent, verbose_, "  Low Bound:            " << bounds.low[jointID]);
+  BOLT_DEBUG(indent, verbose_, "  Range:                " << range);
+  BOLT_DEBUG(indent, verbose_, "  Joint Increments:     " << jointIncrements);
+  BOLT_DEBUG(indent, verbose_, "  Left Over:            " << leftOver);
+  BOLT_DEBUG(indent, verbose_, "  Start Offset:         " << startOffset);
   BOLT_DEBUG(indent, verbose_, "------------------------------------------");
 
+  // base::State *s1;
+  // base::State *s2;
+  // base::State *s3;
+
   // Create two levels of grids
-  for (std::size_t i = 0; i < 2; ++i)
+  for (std::size_t i = 0; i < 1; ++i)
   {
     BOLT_DEBUG(indent, verbose_, "Discretize iteration " << i);
 
     // Set starting value offset
     if (i == 0)
-      setStartingValueOffset(startOffset);
+      startingValueOffset_ = startOffset;
     else
-      setStartingValueOffset(startOffset + discretization_ / 2.0);
+      startingValueOffset_ = startOffset + discretization_ / 2.0;
 
     // Generate vertices
     generateGrid(indent);
-  }
 
-  BOLT_DEBUG(indent, verbose_, "Finished discretization");
-  BOLT_DEBUG(indent, verbose_, "------------------------------------------\n");
+    // TODO(davetcoleman):really bad hack
+    // std::cout << "REALLY BAD HACK " << std::endl;
+    // if (i == 0)
+    // {
+    //   s1 = candidateVertices_.front();
+    //   s2 = candidateVertices_[1];
+    //   candidateVertices_.clear(); // memory leak
+    // }
+    // else
+    // {
+    //   s3 = candidateVertices_.front();
+    //   candidateVertices_.clear(); // memory leak
+    // }
+  }
+  // candidateVertices_.push_back(s1); // hack
+  // candidateVertices_.push_back(s2); // hack
+  // candidateVertices_.push_back(s3); // hack
+
+  BOLT_DEBUG(indent, true, "VertexDiscretizer created  " << candidateVertices_.size() << " candidates vertices");
 
   return true;
 }
@@ -227,7 +248,7 @@ void VertexDiscretizer::generateVertices(std::size_t indent)
   std::size_t jointIncrementsPerThread = jointIncrements / numThreads_;
 
   BOLT_DEBUG(indent, verbose_, "-------------------------------------------------------");
-  BOLT_DEBUG(indent, verbose_, "Discretization Setup: ");
+  BOLT_DEBUG(indent, verbose_, "Single-Pass Discretization: ");
   BOLT_DEBUG(indent, verbose_, "  Dimensions:             " << dim);
   BOLT_DEBUG(indent, verbose_, "  Discretization:         " << discretization_);
   BOLT_DEBUG(indent, verbose_, "  J0 Low:                 " << bounds.low[jointID]);
