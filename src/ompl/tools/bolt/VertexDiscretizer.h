@@ -174,6 +174,9 @@ public:
   /** \brief Various options for visualizing the algorithmns performance */
   bool visualizeGridGeneration_ = false;
 
+  /** \brief Request user to press next for each generated state */
+  bool visualizeGridGenerationWait_ = false;
+
 };  // end of class VertexDiscretizer
 
 }  // namespace bolt

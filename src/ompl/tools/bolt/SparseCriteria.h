@@ -222,6 +222,11 @@ public:
     discretizedSamplesInsertion_ = discretizedSamplesInsertion;
   }
 
+  bool getDiscretizedSamplesInsertion()
+  {
+    return discretizedSamplesInsertion_;
+  }
+
 protected:
   /** \brief Short name of this class */
   const std::string name_ = "SparseCriteria";

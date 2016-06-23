@@ -427,8 +427,11 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
           visual_->viz1()->state(candidateState, MEDIUM, RED, 0);
           visual_->viz1()->state(candidateState, ROBOT, RED, 0);
           visual_->viz1()->trigger();
-          usleep(0.001*1000000);
-          //visual_->waitForUserFeedback("rejected");
+
+          if (visualizeGridGenerationWait_)
+            visual_->waitForUserFeedback("rejected");
+          else
+            usleep(0.001*1000000);
         }
 
         continue;
@@ -445,8 +448,11 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
           visual_->viz1()->state(candidateState, MEDIUM, YELLOW, 0);
           visual_->viz1()->state(candidateState, ROBOT, YELLOW, 0);
           visual_->viz1()->trigger();
-          usleep(0.001*1000000);
-          //visual_->waitForUserFeedback("clearance");
+
+          if (visualizeGridGenerationWait_)
+            visual_->waitForUserFeedback("clearance");
+          else
+            usleep(0.001*1000000);
         }
 
         continue;
@@ -467,8 +473,11 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
         visual_->viz1()->state(candidateState, MEDIUM, GREEN, 0);
         visual_->viz1()->state(candidateState, ROBOT, GREEN, 0);
         visual_->viz1()->trigger();
-        usleep(0.01 * 1000000);
-        //visual_->waitForUserFeedback("accepted");
+
+        if (visualizeGridGenerationWait_)
+          visual_->waitForUserFeedback("accepted");
+        else
+          usleep(0.01 * 1000000);
       }
     }
   }

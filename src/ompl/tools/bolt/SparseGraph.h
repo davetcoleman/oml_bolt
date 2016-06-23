@@ -469,7 +469,7 @@ public:  // user settings from other applications
   bool visualizeDatabaseEdges_ = true;
   bool visualizeDatabaseCoverage_ = true;
   bool visualizeGraphAfterLoading_ = true;
-
+  bool visualizeProjection_ = true;
 };  // end class SparseGraph
 
 ////////////////////////////////////////////////////////////////////////////////////////

@@ -650,8 +650,7 @@ bool SparseCriteria::addStateToRoadmap(StateID candidateStateID, SparseVertex &n
     addReason = QUALITY;
     stateAdded = true;
   }
-  else if (discretizedSamplesInsertion_ &&
-           checkAddDiscretized(candidateStateID, graphNeighborhood, visibleNeighborhood, newVertex, indent + 16))
+  else if (checkAddDiscretized(candidateStateID, graphNeighborhood, visibleNeighborhood, newVertex, indent + 16))
   {
     BOLT_DEBUG(indent, vAddedReason_, "Graph updated: DISCRETIZED, stateID: "
                                           << candidateStateID << " RandSamplesAdded: " << numRandSamplesAdded_
@@ -670,8 +669,6 @@ bool SparseCriteria::addStateToRoadmap(StateID candidateStateID, SparseVertex &n
     numConsecutiveFailures_ = 0;
 
   si_->freeState(workState);
-
-  visual_->waitForUserFeedback("after addStateToRoadmap()");
 
   return stateAdded;
 }
@@ -907,6 +904,9 @@ bool SparseCriteria::checkAddDiscretized(StateID candidateStateID, std::vector<S
                                          std::vector<SparseVertex> &visibleNeighborhood,
                                          SparseVertex &newVertex, std::size_t indent)
 {
+  if (!discretizedSamplesInsertion_)
+    return false;
+
   BOLT_CYAN_DEBUG(indent, vCriteria_, "checkAddDiscretized() Force vertex addition");
   indent += 2;
 
@@ -921,7 +921,9 @@ bool SparseCriteria::checkAddDiscretized(StateID candidateStateID, std::vector<S
     sg_->addEdge(v1, newVertex, eDISCRETIZED, indent);
   }
   else
+  {
     visual_->waitForUserFeedback("forced vertex but no edge to connect?");
+  }
 
   return true;
 }
@@ -964,7 +966,7 @@ bool SparseCriteria::checkAddQuality(StateID candidateStateID, std::vector<Spars
 
     if (visualizeQualityCriteria_ && false)  // Visualization
     {
-      visual_->viz3()->edge(sg_->getVertexState(nearSampledRep), nearSampledState, tools::LARGE, tools::RED);
+      visual_->viz3()->edge(sg_->getVertexState(nearSampledRep), nearSampledState, tools::MEDIUM,  tools::RED);
 
       visual_->viz3()->state(nearSampledState, tools::MEDIUM, tools::GREEN, 0);
 
@@ -1047,7 +1049,7 @@ void SparseCriteria::visualizeCheckAddQuality(StateID candidateStateID, SparseVe
 {
   visual_->viz3()->deleteAllMarkers();
 
-  visual_->viz3()->edge(denseCache_->getState(candidateStateID), sg_->getVertexState(candidateRep), tools::LARGE, tools::ORANGE);
+  visual_->viz3()->edge(denseCache_->getState(candidateStateID), sg_->getVertexState(candidateRep), tools::MEDIUM, tools::ORANGE);
 
   // Show candidate state
   // visual_->viz3()->state(denseCache_->getState(candidateStateID), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
@@ -1060,7 +1062,7 @@ void SparseCriteria::visualizeCheckAddQuality(StateID candidateStateID, SparseVe
   // Show candidate state's representative's neighbors
   foreach (SparseVertex adjVertex, boost::adjacent_vertices(candidateRep, sg_->getGraph()))
   {
-    visual_->viz3()->edge(sg_->getVertexState(adjVertex), sg_->getVertexState(candidateRep), tools::LARGE, tools::GREEN);
+    visual_->viz3()->edge(sg_->getVertexState(adjVertex), sg_->getVertexState(candidateRep), tools::MEDIUM, tools::GREEN);
     visual_->viz3()->state(sg_->getVertexState(adjVertex), tools::LARGE, tools::PURPLE, 0);
   }
 
@@ -1137,14 +1139,14 @@ void SparseCriteria::visualizeCheckAddPath(SparseVertex v, SparseVertex vp, Spar
   // visual_->viz5()->state(sg_->getVertexState(vp), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
 
   // Show edge between them
-  visual_->viz5()->edge(sg_->getVertexState(vp), sg_->getVertexState(v), tools::LARGE, tools::GREEN);
+  visual_->viz5()->edge(sg_->getVertexState(vp), sg_->getVertexState(v), tools::MEDIUM, tools::GREEN);
 
   // Show adjacent state
   visual_->viz5()->state(sg_->getVertexState(vpp), tools::LARGE, tools::PURPLE, 0);
   // visual_->viz5()->state(sg_->getVertexState(vpp), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseDelta_);
 
   // Show edge between them
-  visual_->viz5()->edge(sg_->getVertexState(vpp), sg_->getVertexState(v), tools::LARGE, tools::ORANGE);
+  visual_->viz5()->edge(sg_->getVertexState(vpp), sg_->getVertexState(v), tools::MEDIUM, tools::ORANGE);
   visual_->viz5()->trigger();
   usleep(0.001 * 1000000);
 
@@ -1157,24 +1159,24 @@ void SparseCriteria::visualizeCheckAddPath(SparseVertex v, SparseVertex vp, Spar
     // std::cout << "state: " << iData.getInterface1Outside() << std::flush;
     visual_->viz5()->state(iData.getInterface1Outside(), tools::MEDIUM, tools::GREEN, 0);
     // std::cout << " 2 " << std::flush;
-    visual_->viz5()->edge(iData.getInterface1Inside(), iData.getInterface1Outside(), tools::LARGE, tools::RED);
+    visual_->viz5()->edge(iData.getInterface1Inside(), iData.getInterface1Outside(), tools::MEDIUM, tools::RED);
     // std::cout << "3 " << std::endl;
 
     if (vp < vpp)
-      visual_->viz5()->edge(sg_->getVertexState(vp), iData.getInterface1Outside(), tools::LARGE, tools::RED);
+      visual_->viz5()->edge(sg_->getVertexState(vp), iData.getInterface1Outside(), tools::MEDIUM, tools::RED);
     else
-      visual_->viz5()->edge(sg_->getVertexState(vpp), iData.getInterface1Outside(), tools::LARGE, tools::RED);
+      visual_->viz5()->edge(sg_->getVertexState(vpp), iData.getInterface1Outside(), tools::MEDIUM, tools::RED);
   }
   if (iData.hasInterface2())
   {
     visual_->viz5()->state(iData.getInterface2Inside(), tools::MEDIUM, tools::ORANGE, 0);
     visual_->viz5()->state(iData.getInterface2Outside(), tools::MEDIUM, tools::GREEN, 0);
-    visual_->viz5()->edge(iData.getInterface2Inside(), iData.getInterface2Outside(), tools::LARGE, tools::RED);
+    visual_->viz5()->edge(iData.getInterface2Inside(), iData.getInterface2Outside(), tools::MEDIUM, tools::RED);
 
     if (vp < vpp)
-      visual_->viz5()->edge(sg_->getVertexState(vpp), iData.getInterface2Outside(), tools::LARGE, tools::RED);
+      visual_->viz5()->edge(sg_->getVertexState(vpp), iData.getInterface2Outside(), tools::MEDIUM, tools::RED);
     else
-      visual_->viz5()->edge(sg_->getVertexState(vp), iData.getInterface2Outside(), tools::LARGE, tools::RED);
+      visual_->viz5()->edge(sg_->getVertexState(vp), iData.getInterface2Outside(), tools::MEDIUM, tools::RED);
   }
 
   visual_->viz5()->trigger();
@@ -1432,7 +1434,7 @@ bool SparseCriteria::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVer
         for (std::size_t i = 1; i < vertexPath.size(); ++i)
         {
           visual_->viz6()->edge(sg_->getVertexState(vertexPath[i - 1]), sg_->getVertexState(vertexPath[i]),
-                                tools::LARGE, tools::GREEN);
+                                tools::MEDIUM, tools::GREEN);
         }
       }
 
@@ -1442,7 +1444,7 @@ bool SparseCriteria::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVer
       BOLT_DEBUG(indent + 6, vQuality_, "connector1 " << connector1);
       if (visualizeQualityCriteria_)
       {
-        visual_->viz6()->edge(sg_->getVertexState(vp), iData.getOutsideInterfaceOfV1(vp, vpp), tools::LARGE, tools::ORANGE);
+        visual_->viz6()->edge(sg_->getVertexState(vp), iData.getOutsideInterfaceOfV1(vp, vpp), tools::MEDIUM, tools::ORANGE);
       }
 
       double connector2 = si_->distance(sg_->getVertexState(vpp), iData.getOutsideInterfaceOfV2(vp, vpp));
@@ -1450,7 +1452,7 @@ bool SparseCriteria::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVer
       BOLT_DEBUG(indent + 6, vQuality_, "connector2 " << connector2);
       if (visualizeQualityCriteria_)
       {
-        visual_->viz6()->edge(sg_->getVertexState(vpp), iData.getOutsideInterfaceOfV2(vp, vpp), tools::LARGE, tools::YELLOW);
+        visual_->viz6()->edge(sg_->getVertexState(vpp), iData.getOutsideInterfaceOfV2(vp, vpp), tools::MEDIUM, tools::YELLOW);
       }
 
       pathLength += connector1 + connector2;
@@ -1885,8 +1887,8 @@ bool SparseCriteria::checkRemoveCloseVertices(SparseVertex v1, std::size_t inden
   if (vRemoveClose_)
   {
     std::stringstream ss;
-    std::copy(graphNeighbors.begin(), graphNeighbors.end(), std::ostream_iterator<SparseVertex>(ss, ","));
-    BOLT_DEBUG(indent, vRemoveClose_, "Neighbors of " << v1 << " are: " << ss.str());
+    std::copy(graphNeighbors.begin(), graphNeighbors.end(), std::ostream_iterator<SparseVertex>(ss, ", "));
+    BOLT_DEBUG(indent, vRemoveClose_, "Neighbors of " << v1 << " are: [" << ss.str() << "]");
   }
 
   // Error check no neighbors
@@ -1906,7 +1908,7 @@ bool SparseCriteria::checkRemoveCloseVertices(SparseVertex v1, std::size_t inden
     exit(-1);
   }
 
-  // Check that nearest neighbor is not an interface node - these should not be moved
+  // Check that nearest neighbor is not an quality node - these should not be moved
   if (sg_->vertexTypeProperty_[v2] == QUALITY)
   {
     if (visualizeRemoveCloseVertices_)
@@ -1986,8 +1988,8 @@ bool SparseCriteria::checkRemoveCloseVertices(SparseVertex v1, std::size_t inden
   if (sg_->visualizeSparseGraph_ && sg_->visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
     sg_->displayDatabase(true, indent + 4);
 
-  if (visualizeRemoveCloseVertices_)
-    visual_->waitForUserFeedback("finished moving vertex");
+  //if (visualizeRemoveCloseVertices_)
+  visual_->waitForUserFeedback("finished moving vertex");
 
   if (visualizeRemoveCloseVertices_)
   {
@@ -2033,22 +2035,22 @@ void SparseCriteria::visualizeInterfaces(SparseVertex v, std::size_t indent)
     {
       visual_->viz6()->state(iData.getInterface1Inside(), tools::MEDIUM, tools::ORANGE, 0);
       visual_->viz6()->state(iData.getInterface1Outside(), tools::MEDIUM, tools::GREEN, 0);
-      visual_->viz6()->edge(iData.getInterface1Inside(), iData.getInterface1Outside(), tools::LARGE, tools::YELLOW);
+      visual_->viz6()->edge(iData.getInterface1Inside(), iData.getInterface1Outside(), tools::MEDIUM, tools::YELLOW);
     }
     else
     {
-      visual_->viz6()->edge(sg_->getVertexState(v1), sg_->getVertexState(v2), tools::LARGE, tools::RED);
+      visual_->viz6()->edge(sg_->getVertexState(v1), sg_->getVertexState(v2), tools::MEDIUM, tools::RED);
     }
 
     if (iData.hasInterface2())
     {
       visual_->viz6()->state(iData.getInterface2Inside(), tools::MEDIUM, tools::ORANGE, 0);
       visual_->viz6()->state(iData.getInterface2Outside(), tools::MEDIUM, tools::GREEN, 0);
-      visual_->viz6()->edge(iData.getInterface2Inside(), iData.getInterface2Outside(), tools::LARGE, tools::YELLOW);
+      visual_->viz6()->edge(iData.getInterface2Inside(), iData.getInterface2Outside(), tools::MEDIUM, tools::YELLOW);
     }
     else
     {
-      visual_->viz6()->edge(sg_->getVertexState(v1), sg_->getVertexState(v2), tools::LARGE, tools::RED);
+      visual_->viz6()->edge(sg_->getVertexState(v1), sg_->getVertexState(v2), tools::MEDIUM, tools::RED);
     }
   }
 

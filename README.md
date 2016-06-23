@@ -40,6 +40,45 @@ See [Class Reference](http://docs.ros.org/indigo/api/ompl_bolt/html/)
 
 TODO
 
+## Developer Notes
+
+There are 6 visualization windows that are each used for multiple different things. Below I try to record their usages
+
+Window 1
+
+- SparseGraph displayDatabase, addEdge, addVertex
+
+Window 2
+
+- TaskGraph
+- SparseGraph: addStateToRoadmap attempted states
+- Connectivity
+
+Window 3
+
+- Quality criteria: close reps
+- Check Add Quality
+- Find close representatives
+
+Window 4
+
+- Astar search?
+- Disjoint sets
+
+Window 5
+
+- Check add path
+- Quality criteria
+
+Window 6
+
+- Start/goal states
+- Collision environment
+- Projection hack
+- Quality criteria
+- Remove close vertices
+- Interface
+
 ## Testing and Linting
 
 To run [roslint](http://wiki.ros.org/roslint), use the following command with [catkin-tools](https://catkin-tools.readthedocs.org/):
