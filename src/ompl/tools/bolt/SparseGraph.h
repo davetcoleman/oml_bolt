@@ -305,7 +305,7 @@ public:
   bool hasEdge(SparseVertex v1, SparseVertex v2);
 
   /** \brief Helper for choosing an edge's display color based on type of edge */
-  VizColors convertEdgeTypeToColor(EdgeType edgeType);
+  VizColors edgeTypeToColor(EdgeType edgeType);
 
   /** \brief Get the state of a vertex used for querying - i.e. vertices 0-11 for 12 thread system */
   base::State*& getQueryStateNonConst(SparseVertex v);
@@ -445,6 +445,9 @@ protected:
   int numSamplesAddedForConnectivity_ = 0;
   int numSamplesAddedForInterface_ = 0;
   int numSamplesAddedForQuality_ = 0;
+
+  tools::VizSizes vertexSize_ = tools::LARGE;
+  tools::VizSizes edgeSize_ = tools::MEDIUM;
 
 public:  // user settings from other applications
   /** \brief Allow the database to save to file (new experiences) */

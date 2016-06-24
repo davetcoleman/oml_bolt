@@ -44,33 +44,33 @@ TODO
 
 There are 6 visualization windows that are each used for multiple different things. Below I try to record their usages
 
-Window 1
+### Window 1
 
 - SparseGraph displayDatabase, addEdge, addVertex
 
-Window 2
+### Window 2
 
 - TaskGraph
 - SparseGraph: addStateToRoadmap attempted states
 - Connectivity
 
-Window 3
+### Window 3
 
 - Quality criteria: close reps
 - Check Add Quality
 - Find close representatives
 
-Window 4
+### Window 4
 
 - Astar search?
 - Disjoint sets
 
-Window 5
+### Window 5
 
 - Check add path
 - Quality criteria
 
-Window 6
+### Window 6
 
 - Start/goal states
 - Collision environment
@@ -78,6 +78,23 @@ Window 6
 - Quality criteria
 - Remove close vertices
 - Interface
+
+### Vertex Colors
+
+ - green:     coverage
+ - brown:     connectivity
+ - white:     interface
+ - pink:      quality
+ - purple:    cartesian
+ - cyan:      discretized
+
+### Edge Colors
+
+ - orange:    connectivity
+ - yellow:    interface
+ - red:       quality
+ - magenta:   cartesian
+ - blue       discretized
 
 ## Testing and Linting
 

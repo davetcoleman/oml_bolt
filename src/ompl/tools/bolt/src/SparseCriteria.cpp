@@ -209,12 +209,8 @@ void SparseCriteria::createSPARS()
     addDiscretizedStates(indent);
   }
 
-  // Debug
-  for (std::size_t i = 0; i < 5; ++i)
-  {
-    sg_->displayDatabase(true, indent);
-    visual_->waitForUserFeedback("after display database");
-  }
+  sg_->displayDatabase(true, indent);
+  visual_->waitForUserFeedback("after display database");
 
   // Finish the graph with random samples
   if (useRandomSamples_)

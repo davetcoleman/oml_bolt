@@ -972,12 +972,12 @@ bool SparseGraph::hasEdge(SparseVertex v1, SparseVertex v2)
   return boost::edge(v1, v2, g_).second;
 }
 
-VizColors SparseGraph::convertEdgeTypeToColor(EdgeType edgeType)
+VizColors SparseGraph::edgeTypeToColor(EdgeType edgeType)
 {
   switch (edgeType)
   {
     case eCONNECTIVITY:
-      return GREEN;
+      return ORANGE;
       break;
     case eINTERFACE:
       return YELLOW;
@@ -986,7 +986,7 @@ VizColors SparseGraph::convertEdgeTypeToColor(EdgeType edgeType)
       return RED;
       break;
     case eCARTESIAN:
-      return ORANGE;
+      return MAGENTA;
       break;
     case eDISCRETIZED:
       return BLUE;
@@ -1130,7 +1130,6 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
   {
     std::vector<const ompl::base::State*> states;
     std::vector<ot::VizColors> colors;
-    tools::VizSizes size = tools::XSMALL;
 
     // Loop through each vertex
     foreach (SparseVertex v, boost::vertices(g_))
@@ -1158,8 +1157,8 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
     }
 
     // Create marker and push to queue
-    //visual_->viz1()->states(states, colors, size);
-    visual_->viz7()->states(states, colors, size);
+    //visual_->viz1()->states(states, colors, vertexSize_);
+    visual_->viz7()->states(states, colors, vertexSize_);
   }
 
   // Publish remaining edges
@@ -1176,7 +1175,6 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
 void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
 {
   tools::VizColors color = vertexTypeToColor(type);
-  tools::VizSizes size = tools::MEDIUM;
 
   // Show visibility region around vertex
   if (visualizeDatabaseCoverage_)
@@ -1184,10 +1182,10 @@ void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
                            sparseCriteria_->sparseDelta_);
 
   // Show vertex
-  visual_->viz1()->state(getVertexState(v), size, color, 0);
+  visual_->viz1()->state(getVertexState(v), vertexSize_, color, 0);
 
   if (visualizeProjection_) // Hack: Project to 2D space
-    visual_->viz7()->state(getVertexState(v), tools::LARGE, color, 0);
+    visual_->viz7()->state(getVertexState(v), vertexSize_, color, 0);
   //visual_->viz7()->state(getVertexState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseCriteria_->sparseDelta_);
 }
 
@@ -1196,23 +1194,25 @@ tools::VizColors SparseGraph::vertexTypeToColor(VertexType type)
   switch (type)
   {
     case COVERAGE:
-      return tools::BLACK;
+      return tools::GREEN;
       break;
     case CONNECTIVITY:
-      return tools::ORANGE;
+      return tools::BROWN;
       break;
     case INTERFACE:
-      return tools::PINK;
+      return tools::WHITE;
       break;
     case QUALITY:
-      return tools::BLUE;
+      return tools::PINK;
+      break;
+    case CARTESIAN:
+      return tools::PURPLE;
       break;
     case DISCRETIZED:
-      return tools::GREEN;
+      return tools::CYAN;
       break;
     case START:
     case GOAL:
-    case CARTESIAN:
     default:
       throw Exception(name_, "Unknown type");
   }
@@ -1231,7 +1231,7 @@ void SparseGraph::visualizeEdge(SparseEdge e, EdgeType type, std::size_t windowI
 void SparseGraph::visualizeEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t windowID)
 {
   // Visualize
-  visual_->viz(windowID)->edge(getVertexState(v1), getVertexState(v2), ot::XSMALL, convertEdgeTypeToColor(type));
+  visual_->viz(windowID)->edge(getVertexState(v1), getVertexState(v2), edgeSize_, edgeTypeToColor(type));
 }
 
 VertexPair SparseGraph::interfaceDataIndex(SparseVertex vp, SparseVertex vpp)
