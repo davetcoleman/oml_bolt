@@ -944,6 +944,7 @@ SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type,
   if (visualizeSparseGraph_)
   {
     visualizeEdge(v1, v2, type, /*windowID*/ 1);
+    visualizeEdge(v1, v2, type, /*windowID*/ 7); // projection to 2D space
 
     if (visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
@@ -959,11 +960,9 @@ SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type,
   // Enable saving
   graphUnsaved_ = true;
 
-  visual_->waitForUserFeedback("after add edge");
-
   // Debugging
-  if (!sparseCriteria_->getDiscretizedSamplesInsertion())
-    visual_->waitForUserFeedback("Added edge randomly");
+  // if (!sparseCriteria_->getDiscretizedSamplesInsertion())
+  //   visual_->waitForUserFeedback("Added edge randomly");
 
   return e;
 }
@@ -1105,56 +1104,35 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
   }
 
   // Clear previous visualization
-  visual_->viz1()->deleteAllMarkers();
-  visual_->viz1()->trigger();
-
+  //visual_->viz1()->deleteAllMarkers();
+  //visual_->viz1()->trigger();
   if (visualizeProjection_) // Hack: Project to 2D space
   {
     visual_->viz7()->deleteAllMarkers();
-    visual_->viz7()->trigger();
   }
 
-  const std::size_t MIN_FEEDBACK = 1000;
+  // Edges
   if (visualizeDatabaseEdges_)
   {
     // Loop through each edge
-    std::size_t count = 1;
-    std::size_t debugFrequency = MIN_FEEDBACK;
-    if (getNumEdges() > MIN_FEEDBACK)
-      std::cout << "Displaying sparse edges: " << std::flush;
     foreach (SparseEdge e, boost::edges(g_))
     {
-      // Add edge
+      // Get edge endpoints
       SparseVertex v1 = boost::source(e, g_);
       SparseVertex v2 = boost::target(e, g_);
 
-      // Visualize
-      visualizeEdge(v1, v2, edgeTypeProperty_[e], /*windowID*/ 1);
-
-      // Prevent viz cache from getting too big
-      if (count % debugFrequency == 0)
-      {
-        std::cout << static_cast<int>((static_cast<double>(count + 1) / getNumEdges()) * 100.0)
-                  << "% " << std::flush;
-        visual_->viz1()->trigger();
-
-        if (visualizeProjection_) // Hack: Project to 2D space
-          visual_->viz7()->trigger();
-
-        usleep(0.01 * 1000000);
-      }
-
-      count++;
+      visualizeEdge(v1, v2, edgeTypeProperty_[e], /*windowID*/ 7); // projection to 2D space
     }
   }
 
+  // Vertices
   if (visualizeDatabaseVertices_)
   {
+    std::vector<const ompl::base::State*> states;
+    std::vector<ot::VizColors> colors;
+    tools::VizSizes size = tools::XSMALL;
+
     // Loop through each vertex
-    std::size_t count = 1;
-    std::size_t debugFrequency = MIN_FEEDBACK;  // getNumVertices() / 10;
-    if (getNumVertices() > MIN_FEEDBACK)
-      std::cout << "Displaying sparse vertices: " << std::flush;
     foreach (SparseVertex v, boost::vertices(g_))
     {
       // Skip query vertices
@@ -1174,69 +1152,31 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
         continue;
       }
 
-      // Visualize
-      visualizeVertex(v, vertexTypeProperty_[v]);
-
-      // Prevent viz cache from getting too big
-      if (count % debugFrequency == 0)
-      {
-        std::cout << static_cast<int>((static_cast<double>(count + 1) / getNumVertices()) * 100.0)
-                  << "% " << std::flush;
-        visual_->viz1()->trigger();
-
-        if (visualizeProjection_) // Hack: Project to 2D space
-          visual_->viz7()->trigger();
-
-        usleep(0.01 * 1000000);
-      }
-      count++;
+      // Populate properties
+      colors.push_back(vertexTypeToColor(vertexTypeProperty_[v]));
+      states.push_back(getVertexState(v));
     }
-    if (getNumVertices() > MIN_FEEDBACK)
-      std::cout << std::endl;
+
+    // Create marker and push to queue
+    //visual_->viz1()->states(states, colors, size);
+    visual_->viz7()->states(states, colors, size);
   }
 
   // Publish remaining edges
-  visual_->viz1()->trigger();
+  //visual_->viz1()->trigger();
 
   if (visualizeProjection_) // Hack: Project to 2D space
+  {
     visual_->viz7()->trigger();
+  }
 
   usleep(0.001 * 1000000);
 }
 
 void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
 {
-  tools::VizColors color;
-  tools::VizSizes size;
-
-  switch (type)
-  {
-    case COVERAGE:
-      color = tools::BLACK;
-      size = tools::LARGE;
-      break;
-    case CONNECTIVITY:
-      color = tools::ORANGE;
-      size = tools::LARGE;
-      break;
-    case INTERFACE:
-      color = tools::PINK;
-      size = tools::LARGE;
-      break;
-    case QUALITY:
-      color = tools::BLUE;
-      size = tools::LARGE;
-      break;
-    case DISCRETIZED:
-      color = tools::GREEN;
-      size = tools::LARGE;
-      break;
-    case START:
-    case GOAL:
-    case CARTESIAN:
-    default:
-      throw Exception(name_, "Unknown type");
-  }
+  tools::VizColors color = vertexTypeToColor(type);
+  tools::VizSizes size = tools::MEDIUM;
 
   // Show visibility region around vertex
   if (visualizeDatabaseCoverage_)
@@ -1251,6 +1191,34 @@ void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
   //visual_->viz7()->state(getVertexState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseCriteria_->sparseDelta_);
 }
 
+tools::VizColors SparseGraph::vertexTypeToColor(VertexType type)
+{
+  switch (type)
+  {
+    case COVERAGE:
+      return tools::BLACK;
+      break;
+    case CONNECTIVITY:
+      return tools::ORANGE;
+      break;
+    case INTERFACE:
+      return tools::PINK;
+      break;
+    case QUALITY:
+      return tools::BLUE;
+      break;
+    case DISCRETIZED:
+      return tools::GREEN;
+      break;
+    case START:
+    case GOAL:
+    case CARTESIAN:
+    default:
+      throw Exception(name_, "Unknown type");
+  }
+  return tools::BLACK; // dummy return value, not actually ysed
+}
+
 void SparseGraph::visualizeEdge(SparseEdge e, EdgeType type, std::size_t windowID)
 {
   // Add edge
@@ -1263,10 +1231,7 @@ void SparseGraph::visualizeEdge(SparseEdge e, EdgeType type, std::size_t windowI
 void SparseGraph::visualizeEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t windowID)
 {
   // Visualize
-  visual_->viz(windowID)->edge(getVertexState(v1), getVertexState(v2), ot::SMALL, convertEdgeTypeToColor(type));
-
-  if (visualizeProjection_) // Hack: Project to 2D space
-    visual_->viz7()->edge(getVertexState(v1), getVertexState(v2), ot::SMALL, convertEdgeTypeToColor(type));
+  visual_->viz(windowID)->edge(getVertexState(v1), getVertexState(v2), ot::XSMALL, convertEdgeTypeToColor(type));
 }
 
 VertexPair SparseGraph::interfaceDataIndex(SparseVertex vp, SparseVertex vpp)

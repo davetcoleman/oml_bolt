@@ -209,6 +209,13 @@ void SparseCriteria::createSPARS()
     addDiscretizedStates(indent);
   }
 
+  // Debug
+  for (std::size_t i = 0; i < 5; ++i)
+  {
+    sg_->displayDatabase(true, indent);
+    visual_->waitForUserFeedback("after display database");
+  }
+
   // Finish the graph with random samples
   if (useRandomSamples_)
   {
@@ -750,10 +757,10 @@ bool SparseCriteria::checkAddConnectivity(StateID candidateStateID, std::vector<
   BOLT_DEBUG(indent, vCriteria_, "Adding node for CONNECTIVITY ");
 
   // Add the node
-  newVertex = sg_->addVertex(candidateStateID, CONNECTIVITY, indent + 4);
+  newVertex = sg_->addVertex(candidateStateID, CONNECTIVITY, indent + 2);
 
   // Check if there are really close vertices nearby which should be merged
-  checkRemoveCloseVertices(newVertex, indent + 4);
+  checkRemoveCloseVertices(newVertex, indent + 2);
 
   // Add the edges
   for (std::set<SparseVertex>::const_iterator vertexIt = statesInDiffConnectedComponents.begin();
@@ -1986,7 +1993,7 @@ bool SparseCriteria::checkRemoveCloseVertices(SparseVertex v1, std::size_t inden
 
   // Only display database if enabled
   if (sg_->visualizeSparseGraph_ && sg_->visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
-    sg_->displayDatabase(true, indent + 4);
+    sg_->displayDatabase(true, indent + 2);
 
   //if (visualizeRemoveCloseVertices_)
   visual_->waitForUserFeedback("finished moving vertex");

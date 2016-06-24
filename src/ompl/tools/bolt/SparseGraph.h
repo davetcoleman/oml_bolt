@@ -336,6 +336,9 @@ public:
   /** \brief Display in viewer */
   void visualizeVertex(SparseVertex v, const VertexType& type);
 
+  /** \brief Convert type of vertex to a visualization color */
+  tools::VizColors vertexTypeToColor(VertexType type);
+
   /** \brief Display in viewer */
   void visualizeEdge(SparseEdge e, EdgeType type, std::size_t windowID);
 
