@@ -66,7 +66,7 @@ VertexDiscretizer::VertexDiscretizer(base::SpaceInformationPtr si, VisualizerPtr
   numThreads_ = boost::thread::hardware_concurrency();
 
   // Debugging
-  if (true)
+  if (false)
   {
     OMPL_WARN("Overriding number of threads for testing to 1");
     numThreads_ = 1;
@@ -94,7 +94,7 @@ void VertexDiscretizer::freeMemory()
 
 bool VertexDiscretizer::generateLattice(std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "generateLattice()");
+  BOLT_CYAN_DEBUG(indent, true, "generateLattice()");
   indent += 2;
 
   if (numThreads_ > 1 && visualizeGridGeneration_)
@@ -165,7 +165,7 @@ bool VertexDiscretizer::generateLattice(std::size_t indent)
   // candidateVertices_.push_back(s2); // hack
   // candidateVertices_.push_back(s3); // hack
 
-  BOLT_DEBUG(indent, true, "VertexDiscretizer created  " << candidateVertices_.size() << " candidates vertices");
+  BOLT_DEBUG(indent, true, "VertexDiscretizer created " << candidateVertices_.size() << " candidates vertices");
 
   return true;
 }

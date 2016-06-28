@@ -139,7 +139,8 @@ bool SparseCriteria::setup()
   }
 
   BOLT_DEBUG(indent, 1, "--------------------------------------------------");
-  BOLT_DEBUG(indent, 1, "Sparse DB Setup:");
+  BOLT_DEBUG(indent, 1, "SparseCriteria Setup:");
+  BOLT_DEBUG(indent + 2, 1, "Dimensions              = " << dim);
   BOLT_DEBUG(indent + 2, 1, "Max Extent              = " << maxExtent_);
   BOLT_DEBUG(indent + 2, 1, "Sparse Delta            = " << sparseDelta_);
   BOLT_DEBUG(indent + 2, 1, "Dense Delta             = " << denseDelta_);
@@ -229,8 +230,9 @@ void SparseCriteria::createSPARS()
   CALLGRIND_TOGGLE_COLLECT;
   CALLGRIND_DUMP_STATS;
 
-  // if (!sg_->visualizeSparseGraph_)
-  //   sg_->displayDatabase(true, indent);
+  // Only display database if enabled
+  //if (sg_->visualizeSparseGraph_ && sg_->visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
+  sg_->displayDatabase(true, indent);
 
   // Cleanup removed vertices
   sg_->removeDeletedVertices(indent);

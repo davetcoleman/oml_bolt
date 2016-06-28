@@ -464,9 +464,6 @@ public:  // user settings from other applications
   bool vGenerateTask_ = false; // functions that deal with Cartesian paths
   bool verbose_ = true; // general verbosity level for everything else
 
-  /** \brief Run with extra safety checks */
-  bool superDebug_ = true;
-
   /** \brief Show the task graph being generated */
   bool visualizeCartPath_ = false;
   bool visualizeTaskGraph_ = false;

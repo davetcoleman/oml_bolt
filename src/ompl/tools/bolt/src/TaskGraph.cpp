@@ -99,9 +99,6 @@ TaskGraph::TaskGraph(SparseGraphPtr sg)
   // TODO(davetcoleman): do we need to have a separate NN_ structure for the TaskGraph??
   nn_.reset(new NearestNeighborsGNAT<TaskVertex>());
   nn_->setDistanceFunction(boost::bind(&otb::TaskGraph::distanceFunction, this, _1, _2));
-
-  if (superDebug_)
-    OMPL_WARN("Superdebug mode is enabled - will run slower");
 }
 
 TaskGraph::~TaskGraph()
@@ -330,11 +327,8 @@ double TaskGraph::distanceFunction(const TaskVertex a, const TaskVertex b) const
     return si_->distance(getVertexState(a), queryStates_[b]);
   }
 
-  if (superDebug_)  // Error check
-  {
-    assert(getVertexState(a) != NULL);
-    assert(getVertexState(b) != NULL);
-  }
+  assert(getVertexState(a) != NULL);
+  assert(getVertexState(b) != NULL);
 
   return si_->distance(getVertexState(a), getVertexState(b));
 }
@@ -1255,18 +1249,15 @@ TaskEdge TaskGraph::addEdge(TaskVertex v1, TaskVertex v2, EdgeType type, std::si
 {
   BOLT_CYAN_DEBUG(indent, vAdd_, "TaskGraph.addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
 
-  if (superDebug_)  // Extra checks
-  {
-    BOOST_ASSERT_MSG(v1 <= getNumVertices(), "Vertex1 is larger than max vertex id");
-    BOOST_ASSERT_MSG(v2 <= getNumVertices(), "Vertex2 is larger than max vertex id");
-    BOOST_ASSERT_MSG(v1 != v2, "Verticex IDs are the same");
-    BOOST_ASSERT_MSG(!hasEdge(v1, v2), "There already exists an edge between two vertices requested");
-    BOOST_ASSERT_MSG(hasEdge(v1, v2) == hasEdge(v2, v1), "There already exists an edge between two vertices requested, "
-                                                         "other direction");
-    BOOST_ASSERT_MSG(getVertexState(v1) != getVertexState(v2), "States on both sides of an edge are the same");
-    BOOST_ASSERT_MSG(!si_->getStateSpace()->equalStates(getVertexState(v1), getVertexState(v2)),
-                     "Vertex IDs are different but states are the equal");
-  }
+  BOOST_ASSERT_MSG(v1 <= getNumVertices(), "Vertex1 is larger than max vertex id");
+  BOOST_ASSERT_MSG(v2 <= getNumVertices(), "Vertex2 is larger than max vertex id");
+  BOOST_ASSERT_MSG(v1 != v2, "Verticex IDs are the same");
+  BOOST_ASSERT_MSG(!hasEdge(v1, v2), "There already exists an edge between two vertices requested");
+  BOOST_ASSERT_MSG(hasEdge(v1, v2) == hasEdge(v2, v1), "There already exists an edge between two vertices requested, "
+                   "other direction");
+  BOOST_ASSERT_MSG(getVertexState(v1) != getVertexState(v2), "States on both sides of an edge are the same");
+  BOOST_ASSERT_MSG(!si_->getStateSpace()->equalStates(getVertexState(v1), getVertexState(v2)),
+                   "Vertex IDs are different but states are the equal");
 
   // Create the new edge
   TaskEdge e = (boost::add_edge(v1, v2, g_)).first;
