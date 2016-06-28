@@ -108,7 +108,13 @@ bool SparseCriteria::setup()
   {
     // L1 Norm
     //discretization_ = (sparseDelta_ - discretizePenetrationDist_) / dim;
-    discretization_ = (sparseDelta_ - discretizePenetrationDist_);
+    //discretization_ = (sparseDelta_ - discretizePenetrationDist_);
+    //discretization_ = (sparseDelta_ - discretizePenetrationDist_) / 1.414; // works
+    //discretization_ = (sparseDelta_ - discretizePenetrationDist_) / 1.42; // works
+    //discretization_ = (sparseDelta_ - discretizePenetrationDist_) / 1.4; // works
+    //discretization_ = (sparseDelta_ - discretizePenetrationDist_) / 1.3; // bad
+
+    discretization_ = sparseDelta_ / (dim * 0.5) - discretizePenetrationDist_;
   }
 
   // std::cout << "hack here at disc " << std::endl;
@@ -209,13 +215,13 @@ void SparseCriteria::createSPARS()
     addDiscretizedStates(indent);
   }
 
-  sg_->displayDatabase(true, indent);
-  visual_->waitForUserFeedback("after display database");
+  // Only display database if enabled
+  if (sg_->visualizeSparseGraph_ && sg_->visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
+    sg_->displayDatabase(true, indent);
 
   // Finish the graph with random samples
   if (useRandomSamples_)
   {
-    visual_->waitForUserFeedback("before add random samples");
     addRandomSamples(indent);
   }
 
@@ -317,9 +323,7 @@ void SparseCriteria::addDiscretizedStates(std::size_t indent)
   }
 
   // this tells SPARS to always add the vertex, no matter what
-  std::cout << "DISABLED - SPARS to always add the vertex, no matter what " << std::endl;
   discretizedSamplesInsertion_ = true;
-  //discretizedSamplesInsertion_ = false;
 
   // this tells SPARS to not attempt to remove close vertices, even if user requested it
   bool useCheckRemoveCloseVerticesTemp = useCheckRemoveCloseVertices_;
@@ -382,7 +386,7 @@ bool SparseCriteria::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInser
   std::size_t originalVertexInsertion = vertexInsertionOrder.size();
   std::size_t debugFrequency = std::max(std::size_t(10), static_cast<std::size_t>(originalVertexInsertion / 20));
 
-  SparseVertex prevVertex; // For testing distances between vertices
+  //SparseVertex prevVertex; // For testing distances between vertices
 
   for (std::list<WeightedVertex>::iterator vertexIt = vertexInsertionOrder.begin();
        vertexIt != vertexInsertionOrder.end();
@@ -430,11 +434,11 @@ bool SparseCriteria::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInser
       }
 
       // Testing - show distance
-      if (loopCount > 1)
-      {
-        std::cout << sg_->distanceFunction(prevVertex, newVertex) << " = Distance between vertices" << std::endl;
-      }
-      prevVertex = newVertex;
+      // if (loopCount > 1)
+      // {
+      //   std::cout << sg_->distanceFunction(prevVertex, newVertex) << " = Distance between vertices" << std::endl;
+      // }
+      //prevVertex = newVertex;
 
       // Remove this state from the candidates for insertion vector
       vertexIt = vertexInsertionOrder.erase(vertexIt);
@@ -451,7 +455,7 @@ bool SparseCriteria::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInser
     }
 
   }  // end for
-  std::cout << "DONE createSPARSInnerLoop " << std::endl;
+
   return true;
 }
 
