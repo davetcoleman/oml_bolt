@@ -797,8 +797,8 @@ SparseVertex SparseGraph::addVertex(StateID stateID, const VertexType &type, std
   graphUnsaved_ = true;
 
   // Debugging
-  if (!sparseCriteria_->getDiscretizedSamplesInsertion())
-    throw Exception(name_, "Added vertex randomly");
+  //if (!sparseCriteria_->getDiscretizedSamplesInsertion())
+  //throw Exception(name_, "Added vertex randomly");
   //visual_->waitForUserFeedback("Added vertex randomly");
 
   return v;
