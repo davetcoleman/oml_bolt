@@ -358,18 +358,17 @@ void Bolt::printResultsInfo(std::ostream &out) const
   }
 }
 
-bool Bolt::loadOrGenerate()
+bool Bolt::load()
 {
   std::size_t indent = 0;
 
-  // Load from file or generate new grid
+  // Load from file
   if (!sparseGraph_->isEmpty())
   {
     BOLT_YELLOW_DEBUG(indent, 1, "Database already loaded, vertices: "
                                      << sparseGraph_->getNumVertices() << ", edges: " << sparseGraph_->getNumEdges()
                                      << ", queryV: " << sparseGraph_->getNumQueryVertices());
-
-    return true;
+    return false;
   }
 
   if (!sparseGraph_->load())  // load from file

@@ -102,8 +102,8 @@ public:
   /** \brief Display debug data about overall results from Bolt since being loaded */
   void printLogs(std::ostream &out = std::cout) const;
 
-  /** \brief Load database from file or, if unavailable, create new discretization */
-  bool loadOrGenerate();
+  /** \brief Load database from file  */
+  bool load();
 
   /** \brief Get the current planner */
   base::PlannerPtr &getPlanner()
