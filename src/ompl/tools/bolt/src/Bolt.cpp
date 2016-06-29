@@ -544,9 +544,6 @@ void Bolt::benchmarkSparseGraphGeneration()
   OMPL_INFORM("Running graph generation benchmark");
   time::point startTime = time::now(); // Benchmark
 
-  // Make seed deterministic
-  srand(0);
-
   // Create graph
   sparseCriteria_->createSPARS();
 
@@ -554,7 +551,8 @@ void Bolt::benchmarkSparseGraphGeneration()
   OMPL_INFORM("Graph generation took %f seconds", time); // Benchmark
 
   std::ofstream loggingFile;                           // open to append
-  loggingFile.open(benchmarkFilePath_.c_str(), std::ios::out);  // no append | std::ios::app);
+  //loggingFile.open(benchmarkFilePath_.c_str(), std::ios::out);  // no append
+  loggingFile.open(benchmarkFilePath_.c_str(), std::ios::app); // append
   loggingFile << time << ", " << sparseGraph_->getNumEdges() << ", " << sparseGraph_->getNumVertices() << std::endl;
   loggingFile.close();
 

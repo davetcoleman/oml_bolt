@@ -846,7 +846,7 @@ void SparseGraph::removeVertex(SparseVertex v)
 void SparseGraph::removeDeletedVertices(std::size_t indent)
 {
   bool verbose = true;
-  BOLT_RED_DEBUG(indent, verbose || true, "removeDeletedVertices()");
+  BOLT_CYAN_DEBUG(indent, verbose || true, "removeDeletedVertices()");
   indent += 2;
 
   // Remove all vertices that are set to 0
