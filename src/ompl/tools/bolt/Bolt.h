@@ -187,7 +187,8 @@ public:
   /** \brief Allow accumlated experiences to be processed */
   bool doPostProcessing();
 
-  void benchmarkPerformance();
+  void benchmarkRandValidSampling();
+  void benchmarkSparseGraphGeneration();
 
 protected:
   /**  The maintained experience planner instance */
@@ -204,6 +205,9 @@ protected:
 
   /** \brief Accumulated experiences to be later added to experience database */
   std::vector<geometric::PathGeometric> queuedSolutionPaths_;
+
+  /** \brief Location to save logging file for benchmarks */
+  std::string benchmarkFilePath_;
 
 public:
   /** \brief Visualize original solution from graph before smoothing */

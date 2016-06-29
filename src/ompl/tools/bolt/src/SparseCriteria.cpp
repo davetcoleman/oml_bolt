@@ -366,7 +366,7 @@ void SparseCriteria::addDiscretizedStates(std::size_t indent)
 
   candidateVertices.clear();  // clear the vector because we've moved all its memory pointers to DenseCache
   std::size_t sucessfulInsertions;
-  createSPARSInnerLoop(vertexInsertionOrder, sucessfulInsertions, indent);
+  insertCandidateStates(vertexInsertionOrder, sucessfulInsertions, indent);
 
   // Undo settings changes
   discretizedSamplesInsertion_ = false;
@@ -377,10 +377,10 @@ void SparseCriteria::addDiscretizedStates(std::size_t indent)
     sg_->errorCheckDuplicateStates(indent);
 }
 
-bool SparseCriteria::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInsertionOrder,
+bool SparseCriteria::insertCandidateStates(std::list<WeightedVertex> &vertexInsertionOrder,
                                           std::size_t &sucessfulInsertions, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, true, "createSPARSInnerLoop()");
+  BOLT_CYAN_DEBUG(indent, true, "insertCandidateStates()");
   indent += 2;
 
   sucessfulInsertions = 0;
@@ -398,7 +398,7 @@ bool SparseCriteria::createSPARSInnerLoop(std::list<WeightedVertex> &vertexInser
     if (loopCount++ % debugFrequency == 0)
     {
       std::cout << ANSI_COLOR_BLUE;
-      std::cout << "Sparse generation progress: " << static_cast<int>(static_cast<double>(loopCount) / originalVertexInsertion * 100.0)
+      std::cout << "Sparse vertex insertion progress: " << static_cast<int>(static_cast<double>(loopCount) / originalVertexInsertion * 100.0)
                 << "% Cache size: " << denseCache_->getEdgeCacheSize()
                 << " Cache usage: " << denseCache_->getPercentCachedCollisionChecks() << "%" << std::endl;
       std::cout << ANSI_COLOR_RESET;

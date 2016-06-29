@@ -79,7 +79,7 @@ public:
 
   /** \brief Create a SPARS graph from the discretized dense graph and its popularity metric */
   void createSPARS();
-  bool createSPARSInnerLoop(std::list<WeightedVertex>& vertexInsertionOrder, std::size_t& sucessfulInsertions, std::size_t indent);
+  bool insertCandidateStates(std::list<WeightedVertex>& vertexInsertionOrder, std::size_t& sucessfulInsertions, std::size_t indent);
 
   void addDiscretizedStates(std::size_t indent);
 

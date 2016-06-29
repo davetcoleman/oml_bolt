@@ -333,6 +333,7 @@ bool Bolt::setFilePath(const std::string &filePath)
   sparseGraph_->getDenseCache()->setFilePath(filePath + ".cache");
   sparseGraph_->setFilePath(filePath + ".ompl");
   sparseGraph_->getSparseStorage()->setLoggingPath(filePath + ".logging");
+  benchmarkFilePath_ = filePath + ".benchmark";
   return true;
 }
 
@@ -496,7 +497,7 @@ bool Bolt::doPostProcessing()
   return true;
 }
 
-void Bolt::benchmarkPerformance()
+void Bolt::benchmarkRandValidSampling()
 {
   std::cout << "-------------------------------------------------------" << std::endl;
   OMPL_INFORM("Running system performance benchmark");
@@ -533,6 +534,30 @@ void Bolt::benchmarkPerformance()
   OMPL_INFORM("  sampleUniform() took %f seconds (%f per run)", totalDurationSampler,
               totalDurationSampler / benchmarkRuns);
   OMPL_INFORM("  Percent valid: %f", validCount / double(benchmarkRuns) * 100);
+  std::cout << "-------------------------------------------------------" << std::endl;
+  std::cout << std::endl;
+}
+
+void Bolt::benchmarkSparseGraphGeneration()
+{
+  std::cout << "-------------------------------------------------------" << std::endl;
+  OMPL_INFORM("Running graph generation benchmark");
+  time::point startTime = time::now(); // Benchmark
+
+  // Make seed deterministic
+  srand(0);
+
+  // Create graph
+  sparseCriteria_->createSPARS();
+
+  double time = time::seconds(time::now() - startTime);
+  OMPL_INFORM("Graph generation took %f seconds", time); // Benchmark
+
+  std::ofstream loggingFile;                           // open to append
+  loggingFile.open(benchmarkFilePath_.c_str(), std::ios::out);  // no append | std::ios::app);
+  loggingFile << time << ", " << sparseGraph_->getNumEdges() << ", " << sparseGraph_->getNumVertices() << std::endl;
+  loggingFile.close();
+
   std::cout << "-------------------------------------------------------" << std::endl;
   std::cout << std::endl;
 }
