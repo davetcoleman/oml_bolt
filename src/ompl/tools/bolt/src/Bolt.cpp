@@ -178,11 +178,19 @@ void Bolt::visualize()
   solutionPathCopy.interpolate();
 
   // Show smoothed & interpolated path
-  visual_->viz6()->path(&solutionPathCopy, tools::LARGE, tools::PURPLE);
-  visual_->viz6()->trigger();
+  if (visualizeSmoothTrajectory_)
+  {
+    visual_->viz6()->path(&solutionPathCopy, tools::LARGE, tools::PURPLE);
+    visual_->viz6()->trigger();
+  }
 
   // Show robot animated robot
-  visual_->viz6()->path(&solutionPathCopy, tools::ROBOT, tools::DEFAULT);
+  if (visualizeRobotTrajectory_)
+  {
+    std::size_t indent = 0;
+    BOLT_DEBUG(indent, true, "Blocking while visualizing solution path");
+    visual_->viz6()->path(&solutionPathCopy, tools::ROBOT, tools::DEFAULT);
+  }
 }
 
 bool Bolt::checkOptimalityGuarantees(std::size_t indent)

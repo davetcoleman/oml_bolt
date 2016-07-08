@@ -212,6 +212,10 @@ protected:
 public:
   /** \brief Visualize original solution from graph before smoothing */
   bool visualizeRawTrajectory_ = false;
+  /** \brief Visualize solution from graph after smoothing */
+  bool visualizeSmoothTrajectory_ = true;
+  bool visualizeRobotTrajectory_ = true;
+
 };  // end of class Bolt
 
 }  // namespace bolt

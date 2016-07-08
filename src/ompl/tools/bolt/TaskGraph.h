@@ -244,11 +244,16 @@ public:
   /** \brief Copy the sparse graph into a new task graph, and mirror it into two layers */
   void generateTaskSpace(std::size_t indent);
 
-  /** \brief Add a cartesian path into the middle layer of the task dimension */
+  /** \brief Add a cartesian path into the middle layer of the task dimension
+   *         This is only used for the 2D planning case (toy problem)
+   */
   bool addCartPath(std::vector<base::State*> path, std::size_t indent);
 
-  /** \brief Remove all vertices associated with a cartesian path */
-  void clearCartesianVertices(std::size_t indent);
+  /** \brief Remove all vertices associated with a cartesian path
+   *         This function is deprecated because it is too slow when the number of cartesian vertices is
+   *         much greater than the number of sparse graph vertices
+   */
+  void clearCartesianVerticesDeprecated(std::size_t indent);
 
   /**
    * \brief Helper for connecting both sides of a cartesian path into a dual level graph

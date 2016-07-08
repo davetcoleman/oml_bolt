@@ -447,7 +447,7 @@ bool TaskGraph::isEmpty() const
 
 void TaskGraph::generateTaskSpace(std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.generateTaskSpace()");
+  BOLT_RED_DEBUG(indent, verbose_ || true, "TaskGraph.generateTaskSpace()");
   indent += 2;
   time::point startTime = time::now(); // Benchmark
 
@@ -532,7 +532,7 @@ bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
   // TODO: check for validity
 
   // Clear previous cartesian path
-  clearCartesianVertices(indent);
+  generateTaskSpace(indent);
 
   // Create verticies for the extremas - start & goal
   VertexLevel level = 1;  // middle layer
@@ -590,17 +590,19 @@ bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
   return true;
 }
 
-void TaskGraph::clearCartesianVertices(std::size_t indent)
+void TaskGraph::clearCartesianVerticesDeprecated(std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.clearCartesianVertices()");
+  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.clearCartesianVerticesDeprecated()");
   indent += 2;
+
+  time::point startTime = time::now(); // Benchmark
 
   // Remove all vertices that are of type CARTESIAN
   std::size_t numRemoved = 0;
 
   // Iterate manually through graph
   typedef boost::graph_traits<TaskAdjList>::vertex_iterator VertexIterator;
-  for (VertexIterator v = boost::vertices(g_).first; v != boost::vertices(g_).second; /* manual */)
+  for (VertexIterator v = boost::vertices(g_).first; v != boost::vertices(g_).second; /* manually iterate */)
   {
     if (*v < getNumQueryVertices())  // Skip query vertices
     {
@@ -610,7 +612,7 @@ void TaskGraph::clearCartesianVertices(std::size_t indent)
 
     if (getVertexTypeProperty(*v) == CARTESIAN)  // Found vertex to delete
     {
-      BOLT_DEBUG(indent, vClear_, "Removing CARTESIAN TaskVertex " << *v);
+      BOLT_DEBUG(indent, vClear_, "Removing CARTESIAN TaskVertex " << *v << " total removed: " << numRemoved);
 
       boost::clear_vertex(*v, g_);  // delete the edges
       boost::remove_vertex(*v, g_);
@@ -623,7 +625,11 @@ void TaskGraph::clearCartesianVertices(std::size_t indent)
       v++;
     }
   }
-  BOLT_DEBUG(indent, vClear_, "Removed " << numRemoved << " vertices from graph of type CARTESIAN");
+  BOLT_DEBUG(indent, verbose_, "Removed " << numRemoved << " vertices from graph of type CARTESIAN");
+  OMPL_INFORM("took %f seconds", time::seconds(time::now() - startTime)); // Benchmark
+
+
+  startTime = time::now(); // Benchmark
 
   // Reset min connector vars
   startConnectorVertex_ = 0;
@@ -666,6 +672,9 @@ void TaskGraph::clearCartesianVertices(std::size_t indent)
   // Clear the visualization and redisplay
   // bool showVertices = true;
   // displayDatabase(showVertices, indent);
+
+  BOLT_DEBUG(indent, verbose_, "TaskGraph.clearCartesianVerticesDeprecated() completed");
+  OMPL_INFORM("took %f seconds", time::seconds(time::now() - startTime)); // Benchmark
 }
 
 bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const VertexLevel level, bool isStart,
