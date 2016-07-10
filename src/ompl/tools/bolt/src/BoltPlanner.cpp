@@ -707,7 +707,7 @@ bool BoltPlanner::simplifyTaskPath(og::PathGeometric &path, Termination &ptc, st
     base::State* state = path.getState(i);
     VertexLevel level = si_->getStateSpace()->getLevel(state);
 
-    assert(level >= 0 && level < NUM_LEVELS);
+    assert(level < NUM_LEVELS);
 
     pathSegment[level].append(state);
 
