@@ -1021,7 +1021,7 @@ const base::State *SparseGraph::getState(StateID stateID) const
   return denseCache_->getState(stateID);
 }
 
-const StateID SparseGraph::getStateID(SparseVertex v) const
+StateID SparseGraph::getStateID(SparseVertex v) const
 {
   return vertexStateProperty_[v];
 }

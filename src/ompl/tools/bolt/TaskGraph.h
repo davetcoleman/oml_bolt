@@ -174,7 +174,7 @@ public:
    * Get graph properties
    * --------------------------------------------------------------------------------- */
 
-  const std::size_t getNumQueryVertices() const
+  std::size_t getNumQueryVertices() const
   {
     return queryVertices_.size();
   }
@@ -347,7 +347,7 @@ public:
   base::State*& getVertexStateNonConst(TaskVertex v);
   const base::State* getVertexState(TaskVertex v) const;
   const base::State* getState(StateID stateID) const;
-  const StateID getStateID(TaskVertex v) const;
+  StateID getStateID(TaskVertex v) const;
 
   /* ---------------------------------------------------------------------------------
    * Visualizations

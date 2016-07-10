@@ -213,7 +213,7 @@ public:
    * Get graph properties
    * --------------------------------------------------------------------------------- */
 
-  const std::size_t getNumQueryVertices() const
+  std::size_t getNumQueryVertices() const
   {
     return queryVertices_.size();
   }
@@ -314,7 +314,7 @@ public:
   base::State*& getVertexStateNonConst(SparseVertex v);
   const base::State* getVertexState(SparseVertex v) const;
   const base::State* getState(StateID stateID) const;
-  const StateID getStateID(SparseVertex v) const;
+  StateID getStateID(SparseVertex v) const;
 
   /** \brief Used for creating a voronoi diagram */
   SparseVertex getSparseRepresentative(base::State* state);
