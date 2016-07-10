@@ -447,7 +447,7 @@ bool TaskGraph::isEmpty() const
 
 void TaskGraph::generateTaskSpace(std::size_t indent)
 {
-  BOLT_RED_DEBUG(indent, verbose_ || true, "TaskGraph.generateTaskSpace()");
+  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.generateTaskSpace()");
   indent += 2;
   time::point startTime = time::now(); // Benchmark
 
