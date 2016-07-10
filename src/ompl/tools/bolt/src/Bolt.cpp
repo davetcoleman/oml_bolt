@@ -324,6 +324,8 @@ bool Bolt::checkRepeatedStates(const og::PathGeometric &path)
     if (si_->getStateSpace()->equalStates(path.getState(i - 1), path.getState(i)))
     {
       OMPL_ERROR("Duplicate state found on trajectory at %u out of %u", i, path.getStateCount());
+
+      visual_->viz6()->state(path.getState(i), tools::ROBOT, tools::RED, 0);
       return false;
     }
   }
