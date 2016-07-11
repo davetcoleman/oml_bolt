@@ -231,7 +231,7 @@ void SparseCriteria::createSPARS()
   CALLGRIND_DUMP_STATS;
 
   // Only display database if enabled
-  if (sg_->visualizeSparseGraph_ && sg_->visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
+  if (useRandomSamples_ && sg_->visualizeSparseGraph_ && sg_->visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
     sg_->displayDatabase(true, indent);
 
   // Cleanup removed vertices
