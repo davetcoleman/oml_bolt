@@ -48,7 +48,6 @@
 // Bolt
 #include <ompl/tools/bolt/SparseGraph.h>
 #include <ompl/tools/bolt/BoostGraphHeaders.h>
-#include <ompl/tools/bolt/DenseCache.h>
 #include <ompl/tools/bolt/Debug.h>
 #include <ompl/tools/bolt/VertexDiscretizer.h>
 #include <ompl/tools/bolt/SparseStorage.h>
@@ -106,11 +105,6 @@ public:
   TaskAdjList getGraphNonConst()
   {
     return g_;
-  }
-
-  DenseCachePtr getDenseCache()
-  {
-    return denseCache_;
   }
 
   base::SpaceInformationPtr getSpaceInformation()
@@ -319,14 +313,8 @@ public:
    * Add/remove vertices, edges, states
    * --------------------------------------------------------------------------------- */
 
-  /** \brief Add a state to the DenseCache */
-  StateID addState(base::State* state);
-
   /** \brief Add vertices to graph. The state passed in will be owned by the AdjList graph */
   TaskVertex addVertex(base::State* state, const VertexType& type, VertexLevel level, std::size_t indent);
-
-  /** \brief Add vertices to graph. The state referenced by stateID will be cloned */
-  TaskVertex addVertex(StateID stateID, const VertexType& type, VertexLevel level, std::size_t indent);
 
   /** \brief Remove vertex from graph */
   void removeVertex(TaskVertex v);
@@ -344,10 +332,8 @@ public:
   base::State*& getQueryStateNonConst(TaskVertex v);
 
   /** \brief Shortcut function for getting the state of a vertex */
-  base::State*& getVertexStateNonConst(TaskVertex v);
-  const base::State* getVertexState(TaskVertex v) const;
-  const base::State* getState(StateID stateID) const;
-  StateID getStateID(TaskVertex v) const;
+  base::State*& getStateNonConst(TaskVertex v);
+  const base::State* getState(TaskVertex v) const;
 
   /* ---------------------------------------------------------------------------------
    * Visualizations
@@ -392,9 +378,6 @@ protected:
 
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;
-
-  /** \brief Speed up collision checking by saving redundant checks and using file storage */
-  DenseCachePtr denseCache_;
 
   /** \brief Nearest neighbors data structure */
   std::shared_ptr<NearestNeighbors<TaskVertex> > nn_;

@@ -49,7 +49,6 @@
 // Bolt
 #include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/BoostGraphHeaders.h>
-#include <ompl/tools/bolt/DenseCache.h>
 #include <ompl/tools/bolt/Debug.h>
 #include <ompl/tools/bolt/VertexDiscretizer.h>
 #include <ompl/tools/bolt/SparseStorage.h>
@@ -114,11 +113,6 @@ public:
   SparseAdjList getGraphNonConst()
   {
     return g_;
-  }
-
-  DenseCachePtr getDenseCache()
-  {
-    return denseCache_;
   }
 
   SparseStoragePtr getSparseStorage()
@@ -282,12 +276,8 @@ public:
    * Add/remove vertices, edges, states
    * --------------------------------------------------------------------------------- */
 
-  /** \brief Add a state to the DenseCache */
-  StateID addState(base::State* state);
-
   /** \brief Add vertex to graph */
   SparseVertex addVertex(base::State* state, const VertexType& type, std::size_t indent);
-  SparseVertex addVertex(StateID stateID, const VertexType& type, std::size_t indent);
 
   /** \brief Quickly add vertex to graph when loading from file */
   SparseVertex addVertexFromFile(base::State *state, const VertexType &type, std::size_t indent);
@@ -311,10 +301,8 @@ public:
   base::State*& getQueryStateNonConst(SparseVertex v);
 
   /** \brief Shortcut function for getting the state of a vertex */
-  base::State*& getVertexStateNonConst(SparseVertex v);
-  const base::State* getVertexState(SparseVertex v) const;
-  const base::State* getState(StateID stateID) const;
-  StateID getStateID(SparseVertex v) const;
+  base::State*& getStateNonConst(SparseVertex v);
+  const base::State* getState(SparseVertex v) const;
 
   /** \brief Used for creating a voronoi diagram */
   SparseVertex getSparseRepresentative(base::State* state);
@@ -384,9 +372,6 @@ protected:
   /** \brief Class for deciding which vertices and edges get added */
   SparseCriteriaPtr sparseCriteria_;
 
-  /** \brief Speed up collision checking by saving redundant checks and using file storage */
-  DenseCachePtr denseCache_;
-
   /** \brief For saving and loading to file */
   SparseStoragePtr sparseStorage_;
 
@@ -410,7 +395,7 @@ protected:
   SparseEdgeCollisionStateMap edgeCollisionStatePropertySparse_;
 
   /** \brief Access to the internal base::state at each Vertex */
-  boost::property_map<SparseAdjList, vertex_state_cache_t>::type vertexStateProperty_;
+  boost::property_map<SparseAdjList, vertex_state_t>::type vertexStateProperty_;
 
   /** \brief Access to the SPARS vertex type for the vertices */
   boost::property_map<SparseAdjList, vertex_type_t>::type vertexTypeProperty_;

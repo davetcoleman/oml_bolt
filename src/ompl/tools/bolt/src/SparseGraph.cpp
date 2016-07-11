@@ -82,7 +82,7 @@ SparseGraph::SparseGraph(base::SpaceInformationPtr si, VisualizerPtr visual)
   , edgeTypeProperty_(boost::get(edge_type_t(), g_))
   , edgeCollisionStatePropertySparse_(boost::get(edge_collision_state_t(), g_))
     // Property accessors of vertices
-  , vertexStateProperty_(boost::get(vertex_state_cache_t(), g_))
+  , vertexStateProperty_(boost::get(vertex_state_t(), g_))
   , vertexTypeProperty_(boost::get(vertex_type_t(), g_))
   , vertexInterfaceProperty_(boost::get(vertex_interface_data_t(), g_))
   , vertexPopularity_(boost::get(vertex_popularity_t(), g_))
@@ -91,9 +91,6 @@ SparseGraph::SparseGraph(base::SpaceInformationPtr si, VisualizerPtr visual)
 {
   // Save number of threads available
   numThreads_ = boost::thread::hardware_concurrency();
-
-  // Initialize collision cache
-  denseCache_.reset(new DenseCache(si_, this, visual_));
 
   // Add search state
   initializeQueryState();
@@ -164,15 +161,12 @@ void SparseGraph::initializeQueryState()
   {
     // Add a fake vertex to the graph
     queryVertices_[threadID] = boost::add_vertex(g_);
-    vertexStateProperty_[queryVertices_[threadID]] = 0;  // set stateID to the zeroth stateID - NULL
+    vertexStateProperty_[queryVertices_[threadID]] = NULL;  // set state to NULL
   }
 }
 
 bool SparseGraph::load()
 {
-  // Load collision cache
-  denseCache_->load();
-
   // Benchmark
   time::point start = time::now();
 
@@ -240,9 +234,6 @@ bool SparseGraph::save(std::size_t indent)
 
   // Save
   sparseStorage_->save(filePath_.c_str());
-
-  // Save collision cache
-  denseCache_->save();
 
   // Benchmark
   double loadTime = time::seconds(time::now() - start);
@@ -339,7 +330,7 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
       if (v1 != v2)
       {
         // std::cout << "Edge " << v1 << " to " << v2 << std::endl;
-        visual_->viz4()->edge(getVertexState(v1), getVertexState(v2), 10);
+        visual_->viz4()->edge(getState(v1), getState(v2), 10);
       }
     }
     visual_->viz4()->trigger();
@@ -358,7 +349,7 @@ double SparseGraph::astarHeuristic(const SparseVertex a, const SparseVertex b) c
   // Assume vertex 'a' is the one we care about its populariy
 
   // Get the classic distance
-  double dist = si_->distance(getVertexState(a), getVertexState(b));
+  double dist = si_->distance(getState(a), getState(b));
 
   // if (false)  // method 1
   // {
@@ -412,21 +403,21 @@ double SparseGraph::distanceFunction(const SparseVertex a, const SparseVertex b)
   // Special case: query vertices store their states elsewhere
   if (a < numThreads_)
   {
-    return si_->distance(queryStates_[a], getVertexState(b));
+    return si_->distance(queryStates_[a], getState(b));
   }
   if (b < numThreads_)
   {
-    return si_->distance(getVertexState(a), queryStates_[b]);
+    return si_->distance(getState(a), queryStates_[b]);
   }
 
   // Error check
   if (superDebug_)
   {
-    assert(getVertexState(a) != NULL);
-    assert(getVertexState(b) != NULL);
+    assert(getState(a) != NULL);
+    assert(getState(b) != NULL);
   }
 
-  return si_->distance(getVertexState(a), getVertexState(b));
+  return si_->distance(getState(a), getState(b));
 }
 
 bool SparseGraph::isEmpty() const
@@ -443,25 +434,26 @@ void SparseGraph::clearEdgeCollisionStates()
 
 void SparseGraph::errorCheckDuplicateStates(std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, true, "errorCheckDuplicateStates() - part of super debug");
+  BOLT_RED_DEBUG(indent, true, "errorCheckDuplicateStates() - part of super debug - NOT IMPLEMENTED");
   indent += 2;
 
-  bool found = false;
-  // Error checking: check for any duplicate states
-  for (std::size_t i = 0; i < denseCache_->getStateCacheSize(); ++i)
-  {
-    for (std::size_t j = i + 1; j < denseCache_->getStateCacheSize(); ++j)
-    {
-      if (si_->getStateSpace()->equalStates(getState(i), getState(j)))
-      {
-        BOLT_RED_DEBUG(indent, 1, "Found equal state: " << i << ", " << j);
-        debugState(getState(i));
-        found = true;
-      }
-    }
-  }
-  if (found)
-    throw Exception(name_, "Duplicate state found");
+
+  // bool found = false;
+  // // Error checking: check for any duplicate states
+  // for (std::size_t i = 0; i < dense_Cache_->getStateCacheSize(); ++i)
+  // {
+  //   for (std::size_t j = i + 1; j < dense_Cache_->getStateCacheSize(); ++j)
+  //   {
+  //     if (si_->getStateSpace()->equalStates(getState(i), getState(j)))
+  //     {
+  //       BOLT_RED_DEBUG(indent, 1, "Found equal state: " << i << ", " << j);
+  //       debugState(getState(i));
+  //       found = true;
+  //     }
+  //   }
+  // }
+  // if (found)
+  //   throw Exception(name_, "Duplicate state found");
 }
 
 bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent)
@@ -644,10 +636,6 @@ void SparseGraph::visualizeDisjointSets(SparseDisjointSetsMap &disjointSets)
     const SparseVertex v1 = iterator->first;
     const std::size_t freq = iterator->second.size();
 
-    // std::cout << std::endl;
-    // std::cout << "Parent vertex: " << v1 << " StateID: " << getStateID(v1) << " Frequency: " << freq << std::endl;
-    // debugState(getVertexState(v1));
-
     BOOST_ASSERT_MSG(freq > 0, "Frequency must be at least 1");
 
     if (freq == maxDisjointSetSize)  // any subgraph that is smaller than the full graph
@@ -656,7 +644,7 @@ void SparseGraph::visualizeDisjointSets(SparseDisjointSetsMap &disjointSets)
     // Visualize sets of size one
     if (freq == 1)
     {
-      visual_->viz5()->state(getVertexState(v1), tools::LARGE, tools::RED, 0);
+      visual_->viz5()->state(getState(v1), tools::LARGE, tools::RED, 0);
       visual_->viz5()->trigger();
       visual_->waitForUserFeedback("showing disjoint set");
       continue;
@@ -675,20 +663,20 @@ void SparseGraph::visualizeDisjointSets(SparseDisjointSetsMap &disjointSets)
       {
         if (boost::get(boost::get(boost::vertex_predecessor, g_), *v2) == v1)
         {
-          visual_->viz4()->state(getVertexState(*v2), tools::LARGE, tools::RED, 0);
+          visual_->viz4()->state(getState(*v2), tools::LARGE, tools::RED, 0);
 
           // Show state's edges
           foreach (SparseEdge edge, boost::out_edges(*v2, g_))
           {
             SparseVertex e_v1 = boost::source(edge, g_);
             SparseVertex e_v2 = boost::target(edge, g_);
-            visual_->viz4()->edge(getVertexState(e_v1), getVertexState(e_v2), edgeWeightProperty_[edge]);
+            visual_->viz4()->edge(getState(e_v1), getState(e_v2), edgeWeightProperty_[edge]);
           }
           visual_->viz4()->trigger();
 
           // Show this robot state
-          // visual_->viz4()->state(getVertexState(*v2), tools::ROBOT, tools::DEFAULT, 0);
-          visual_->viz4()->state(getVertexState(*v2), tools::SMALL, tools::RED, 0);
+          // visual_->viz4()->state(getState(*v2), tools::ROBOT, tools::DEFAULT, 0);
+          visual_->viz4()->state(getState(*v2), tools::SMALL, tools::RED, 0);
 
           usleep(0.1 * 1000000);
         }  // if
@@ -717,33 +705,23 @@ bool SparseGraph::sameComponent(SparseVertex v1, SparseVertex v2)
   return boost::same_component(v1, v2, disjointSets_);
 }
 
-StateID SparseGraph::addState(base::State *state)
-{
-  return denseCache_->addState(state);
-}
-
 SparseVertex SparseGraph::addVertex(base::State *state, const VertexType &type, std::size_t indent)
-{
-  return addVertex(addState(state), type, indent);
-}
-
-SparseVertex SparseGraph::addVertex(StateID stateID, const VertexType &type, std::size_t indent)
 {
   // Create vertex
   SparseVertex v = boost::add_vertex(g_);
 
   // Feedback
-  BOLT_CYAN_DEBUG(indent, vAdd_, "addVertex(): v: " << v << ", stateID: " << stateID << " type " << type);
+  BOLT_CYAN_DEBUG(indent, vAdd_, "addVertex(): v: " << v << ", state: " << state << " type " << type);
   indent += 2;
 
   // Add properties
   vertexTypeProperty_[v] = type;
-  vertexStateProperty_[v] = stateID;
+  vertexStateProperty_[v] = state;
   vertexPopularity_[v] = MAX_POPULARITY_WEIGHT;  // 100 means the vertex is very unpopular
 
   // Clear all nearby interface data whenever a new vertex is added
   if (sparseCriteria_->useFourthCriteria_)
-    clearInterfaceData(denseCache_->getStateNonConst(stateID));
+    clearInterfaceData(state);
 
   // Connected component tracking
   disjointSets_.make_set(v);
@@ -806,15 +784,12 @@ SparseVertex SparseGraph::addVertex(StateID stateID, const VertexType &type, std
 
 SparseVertex SparseGraph::addVertexFromFile(base::State *state, const VertexType &type, std::size_t indent)
 {
-  // Save state in cache
-  StateID stateID = addState(state);
-
   // Create vertex
   SparseVertex v = boost::add_vertex(g_);
 
   // Add properties
   vertexTypeProperty_[v] = type;
-  vertexStateProperty_[v] = stateID;
+  vertexStateProperty_[v] = state;
   vertexPopularity_[v] = MAX_POPULARITY_WEIGHT;  // 100 means the vertex is very unpopular
 
   // Connected component tracking
@@ -828,8 +803,9 @@ void SparseGraph::removeVertex(SparseVertex v)
   // Remove from nearest neighbor
   nn_->remove(v);
 
-  // Delete state from denseDB
-  vertexStateProperty_[v] = 0;  // 0 means delete
+  // Delete state
+  si_->freeState(vertexStateProperty_[v]);
+  vertexStateProperty_[v] = NULL;
 
   // TODO: disjointSets is now inaccurate
   // Our checkAddConnectivity() criteria is broken
@@ -862,16 +838,16 @@ void SparseGraph::removeDeletedVertices(std::size_t indent)
       continue;
     }
 
-    if (getStateID(*v) == 0)  // Found vertex to delete
+    if (getState(*v) == NULL)  // Found vertex to delete
     {
-      BOLT_DEBUG(indent, verbose, "Removing SparseVertex " << *v << " stateID: " << getStateID(*v));
+      BOLT_DEBUG(indent, verbose, "Removing SparseVertex " << *v << " state: " << getState(*v));
 
       boost::remove_vertex(*v, g_);
       numRemoved++;
     }
     else  // only proceed if no deletion happened
     {
-      // BOLT_DEBUG(indent, verbose, "Checking SparseVertex " << *v << " stateID: " << getStateID(*v));
+      // BOLT_DEBUG(indent, verbose, "Checking SparseVertex " << *v << " state: " << getState(*v));
       v++;
     }
   }
@@ -921,8 +897,8 @@ SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type,
     BOOST_ASSERT_MSG(!hasEdge(v1, v2), "There already exists an edge between two vertices requested");
     BOOST_ASSERT_MSG(hasEdge(v1, v2) == hasEdge(v2, v1), "There already exists an edge between two vertices requested, "
                      "other direction");
-    BOOST_ASSERT_MSG(getVertexState(v1) != getVertexState(v2), "States on both sides of an edge are the same");
-    BOOST_ASSERT_MSG(!si_->getStateSpace()->equalStates(getVertexState(v1), getVertexState(v2)),
+    BOOST_ASSERT_MSG(getState(v1) != getState(v2), "States on both sides of an edge are the same");
+    BOOST_ASSERT_MSG(!si_->getStateSpace()->equalStates(getState(v1), getState(v2)),
                      "Vertex IDs are different but states are the equal");
   }
 
@@ -1004,25 +980,15 @@ base::State *&SparseGraph::getQueryStateNonConst(SparseVertex v)
   return queryStates_[v];
 }
 
-base::State *&SparseGraph::getVertexStateNonConst(SparseVertex v)
+base::State *&SparseGraph::getStateNonConst(SparseVertex v)
 {
   BOOST_ASSERT_MSG(v >= queryVertices_.size(), "Attempted to request state of query vertex using wrong function");
-  return denseCache_->getStateNonConst(vertexStateProperty_[v]);
+  return vertexStateProperty_[v];
 }
 
-const base::State *SparseGraph::getVertexState(SparseVertex v) const
+const base::State *SparseGraph::getState(SparseVertex v) const
 {
   BOOST_ASSERT_MSG(v >= queryVertices_.size(), "Attempted to request state of query vertex using wrong function");
-  return denseCache_->getState(vertexStateProperty_[v]);
-}
-
-const base::State *SparseGraph::getState(StateID stateID) const
-{
-  return denseCache_->getState(stateID);
-}
-
-StateID SparseGraph::getStateID(SparseVertex v) const
-{
   return vertexStateProperty_[v];
 }
 
@@ -1146,7 +1112,7 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
       }
 
       // Check for null states
-      if (!getVertexState(v))
+      if (!getState(v))
       {
         BOLT_RED_DEBUG(indent, true, "Null vertex found: " << v);
         continue;
@@ -1154,7 +1120,7 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
 
       // Populate properties
       colors.push_back(vertexTypeToColor(vertexTypeProperty_[v]));
-      states.push_back(getVertexState(v));
+      states.push_back(getState(v));
     }
 
     // Create marker and push to queue
@@ -1179,15 +1145,15 @@ void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
 
   // Show visibility region around vertex
   if (visualizeDatabaseCoverage_)
-    visual_->viz1()->state(getVertexState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
+    visual_->viz1()->state(getState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
                            sparseCriteria_->sparseDelta_);
 
   // Show vertex
-  visual_->viz1()->state(getVertexState(v), vertexSize_, color, 0);
+  visual_->viz1()->state(getState(v), vertexSize_, color, 0);
 
   if (visualizeProjection_) // Hack: Project to 2D space
-    visual_->viz7()->state(getVertexState(v), vertexSize_, color, 0);
-  //visual_->viz7()->state(getVertexState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseCriteria_->sparseDelta_);
+    visual_->viz7()->state(getState(v), vertexSize_, color, 0);
+  //visual_->viz7()->state(getState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseCriteria_->sparseDelta_);
 }
 
 tools::VizColors SparseGraph::vertexTypeToColor(VertexType type)
@@ -1232,7 +1198,7 @@ void SparseGraph::visualizeEdge(SparseEdge e, EdgeType type, std::size_t windowI
 void SparseGraph::visualizeEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t windowID)
 {
   // Visualize
-  visual_->viz(windowID)->edge(getVertexState(v1), getVertexState(v2), edgeSize_, edgeTypeToColor(type));
+  visual_->viz(windowID)->edge(getState(v1), getState(v2), edgeSize_, edgeTypeToColor(type));
 }
 
 VertexPair SparseGraph::interfaceDataIndex(SparseVertex vp, SparseVertex vpp)
@@ -1259,7 +1225,7 @@ void SparseGraph::debugState(const ompl::base::State *state)
 
 void SparseGraph::debugVertex(const SparseVertex v)
 {
-  debugState(getVertexState(v));
+  debugState(getState(v));
 }
 
 void SparseGraph::debugNN()
@@ -1343,7 +1309,7 @@ void otb::SparsestarVisitor::discover_vertex(SparseVertex v, const SparseAdjList
   parent_->recordNodeOpened();
 
   if (parent_->visualizeAstar_)
-    parent_->getVisual()->viz4()->state(parent_->getVertexState(v), tools::SMALL, tools::GREEN, 1);
+    parent_->getVisual()->viz4()->state(parent_->getState(v), tools::SMALL, tools::GREEN, 1);
 }
 
 void otb::SparsestarVisitor::examine_vertex(SparseVertex v, const SparseAdjList &) const
@@ -1353,7 +1319,7 @@ void otb::SparsestarVisitor::examine_vertex(SparseVertex v, const SparseAdjList 
 
   if (parent_->visualizeAstar_)
   {
-    parent_->getVisual()->viz4()->state(parent_->getVertexState(v), tools::LARGE, tools::BLACK, 1);
+    parent_->getVisual()->viz4()->state(parent_->getState(v), tools::LARGE, tools::BLACK, 1);
     parent_->getVisual()->viz4()->trigger();
     usleep(parent_->visualizeAstarSpeed_ * 1000000);
   }

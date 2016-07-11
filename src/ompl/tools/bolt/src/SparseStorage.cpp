@@ -147,7 +147,7 @@ void SparseStorage::saveVertices(boost::archive::binary_oarchive &oa)
     vertexData.type_ = sparseGraph_->getVertexTypeProperty(v);
 
     // Serializing the state contained in this vertex
-    space->serialize(&state[0], sparseGraph_->getVertexStateNonConst(v));
+    space->serialize(&state[0], sparseGraph_->getStateNonConst(v));
     vertexData.stateSerialized_ = state;
 
     // Save to file

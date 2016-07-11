@@ -42,6 +42,7 @@
 // OMPL
 #include <ompl/tools/bolt/SparseGraph.h>
 #include <ompl/base/samplers/MinimumClearanceValidStateSampler.h>
+#include <ompl/tools/bolt/SampleQueue.h>
 
 namespace ompl
 {
@@ -79,19 +80,18 @@ public:
 
   /** \brief Create a SPARS graph from the discretized dense graph and its popularity metric */
   void createSPARS();
-  bool insertCandidateStates(std::list<WeightedVertex>& vertexInsertionOrder, std::size_t& sucessfulInsertions, std::size_t indent);
 
   void addDiscretizedStates(std::size_t indent);
 
-  void addRandomSamples(std::size_t indent);
-  void addSamplesFromCache(std::size_t indent);
+  bool addRandomSamples(std::size_t indent);
+  bool addRandomSamplesThreaded(std::size_t indent);
 
   /**
    * \brief Add state to sparse graph
    * \param stateID representing a pre-populate state
    * \return true if sparse graph is still accepting states, false if the sparse graph has completed
    */
-  bool addSample(StateID candidateStateID, std::size_t indent);
+  bool addSample(base::State* candidateState, bool &usedState, std::size_t indent);
 
   /**
    * \brief Run various checks/criteria to determine if to keep TaskVertex in sparse graph
@@ -100,23 +100,23 @@ public:
    * \param addReason - if function returns true, the reson the denseVertex was added to the sparse graph
    * \return true on success
    */
-  bool addStateToRoadmap(StateID candidateStateID, SparseVertex& newVertex, VertexType& addReason, std::size_t threadID,
-                         std::size_t indent);
+  bool addStateToRoadmap(base::State* candidateState, SparseVertex& newVertex, VertexType& addReason,
+                         std::size_t threadID, std::size_t indent);
 
   /* ----------------------------------------------------------------------------------------*/
   /** \brief SPARS-related functions */
-  bool checkAddCoverage(StateID candidateStateID, std::vector<SparseVertex>& visibleNeighborhood,
+  bool checkAddCoverage(base::State* candidateState, std::vector<SparseVertex>& visibleNeighborhood,
                         SparseVertex& newVertex, std::size_t indent);
-  bool checkAddConnectivity(StateID candidateStateID, std::vector<SparseVertex>& visibleNeighborhood,
+  bool checkAddConnectivity(base::State* candidateState, std::vector<SparseVertex>& visibleNeighborhood,
                             SparseVertex& newVertex, std::size_t indent);
-  bool checkAddInterface(StateID candidateStateID, std::vector<SparseVertex>& graphNeighborhood,
+  bool checkAddInterface(base::State* candidateState, std::vector<SparseVertex>& graphNeighborhood,
                          std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex, std::size_t indent);
-  bool checkAddDiscretized(StateID candidateStateID, std::vector<SparseVertex> &graphNeighborhood,
-                           std::vector<SparseVertex> &visibleNeighborhood, SparseVertex &newVertex, std::size_t indent);
-  bool checkAddQuality(StateID candidateStateID, std::vector<SparseVertex>& graphNeighborhood,
-                       std::vector<SparseVertex>& visibleNeighborhood, base::State* workState, SparseVertex& newVertex,
+  bool checkAddDiscretized(base::State* candidateState, std::vector<SparseVertex>& graphNeighborhood,
+                           std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex, std::size_t indent);
+  bool checkAddQuality(base::State* candidateState, std::vector<SparseVertex>& graphNeighborhood,
+                       std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
                        std::size_t indent);
-  void visualizeCheckAddQuality(StateID candidateStateID, SparseVertex candidateRep);
+  void visualizeCheckAddQuality(base::State* candidateState, SparseVertex candidateRep);
 
   /* ----------------------------------------------------------------------------------------*/
   // 4th Criteria
@@ -146,7 +146,7 @@ public:
   /** \brief Finds representatives of samples near candidateState_ which are not his representative
              Referred to as 'Get_Close_Reps' in paper
    */
-  void findCloseRepresentatives(base::State* workState, StateID stateID, SparseVertex candidateRep,
+  void findCloseRepresentatives(const base::State* candidateState, SparseVertex candidateRep,
                                 std::map<SparseVertex, base::State*>& closeRepresentatives, std::size_t indent);
 
   /** \brief Updates pair point information for a representative with neighbor r
@@ -178,7 +178,7 @@ public:
    * \param visibleNeighborhood - resulting nearby states that are visible
    * \param indent - debugging tool
    */
-  void findGraphNeighbors(StateID candidateStateID, std::vector<SparseVertex>& graphNeighborhood,
+  void findGraphNeighbors(base::State* candidateState, std::vector<SparseVertex>& graphNeighborhood,
                           std::vector<SparseVertex>& visibleNeighborhood, std::size_t threadID, std::size_t indent);
 
   /** \brief After adding a new vertex, check if there is a really close nearby vertex that can be merged with this one
@@ -240,12 +240,12 @@ protected:
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;
 
-  /** \brief Speed up collision checking by saving redundant checks and using file storage */
-  DenseCachePtr denseCache_;
-
   /** \brief Sampler user for generating valid samples in the state space */
   base::ValidStateSamplerPtr regularSampler_;
   base::MinimumClearanceValidStateSamplerPtr clearanceSampler_;
+
+  /** \brief Secondary thread for sampling and garbage collection */
+  SampleQueuePtr sampleQueue_;
 
   /** \brief Special flag for tracking mode when inserting into sparse graph */
   bool secondSparseInsertionAttempt_ = false;
@@ -285,6 +285,9 @@ protected:
 
   // double ignoreEdgesSmallerThan_ = 32.502; // 3D
   double ignoreEdgesSmallerThan_ = 12.7;  // 2D
+
+  /** \brief Temporary state for doing sparse criteria sampling */
+  base::State* sampledState_;
 
 public:
   /** \brief SPARS parameter for dense graph connection distance as a fraction of max. extent */

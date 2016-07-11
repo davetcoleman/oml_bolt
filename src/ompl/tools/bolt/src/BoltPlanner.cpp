@@ -292,7 +292,7 @@ bool BoltPlanner::getPathOnGraph(const std::vector<TaskVertex> &candidateStarts,
   // Try every combination of nearby start and goal pairs
   for (TaskVertex start : candidateStarts)
   {
-    if (actualStart == taskGraph_->getVertexState(start))
+    if (actualStart == taskGraph_->getState(start))
     {
       OMPL_ERROR("Comparing same start state");
       exit(-1);  // just curious if this ever happens, no need to actually exit
@@ -300,7 +300,7 @@ bool BoltPlanner::getPathOnGraph(const std::vector<TaskVertex> &candidateStarts,
     }
 
     // Check if this start is visible from the actual start
-    if (!si_->checkMotion(actualStart, taskGraph_->getVertexState(start)))
+    if (!si_->checkMotion(actualStart, taskGraph_->getState(start)))
     {
       if (verbose_)
       {
@@ -308,8 +308,8 @@ bool BoltPlanner::getPathOnGraph(const std::vector<TaskVertex> &candidateStarts,
       }
       if (debug)
       {
-        visual_->viz4()->state(taskGraph_->getVertexState(start), tools::LARGE, tools::RED, 1);
-        visual_->viz4()->edge(actualStart, taskGraph_->getVertexState(start), 100);
+        visual_->viz4()->state(taskGraph_->getState(start), tools::LARGE, tools::RED, 1);
+        visual_->viz4()->edge(actualStart, taskGraph_->getState(start), 100);
         visual_->viz4()->trigger();
         usleep(0.1 * 1000000);
       }
@@ -319,14 +319,14 @@ bool BoltPlanner::getPathOnGraph(const std::vector<TaskVertex> &candidateStarts,
 
     for (TaskVertex goal : candidateGoals)
     {
-      if (actualGoal == taskGraph_->getVertexState(goal))
+      if (actualGoal == taskGraph_->getState(goal))
       {
         OMPL_ERROR("Comparing same goal state");
         continue;
       }
 
       BOLT_DEBUG(indent, verbose_, "foreach_goal: Checking motion from " << actualGoal << " to "
-                                                                         << taskGraph_->getVertexState(goal));
+                                                                         << taskGraph_->getState(goal));
 
       if (ptc)  // Check if our planner is out of time
       {
@@ -335,7 +335,7 @@ bool BoltPlanner::getPathOnGraph(const std::vector<TaskVertex> &candidateStarts,
       }
 
       // Check if this goal is visible from the actual goal
-      if (!si_->checkMotion(actualGoal, taskGraph_->getVertexState(goal)))
+      if (!si_->checkMotion(actualGoal, taskGraph_->getState(goal)))
       {
         if (verbose_)
         {
@@ -344,8 +344,8 @@ bool BoltPlanner::getPathOnGraph(const std::vector<TaskVertex> &candidateStarts,
 
         if (debug)
         {
-          visual_->viz4()->state(taskGraph_->getVertexState(goal), tools::SMALL, tools::RED, 1);
-          visual_->viz4()->edge(actualGoal, taskGraph_->getVertexState(goal), 100);
+          visual_->viz4()->state(taskGraph_->getState(goal), tools::SMALL, tools::RED, 1);
+          visual_->viz4()->edge(actualGoal, taskGraph_->getState(goal), 100);
           visual_->viz4()->trigger();
           usleep(0.1 * 1000000);
         }
@@ -419,8 +419,8 @@ bool BoltPlanner::lazyCollisionSearch(const TaskVertex &start, const TaskVertex 
   // Error check all states are non-nullptr
   assert(actualStart);
   assert(actualGoal);
-  assert(taskGraph_->getVertexState(start));
-  assert(taskGraph_->getVertexState(goal));
+  assert(taskGraph_->getState(start));
+  assert(taskGraph_->getState(goal));
 
   // Check that our states are on the same connected component
   // TODO: in the future the graph should always just be fully connected
@@ -436,15 +436,15 @@ bool BoltPlanner::lazyCollisionSearch(const TaskVertex &start, const TaskVertex 
   if (visualize)
   {
     BOLT_DEBUG(indent, verbose_, "viz start -----------------------------");
-    visual_->viz5()->state(taskGraph_->getVertexState(start), tools::VARIABLE_SIZE, tools::PURPLE, 1);
-    visual_->viz5()->edge(actualStart, taskGraph_->getVertexState(start), 30);
+    visual_->viz5()->state(taskGraph_->getState(start), tools::VARIABLE_SIZE, tools::PURPLE, 1);
+    visual_->viz5()->edge(actualStart, taskGraph_->getState(start), 30);
     visual_->viz5()->trigger();
     usleep(5 * 1000000);
 
     // Visualize goal vertex
     BOLT_DEBUG(indent, verbose_, "viz goal ------------------------------");
-    visual_->viz5()->state(taskGraph_->getVertexState(goal), tools::VARIABLE_SIZE, tools::PURPLE, 1);
-    visual_->viz5()->edge(actualGoal, taskGraph_->getVertexState(goal), 0);
+    visual_->viz5()->state(taskGraph_->getState(goal), tools::VARIABLE_SIZE, tools::PURPLE, 1);
+    visual_->viz5()->edge(actualGoal, taskGraph_->getState(goal), 0);
     visual_->viz5()->trigger();
     usleep(5 * 1000000);
   }
@@ -521,7 +521,7 @@ bool BoltPlanner::lazyCollisionCheck(std::vector<TaskVertex> &vertexPath, Termin
     if (taskGraph_->edgeCollisionStatePropertyTask_[thisEdge] == NOT_CHECKED)
     {
       // Check path between states
-      if (!si_->checkMotion(taskGraph_->getVertexState(fromVertex), taskGraph_->getVertexState(toVertex)))
+      if (!si_->checkMotion(taskGraph_->getState(fromVertex), taskGraph_->getState(toVertex)))
       {
         // Path between (from, to) states not valid, disable the edge
         //BOLT_GREEN_DEBUG(indent, verbose_, "LAZY CHECK: disabling edge from vertex " << fromVertex << " to vertex " << toVertex);
@@ -611,7 +611,7 @@ bool BoltPlanner::convertVertexPathToStatePath(std::vector<TaskVertex> &vertexPa
     return false;
 
   // Add original start if it is different than the first state
-  if (actualStart != taskGraph_->getVertexState(vertexPath.back()))
+  if (actualStart != taskGraph_->getState(vertexPath.back()))
   {
     geometricSolution.append(actualStart);
   }
@@ -627,7 +627,7 @@ bool BoltPlanner::convertVertexPathToStatePath(std::vector<TaskVertex> &vertexPa
   // Reverse the vertexPath and convert to state path
   for (std::size_t i = vertexPath.size(); i > 0; --i)
   {
-    geometricSolution.append(taskGraph_->getVertexState(vertexPath[i - 1]));
+    geometricSolution.append(taskGraph_->getState(vertexPath[i - 1]));
 
     // Add the edge status
     if (i > 1)  // skip the last vertex (its reversed)
@@ -654,7 +654,7 @@ bool BoltPlanner::convertVertexPathToStatePath(std::vector<TaskVertex> &vertexPa
   }
 
   // Add original goal if it is different than the last state
-  if (actualGoal != taskGraph_->getVertexState(vertexPath.front()))
+  if (actualGoal != taskGraph_->getState(vertexPath.front()))
   {
     geometricSolution.append(actualGoal);
   }
@@ -799,7 +799,7 @@ bool BoltPlanner::canConnect(const base::State *randomState, Termination &ptc,
   for (TaskVertex nearState : candidateNeighbors)
   {
     const base::State *s1 = randomState;
-    const base::State *s2 = taskGraph_->getVertexState(nearState);
+    const base::State *s2 = taskGraph_->getState(nearState);
 
     // Check if this nearState is visible from the random state
     if (!si_->checkMotion(s1, s2))

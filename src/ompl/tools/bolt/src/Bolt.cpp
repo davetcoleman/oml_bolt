@@ -340,7 +340,6 @@ base::PlannerStatus Bolt::solve(double time)
 
 bool Bolt::setFilePath(const std::string &filePath)
 {
-  sparseGraph_->getDenseCache()->setFilePath(filePath + ".cache");
   sparseGraph_->setFilePath(filePath + ".ompl");
   sparseGraph_->getSparseStorage()->setLoggingPath(filePath + ".logging");
   benchmarkFilePath_ = filePath + ".benchmark";

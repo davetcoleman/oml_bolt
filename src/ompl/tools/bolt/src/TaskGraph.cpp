@@ -88,7 +88,6 @@ TaskGraph::TaskGraph(SparseGraphPtr sg)
   numThreads_ = boost::thread::hardware_concurrency();
 
   // Copy the pointers of various components
-  denseCache_ = sg_->getDenseCache();
   si_ = sg_->getSpaceInformation();
   visual_ = sg_->getVisual();
 
@@ -248,7 +247,7 @@ bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::
       const TaskVertex v2 = vertexPredecessors[v1];
       if (v1 != v2)
       {
-        visual_->viz4()->edge(getVertexState(v1), getVertexState(v2), 10);
+        visual_->viz4()->edge(getState(v1), getState(v2), 10);
       }
     }
     visual_->viz4()->trigger();
@@ -267,7 +266,7 @@ double TaskGraph::astarHeuristic(const TaskVertex a, const TaskVertex b) const
   // Assume vertex 'a' is the one we care about its populariy
 
   // Get the classic distance
-  double dist = si_->distance(getVertexState(a), getVertexState(b));
+  double dist = si_->distance(getState(a), getState(b));
 
   // if (false)  // method 1
   // {
@@ -320,17 +319,17 @@ double TaskGraph::distanceFunction(const TaskVertex a, const TaskVertex b) const
   // Special case: query vertices store their states elsewhere. Both cannot be query vertices
   if (a < numThreads_)
   {
-    return si_->distance(queryStates_[a], getVertexState(b));
+    return si_->distance(queryStates_[a], getState(b));
   }
   if (b < numThreads_)
   {
-    return si_->distance(getVertexState(a), queryStates_[b]);
+    return si_->distance(getState(a), queryStates_[b]);
   }
 
-  assert(getVertexState(a) != NULL);
-  assert(getVertexState(b) != NULL);
+  assert(getState(a) != NULL);
+  assert(getState(b) != NULL);
 
-  return si_->distance(getVertexState(a), getVertexState(b));
+  return si_->distance(getState(a), getState(b));
 }
 
 double TaskGraph::astarTaskHeuristic(const TaskVertex a, const TaskVertex b) const
@@ -470,9 +469,8 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
     if (sparseV < sg_->getNumQueryVertices())
       continue;
 
-    // const StateID sparseStateID = sg_->getStateID(sparseV);
     const VertexType type = DISCRETIZED;  // TODO: remove this, seems meaningless
-    const base::State *state = sg_->getVertexState(sparseV);
+    const base::State *state = sg_->getState(sparseV);
 
     // Create level 0 vertex
     VertexLevel level = 0;
@@ -621,7 +619,6 @@ void TaskGraph::clearCartesianVerticesDeprecated(std::size_t indent)
     }
     else  // only proceed if no deletion happened
     {
-      // BOLT_DEBUG(indent, vClear_, "Checking TaskVertex " << *v << " stateID: " << getStateID(*v));
       v++;
     }
   }
@@ -734,7 +731,7 @@ void TaskGraph::getNeighborsAtLevel(const TaskVertex origVertex, const VertexLev
   BOOST_ASSERT_MSG(level != 1, "Unhandled level, does not support level 1");
 
   const std::size_t threadID = 0;
-  base::State *origState = getVertexStateNonConst(origVertex);
+  base::State *origState = getStateNonConst(origVertex);
 
   // Get nearby state
   queryStates_[threadID] = origState;
@@ -751,7 +748,7 @@ void TaskGraph::getNeighborsAtLevel(const TaskVertex origVertex, const VertexLev
     if (useCollisionChecking)
     {
       // Collision check
-      if (!si_->checkMotion(origState, getVertexState(nearVertex)))  // is not valid motion
+      if (!si_->checkMotion(origState, getState(nearVertex)))  // is not valid motion
       {
         BOLT_DEBUG(indent, vGenerateTask_, "Skipping neighbor " << nearVertex << ", i=" << i << ", at level="
                    << getTaskLevel(nearVertex) << " because invalid motion");
@@ -852,25 +849,25 @@ void TaskGraph::clearEdgeCollisionStates()
 
 void TaskGraph::errorCheckDuplicateStates(std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.errorCheckDuplicateStates() - part of super debug");
+  BOLT_RED_DEBUG(indent, verbose_, "TaskGraph.errorCheckDuplicateStates() - NOT IMPLEMENTEDpart of super debug");
   indent += 2;
 
-  bool found = false;
-  // Error checking: check for any duplicate states
-  for (std::size_t i = 0; i < denseCache_->getStateCacheSize(); ++i)
-  {
-    for (std::size_t j = i + 1; j < denseCache_->getStateCacheSize(); ++j)
-    {
-      if (si_->getStateSpace()->equalStates(getState(i), getState(j)))
-      {
-        BOLT_RED_DEBUG(indent, 1, "Found equal state: " << i << ", " << j);
-        debugState(getState(i));
-        found = true;
-      }
-    }
-  }
-  if (found)
-    throw Exception(name_, "Duplicate state found");
+  // bool found = false;
+  // // Error checking: check for any duplicate states
+  // for (std::size_t i = 0; i < dense_Cache_->getStateCacheSize(); ++i)
+  // {
+  //   for (std::size_t j = i + 1; j < dense_Cache_->getStateCacheSize(); ++j)
+  //   {
+  //     if (si_->getStateSpace()->equalStates(getState(i), getState(j)))
+  //     {
+  //       BOLT_RED_DEBUG(indent, 1, "Found equal state: " << i << ", " << j);
+  //       debugState(getState(i));
+  //       found = true;
+  //     }
+  //   }
+  // }
+  // if (found)
+  //   throw Exception(name_, "Duplicate state found");
 }
 
 bool TaskGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent)
@@ -1059,7 +1056,7 @@ void TaskGraph::visualizeDisjointSets(TaskDisjointSetsMap &disjointSets, std::si
     // Visualize sets of size one
     if (freq == 1)
     {
-      visual_->viz5()->state(getVertexState(v1), tools::LARGE, tools::RED, 0);
+      visual_->viz5()->state(getState(v1), tools::LARGE, tools::RED, 0);
       visual_->viz5()->trigger();
       visual_->waitForUserFeedback("showing disjoint set");
       continue;
@@ -1078,20 +1075,20 @@ void TaskGraph::visualizeDisjointSets(TaskDisjointSetsMap &disjointSets, std::si
       {
         if (boost::get(boost::get(boost::vertex_predecessor, g_), *v2) == v1)
         {
-          visual_->viz4()->state(getVertexState(*v2), tools::LARGE, tools::RED, 0);
+          visual_->viz4()->state(getState(*v2), tools::LARGE, tools::RED, 0);
 
           // Show state's edges
           foreach (TaskEdge edge, boost::out_edges(*v2, g_))
           {
             TaskVertex e_v1 = boost::source(edge, g_);
             TaskVertex e_v2 = boost::target(edge, g_);
-            visual_->viz4()->edge(getVertexState(e_v1), getVertexState(e_v2), edgeWeightProperty_[edge]);
+            visual_->viz4()->edge(getState(e_v1), getState(e_v2), edgeWeightProperty_[edge]);
           }
           visual_->viz4()->trigger();
 
           // Show this robot state
-          // visual_->viz4()->state(getVertexState(*v2), tools::ROBOT, tools::DEFAULT, 0);
-          visual_->viz4()->state(getVertexState(*v2), tools::SMALL, tools::RED, 0);
+          // visual_->viz4()->state(getState(*v2), tools::ROBOT, tools::DEFAULT, 0);
+          visual_->viz4()->state(getState(*v2), tools::SMALL, tools::RED, 0);
 
           usleep(0.1 * 1000000);
         }  // if
@@ -1118,17 +1115,6 @@ std::size_t TaskGraph::checkConnectedComponents()
 bool TaskGraph::sameComponent(TaskVertex v1, TaskVertex v2)
 {
   return boost::same_component(v1, v2, disjointSets_);
-}
-
-StateID TaskGraph::addState(base::State *state)
-{
-  return denseCache_->addState(state);
-}
-
-TaskVertex TaskGraph::addVertex(StateID stateID, const VertexType &type, VertexLevel level, std::size_t indent)
-{
-  base::State *state = si_->cloneState(sg_->getState(stateID));
-  return addVertex(state, type, level, indent);
 }
 
 TaskVertex TaskGraph::addVertex(base::State *state, const VertexType &type, VertexLevel level, std::size_t indent)
@@ -1217,7 +1203,6 @@ void TaskGraph::removeDeletedVertices(std::size_t indent)
     }
     else  // only proceed if no deletion happened
     {
-      // BOLT_DEBUG(indent, verbose, "Checking TaskVertex " << *v << " stateID: " << getStateID(*v));
       v++;
     }
   }
@@ -1264,8 +1249,8 @@ TaskEdge TaskGraph::addEdge(TaskVertex v1, TaskVertex v2, EdgeType type, std::si
   BOOST_ASSERT_MSG(!hasEdge(v1, v2), "There already exists an edge between two vertices requested");
   BOOST_ASSERT_MSG(hasEdge(v1, v2) == hasEdge(v2, v1), "There already exists an edge between two vertices requested, "
                    "other direction");
-  BOOST_ASSERT_MSG(getVertexState(v1) != getVertexState(v2), "States on both sides of an edge are the same");
-  BOOST_ASSERT_MSG(!si_->getStateSpace()->equalStates(getVertexState(v1), getVertexState(v2)),
+  BOOST_ASSERT_MSG(getState(v1) != getState(v2), "States on both sides of an edge are the same");
+  BOOST_ASSERT_MSG(!si_->getStateSpace()->equalStates(getState(v1), getState(v2)),
                    "Vertex IDs are different but states are the equal");
 
   // Create the new edge
@@ -1306,21 +1291,16 @@ base::State *&TaskGraph::getQueryStateNonConst(TaskVertex v)
   return queryStates_[v];
 }
 
-base::State *&TaskGraph::getVertexStateNonConst(TaskVertex v)
+base::State *&TaskGraph::getStateNonConst(TaskVertex v)
 {
   BOOST_ASSERT_MSG(v >= queryVertices_.size(), "Attempted to request state of query vertex using wrong function");
   return vertexStateProperty_[v];
 }
 
-const base::State *TaskGraph::getVertexState(TaskVertex v) const
+const base::State *TaskGraph::getState(TaskVertex v) const
 {
   BOOST_ASSERT_MSG(v >= queryVertices_.size(), "Attempted to request state of query vertex using wrong function");
   return vertexStateProperty_[v];
-}
-
-const base::State *TaskGraph::getState(StateID stateID) const
-{
-  return denseCache_->getState(stateID);
 }
 
 void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
@@ -1391,7 +1371,7 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       }
 
       // Check for null states
-      if (!getVertexState(v))
+      if (!getState(v))
       {
         BOLT_RED_DEBUG(indent, verbose_, "Null vertex found: " << v);
         continue;
@@ -1443,10 +1423,10 @@ void TaskGraph::visualizeVertex(TaskVertex v, std::size_t windowID)
   }
 
   // Show vertex
-  visual_->viz(windowID)->state(getVertexState(v), size, color, 0);
+  visual_->viz(windowID)->state(getState(v), size, color, 0);
 
   // Show robot state
-  //visual_->viz(windowID)->state(getVertexState(v), tools::ROBOT, tools::DEFAULT, 0);
+  //visual_->viz(windowID)->state(getState(v), tools::ROBOT, tools::DEFAULT, 0);
 }
 
 void TaskGraph::visualizeEdge(TaskEdge e, std::size_t windowID)
@@ -1476,7 +1456,7 @@ void TaskGraph::visualizeEdge(TaskVertex v1, TaskVertex v2, std::size_t windowID
     OMPL_ERROR("Unknown task level combination");
 
   // Visualize
-  visual_->viz(windowID)->edge(getVertexState(v1), getVertexState(v2), ompl::tools::MEDIUM, color);
+  visual_->viz(windowID)->edge(getState(v1), getState(v2), ompl::tools::MEDIUM, color);
 }
 
 void TaskGraph::debugState(const ompl::base::State *state)
@@ -1486,7 +1466,7 @@ void TaskGraph::debugState(const ompl::base::State *state)
 
 void TaskGraph::debugVertex(const TaskVertex v)
 {
-  debugState(getVertexState(v));
+  debugState(getState(v));
 }
 
 void TaskGraph::debugNN()
@@ -1567,7 +1547,7 @@ void otb::TaskAstarVisitor::discover_vertex(TaskVertex v, const TaskAdjList &) c
   parent_->recordNodeOpened();
 
   if (parent_->visualizeAstar_)
-    parent_->getVisual()->viz4()->state(parent_->getVertexState(v), tools::SMALL, tools::GREEN, 1);
+    parent_->getVisual()->viz4()->state(parent_->getState(v), tools::SMALL, tools::GREEN, 1);
 }
 
 void otb::TaskAstarVisitor::examine_vertex(TaskVertex v, const TaskAdjList &) const

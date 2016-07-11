@@ -104,7 +104,7 @@ typedef std::pair<VertexIndexType, VertexIndexType> VertexPair;
 typedef std::unordered_map<VertexPair, InterfaceData> InterfaceHash;
 
 /** \brief Identification for states in the StateCache */
-typedef VertexIndexType StateID;
+//typedef VertexIndexType StateID;
 
 /** \brief Task level dimension data type */
 typedef std::size_t VertexLevel; // TODO(davetcoleman): rename to TaskLevel
@@ -116,11 +116,6 @@ struct vertex_state_t
 };
 
 struct vertex_level_t
-{
-  typedef boost::vertex_property_tag kind;
-};
-
-struct vertex_state_cache_t
 {
   typedef boost::vertex_property_tag kind;
 };
@@ -188,7 +183,7 @@ enum EdgeCollisionState
    appropriate than an adjacency_matrix. Edges are undirected.
 
    *Properties of vertices*
-   - vertex_state_cache_t: a reference back to the dense graph where the original state is stored
+   - vertex_state_t:
    - vertex_predecessor_t: Requred by incremental connected components algorithm (disjoint sets)
    - vertex_rank_t: Requred by incremental connected components algorithm (disjoint sets)
    - vertex_type_t: The type of guard this node is
@@ -205,7 +200,7 @@ enum EdgeCollisionState
 
 /** Wrapper for the vertex's multiple as its property. */
 // clang-format off
-typedef boost::property<vertex_state_cache_t, VertexIndexType, // State
+typedef boost::property<vertex_state_t, base::State*, // State
         boost::property<boost::vertex_predecessor_t, VertexIndexType, // Disjoint Sets
         boost::property<boost::vertex_rank_t, VertexIndexType, // Disjoint Sets
         boost::property<vertex_type_t, VertexType, // Sparse Type
@@ -306,42 +301,6 @@ typedef boost::graph_traits<TaskAdjList>::edge_descriptor TaskEdge;
 /** \brief Access map that stores the lazy collision checking status of each edge */
 typedef boost::property_map<TaskAdjList, edge_collision_state_t>::type TaskEdgeCollisionStateMap;
 
-////////////////////////////////////////////////////////////////////////////////////////
-/** \brief Custom storage class */
-struct WeightedVertex
-{
-  WeightedVertex()
-  {
-  }
-
-  WeightedVertex(StateID stateID, double weight) : stateID_(stateID), weight_(weight)
-  {
-  }
-
-  // bool operator==(const WeightedVertex& wv) const
-  // {
-  //   return wv.v_ == v_;
-  // }
-
-  // template <typename Archive>
-  // void serialize(Archive& ar, const unsigned int /*version*/)
-  // {
-  //   ar& v_;
-  // }
-
-  StateID stateID_;
-  double weight_;
-};
-
-/** \brief Custom comparator class */
-class CompareWeightedVertex
-{
-public:
-  bool operator()(WeightedVertex a, WeightedVertex b)
-  {
-    return a.weight_ < b.weight_;  // TODO(davetcoleman): which direction should the sign go?
-  }
-};
 
 ////////////////////////////////////////////////////////////////////////////////////////
 /**
