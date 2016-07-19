@@ -142,7 +142,7 @@ public:
       base::State* candidateState;
 
       // Attempt to reuse a state
-      //if (!getRecycledState(candidateState))
+      if (!getRecycledState(candidateState))
       {
         candidateState = si_->allocState();
       }
@@ -167,14 +167,6 @@ public:
 
   bool getRecycledState(base::State* &unusedState)
   {
-    // Check for available states in internal cache
-    // if (!internalRecycling_.empty())
-    // {
-    //   unusedState = internalRecycling_.front();
-    //   internalRecycling_.pop();
-    //   return true;
-    // }
-
     // If none found, copy in any available states from parent thread's cache
     if (!recycling_.empty())
     {
@@ -213,15 +205,14 @@ public:
   void setNextStateUsed(bool wasUsed)
   {
     // If state was not used, recycle
-    //    if (!wasUsed)
-    //recycleState(statesQueue_.front());
+    if (!wasUsed)
+      recycleState(statesQueue_.front());
     statesQueue_.pop();
   }
 
   /** \brief This function is called from the parent thread */
   void recycleState(base::State* state)
   {
-    return;
     {  // Get write mutex
       boost::lock_guard<boost::shared_mutex> writeLock(recyclingMutex_);
       recycling_.push_back(state);

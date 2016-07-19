@@ -363,7 +363,7 @@ void SparseCriteria::addDiscretizedStates(std::size_t indent)
     }
 
     // User feedback
-    if (i++ % debugFrequency == 0)
+    if (i % debugFrequency == 0)
     {
       std::cout << ANSI_COLOR_BLUE;
       std::cout << "Sparse vertex insertion progress: "
