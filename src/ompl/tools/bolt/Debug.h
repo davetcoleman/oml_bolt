@@ -42,20 +42,47 @@
 #include <ostream>
 
 // clang-format off
-#define BOLT_DEBUG(indent, flag, stream) \
-  do                                            \
-  {                                                           \
-    std::stringstream o; o << stream;                                    \
+
+// BOLT_DEBUG()
+//#ifdef ENABLE_DEBUG_MACRO
+#define BOLT_DEBUG(indent, flag, stream)                                \
+  do                                                                    \
+  {                                                                     \
+    std::stringstream o; o << stream;                                   \
     if (flag)                                                           \
       std::cout << std::string(indent, ' ') << o.str() << std::endl;    \
   } while (0)
-#define BOLT_COLOR_DEBUG(indent, flag, stream, color) \
-  do                                            \
-  {                                                           \
-    std::stringstream o; o << stream;                                    \
-    if (flag)                                                           \
-      std::cout << color << std::string(indent, ' ') << o.str() << ANSI_COLOR_RESET << std::endl; \
-  } while (0)
+/* #else
+// #define BOLT_DEBUG(indent, flag, stream)        \
+//   do {} while (0)
+// #endif
+*/
+
+// BOLT_COLOR_DEBUG()
+//#ifdef ENABLE_DEBUG_MACRO
+#define BOLT_COLOR_DEBUG(indent, flag, stream, color)                   \
+      do                                                                \
+      {                                                                 \
+        std::stringstream o; o << stream;                               \
+        if (flag)                                                       \
+          std::cout << color << std::string(indent, ' ') << o.str() << ANSI_COLOR_RESET << std::endl; \
+      } while (0)
+/* // #else
+// #define BOLT_COLOR_DEBUG(indent, flag, stream, color)   \
+//       do {} while (0)
+// #endif
+*/
+
+// BOLT_FUNC() - use only for function names, auto adds 2 to the indent value
+#define BOLT_FUNC(indent, flag, stream)                   \
+      do                                                                \
+      {                                                                 \
+        std::stringstream o; o << stream;                               \
+        indent += 2;                                                    \
+        if (flag)                                                       \
+          std::cout << ANSI_COLOR_CYAN << std::string(indent, ' ') << o.str() << ANSI_COLOR_RESET << std::endl; \
+      } while (0)
+
 #define BOLT_RED_DEBUG(indent, flag, stream) BOLT_COLOR_DEBUG(indent, flag, stream, ANSI_COLOR_RED);
 #define BOLT_GREEN_DEBUG(indent, flag, stream) BOLT_COLOR_DEBUG(indent, flag, stream, ANSI_COLOR_GREEN);
 #define BOLT_YELLOW_DEBUG(indent, flag, stream) BOLT_COLOR_DEBUG(indent, flag, stream, ANSI_COLOR_YELLOW);

@@ -162,8 +162,7 @@ void TaskGraph::initializeQueryState()
 bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::vector<TaskVertex> &vertexPath,
                             double &distance, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, vSearch_, "TaskGraph.astarSearch()");
-  indent += 2;
+  BOLT_FUNC(indent, vSearch_, "TaskGraph.astarSearch()");
 
   // Hold a list of the shortest path parent to each vertex
   TaskVertex *vertexPredecessors = new TaskVertex[getNumVertices()];
@@ -446,8 +445,7 @@ bool TaskGraph::isEmpty() const
 
 void TaskGraph::generateTaskSpace(std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.generateTaskSpace()");
-  indent += 2;
+  BOLT_FUNC(indent, verbose_, "TaskGraph.generateTaskSpace()");
   time::point startTime = time::now(); // Benchmark
 
   // Clear pre-existing graphs
@@ -518,8 +516,7 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
 
 bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.addCartPath()");
-  indent += 2;
+  BOLT_FUNC(indent, verbose_, "TaskGraph.addCartPath()");
 
   // Error check
   if (path.size() < 2)
@@ -590,8 +587,7 @@ bool TaskGraph::addCartPath(std::vector<base::State *> path, std::size_t indent)
 
 void TaskGraph::clearCartesianVerticesDeprecated(std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.clearCartesianVerticesDeprecated()");
-  indent += 2;
+  BOLT_FUNC(indent, verbose_, "TaskGraph.clearCartesianVerticesDeprecated()");
 
   time::point startTime = time::now(); // Benchmark
 
@@ -677,8 +673,7 @@ void TaskGraph::clearCartesianVerticesDeprecated(std::size_t indent)
 bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const VertexLevel level, bool isStart,
                                                 std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, vGenerateTask_, "TaskGraph.connectVertexToNeighborsAtLevel()");
-  indent += 2;
+  BOLT_FUNC(indent, vGenerateTask_, "TaskGraph.connectVertexToNeighborsAtLevel()");
 
   // Get nearby states to goal
   std::vector<TaskVertex> neighbors;
@@ -725,8 +720,7 @@ bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const Ver
 void TaskGraph::getNeighborsAtLevel(const TaskVertex origVertex, const VertexLevel level, const std::size_t kNeighbors,
                                     std::vector<TaskVertex> &neighbors, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, vGenerateTask_, "TaskGraph.getNeighborsAtLevel()");
-  indent += 2;
+  BOLT_FUNC(indent, vGenerateTask_, "TaskGraph.getNeighborsAtLevel()");
 
   BOOST_ASSERT_MSG(level != 1, "Unhandled level, does not support level 1");
 
@@ -850,7 +844,6 @@ void TaskGraph::clearEdgeCollisionStates()
 void TaskGraph::errorCheckDuplicateStates(std::size_t indent)
 {
   BOLT_RED_DEBUG(indent, verbose_, "TaskGraph.errorCheckDuplicateStates() - NOT IMPLEMENTEDpart of super debug");
-  indent += 2;
 
   // bool found = false;
   // // Error checking: check for any duplicate states
@@ -873,7 +866,6 @@ void TaskGraph::errorCheckDuplicateStates(std::size_t indent)
 bool TaskGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent)
 {
   BOLT_RED_DEBUG(indent, visualizeQualityPathSimp_, "smoothQualityPathOriginal()");
-  indent += 2;
 
   // Visualize path
   if (visualizeQualityPathSimp_)
@@ -903,8 +895,7 @@ bool TaskGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::s
 
 bool TaskGraph::smoothQualityPath(geometric::PathGeometric *path, double clearance, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, visualizeQualityPathSimp_, "TaskGraph.smoothQualityPath()");
-  indent += 2;
+  BOLT_FUNC(indent, visualizeQualityPathSimp_, "TaskGraph.smoothQualityPath()");
 
   // Visualize path
   if (visualizeQualityPathSimp_)
@@ -1121,7 +1112,7 @@ TaskVertex TaskGraph::addVertex(base::State *state, const VertexType &type, Vert
 {
   // Create vertex
   TaskVertex v = boost::add_vertex(g_);
-  BOLT_CYAN_DEBUG(indent, vAdd_, "TaskGraph.addVertex(): v: " << v << " type " << type << " level: " << level);
+  BOLT_FUNC(indent, vAdd_, "TaskGraph.addVertex(): v: " << v << " type " << type << " level: " << level);
 
   // Add level to state
   setStateTaskLevel(state, level);
@@ -1177,8 +1168,7 @@ void TaskGraph::removeVertex(TaskVertex v)
 
 void TaskGraph::removeDeletedVertices(std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "TaskGraph.removeDeletedVertices()");
-  indent += 2;
+  BOLT_FUNC(indent, verbose_, "TaskGraph.removeDeletedVertices()");
   bool verbose = true;
 
   // Remove all vertices that are set to 0
@@ -1241,7 +1231,7 @@ void TaskGraph::removeDeletedVertices(std::size_t indent)
 
 TaskEdge TaskGraph::addEdge(TaskVertex v1, TaskVertex v2, EdgeType type, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, vAdd_, "TaskGraph.addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
+  BOLT_FUNC(indent, vAdd_, "TaskGraph.addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
 
   BOOST_ASSERT_MSG(v1 <= getNumVertices(), "Vertex1 is larger than max vertex id");
   BOOST_ASSERT_MSG(v2 <= getNumVertices(), "Vertex2 is larger than max vertex id");
@@ -1305,8 +1295,7 @@ const base::State *TaskGraph::getState(TaskVertex v) const
 
 void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, vVisualize_, "TaskGraph.displayDatabase()");
-  indent += 2;
+  BOLT_FUNC(indent, vVisualize_, "TaskGraph.displayDatabase()");
 
   // Error check
   if (getNumVertices() == 0 || getNumEdges() == 0)

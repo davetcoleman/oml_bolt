@@ -319,6 +319,7 @@ public:
   double percentMaxExtentUnderestimate_ = 0.01;
 
   /** \brief Generate the Sparse graph with discretized and/or random samples */
+  bool useL2Norm_ = false;
   bool useDiscretizedSamples_;
   bool useRandomSamples_;
 

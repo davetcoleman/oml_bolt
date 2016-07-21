@@ -212,10 +212,16 @@ public:
     return queryVertices_.size();
   }
 
-  /** \brief Get the number of vertices in the sparse roadmap. */
+  /** \brief Get the number of vertices in the sparse roadmap INCLUDING query vertices */
   unsigned int getNumVertices() const
   {
     return boost::num_vertices(g_);
+  }
+
+  /** \brief Get the number of vertices in the sparse roadmap not including query vertices. */
+  unsigned int getNumRealVertices() const
+  {
+    return boost::num_vertices(g_) - queryVertices_.size();
   }
 
   /** \brief Get the number of edges in the sparse roadmap. */
@@ -460,7 +466,7 @@ public:  // user settings from other applications
   bool visualizeDatabaseEdges_ = true;
   bool visualizeDatabaseCoverage_ = true;
   bool visualizeGraphAfterLoading_ = true;
-  bool visualizeProjection_ = true;
+  bool visualizeProjection_ = false;
 };  // end class SparseGraph
 
 ////////////////////////////////////////////////////////////////////////////////////////

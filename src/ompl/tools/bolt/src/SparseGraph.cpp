@@ -218,7 +218,6 @@ bool SparseGraph::save(std::size_t indent)
   // Disabled
   if (!savingEnabled_)
   {
-    OMPL_INFORM("Not saving because option disabled for SparseGraph");
     return false;
   }
 
@@ -246,8 +245,7 @@ bool SparseGraph::save(std::size_t indent)
 bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal, std::vector<SparseVertex> &vertexPath,
                               double &distance, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, vSearch_, "astarSearch()");
-  indent += 2;
+  BOLT_FUNC(indent, vSearch_, "astarSearch()");
 
   // Hold a list of the shortest path parent to each vertex
   SparseVertex *vertexPredecessors = new SparseVertex[getNumVertices()];
@@ -323,7 +321,7 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
   if (visualizeAstar_)
   {
     BOLT_DEBUG(indent, vSearch_, "Show all predecessors");
-    for (std::size_t i = numThreads_; i < getNumVertices(); ++i)  // skip vertex 0-11 because those are query vertices
+    for (std::size_t i = getNumQueryVertices(); i < getNumVertices(); ++i)  // skip query vertices
     {
       const SparseVertex v1 = i;
       const SparseVertex v2 = vertexPredecessors[v1];
@@ -435,7 +433,6 @@ void SparseGraph::clearEdgeCollisionStates()
 void SparseGraph::errorCheckDuplicateStates(std::size_t indent)
 {
   BOLT_RED_DEBUG(indent, true, "errorCheckDuplicateStates() - part of super debug - NOT IMPLEMENTED");
-  indent += 2;
 
 
   // bool found = false;
@@ -459,7 +456,6 @@ void SparseGraph::errorCheckDuplicateStates(std::size_t indent)
 bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent)
 {
   BOLT_RED_DEBUG(indent, visualizeQualityPathSimp_, "smoothQualityPathOriginal()");
-  indent += 2;
 
   // Visualize path
   if (visualizeQualityPathSimp_)
@@ -489,8 +485,7 @@ bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std:
 
 bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clearance, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, visualizeQualityPathSimp_, "smoothQualityPath()");
-  indent += 2;
+  BOLT_FUNC(indent, visualizeQualityPathSimp_, "smoothQualityPath()");
 
   // Visualize path
   if (visualizeQualityPathSimp_)
@@ -711,8 +706,7 @@ SparseVertex SparseGraph::addVertex(base::State *state, const VertexType &type, 
   SparseVertex v = boost::add_vertex(g_);
 
   // Feedback
-  BOLT_CYAN_DEBUG(indent, vAdd_, "addVertex(): v: " << v << ", state: " << state << " type " << type);
-  indent += 2;
+  BOLT_FUNC(indent, vAdd_, "addVertex(): v: " << v << ", state: " << state << " type " << type);
 
   // Add properties
   vertexTypeProperty_[v] = type;
@@ -822,8 +816,7 @@ void SparseGraph::removeVertex(SparseVertex v)
 void SparseGraph::removeDeletedVertices(std::size_t indent)
 {
   bool verbose = true;
-  BOLT_CYAN_DEBUG(indent, verbose || true, "removeDeletedVertices()");
-  indent += 2;
+  BOLT_FUNC(indent, verbose || true, "removeDeletedVertices()");
 
   // Remove all vertices that are set to 0
   std::size_t numRemoved = 0;
@@ -886,8 +879,7 @@ void SparseGraph::removeDeletedVertices(std::size_t indent)
 
 SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, vAdd_, "addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
-  indent += 2;
+  BOLT_FUNC(indent, vAdd_, "addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
 
   if (superDebug_)  // Extra checks
   {
@@ -957,13 +949,13 @@ VizColors SparseGraph::edgeTypeToColor(EdgeType edgeType)
       return ORANGE;
       break;
     case eINTERFACE:
-      return YELLOW;
+      return MAGENTA;
       break;
     case eQUALITY:
       return RED;
       break;
     case eCARTESIAN:
-      return MAGENTA;
+      return YELLOW;
       break;
     case eDISCRETIZED:
       return BLUE;
@@ -1033,7 +1025,6 @@ void SparseGraph::clearInterfaceData(base::State *state)
 void SparseGraph::clearEdgesNearVertex(SparseVertex vertex, std::size_t indent)
 {
   BOLT_RED_DEBUG(indent, true, "clearEdgesNearVertex()");
-  indent += 2;
 
   // Optionally disable this feature
   if (!sparseCriteria_->useClearEdgesNearVertex_)
@@ -1061,12 +1052,11 @@ void SparseGraph::clearEdgesNearVertex(SparseVertex vertex, std::size_t indent)
 void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
 {
   BOLT_RED_DEBUG(indent, vVisualize_ || true, "Displaying Sparse database");
-  indent += 2;
 
   // Error check
-  if (getNumVertices() == 0 || getNumEdges() == 0)
+  if (getNumVertices() == 0 && getNumEdges() == 0)
   {
-    OMPL_WARN("Unable to show database because no vertices/edges available");
+    OMPL_WARN("Unable to show database because no vertices and no edges available");
     return;
   }
 
@@ -1152,8 +1142,10 @@ void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
   visual_->viz1()->state(getState(v), vertexSize_, color, 0);
 
   if (visualizeProjection_) // Hack: Project to 2D space
+  {
     visual_->viz7()->state(getState(v), vertexSize_, color, 0);
-  //visual_->viz7()->state(getState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseCriteria_->sparseDelta_);
+    visual_->viz7()->state(getState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseCriteria_->sparseDelta_ * 2.0);
+  }
 }
 
 tools::VizColors SparseGraph::vertexTypeToColor(VertexType type)
@@ -1214,7 +1206,7 @@ VertexPair SparseGraph::interfaceDataIndex(SparseVertex vp, SparseVertex vpp)
 
 InterfaceData &SparseGraph::getInterfaceData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent)
 {
-  // BOLT_CYAN_DEBUG(indent, sparseCriteria_->vQuality_, "getInterfaceData() " << v << ", " << vp << ", " << vpp);
+  // BOLT_FUNC(indent, sparseCriteria_->vQuality_, "getInterfaceData() " << v << ", " << vp << ", " << vpp);
   return vertexInterfaceProperty_[v][interfaceDataIndex(vp, vpp)];
 }
 
@@ -1241,7 +1233,7 @@ void SparseGraph::debugNN()
 void SparseGraph::printGraphStats()
 {
   // Get the average vertex degree (number of connected edges)
-  double averageDegree = (getNumEdges() * 2) / static_cast<double>(getNumVertices());
+  double averageDegree = (getNumEdges() * 2) / static_cast<double>(getNumRealVertices());
 
   // Check how many disjoint sets are in the sparse graph (should be none)
   std::size_t numSets = checkConnectedComponents();
@@ -1264,7 +1256,7 @@ void SparseGraph::printGraphStats()
   std::size_t indent = 0;
   BOLT_DEBUG(indent, 1, "------------------------------------------------------");
   BOLT_DEBUG(indent, 1, "SparseGraph stats:");
-  BOLT_DEBUG(indent, 1, "   Total vertices:         " << getNumVertices());
+  BOLT_DEBUG(indent, 1, "   Total vertices:         " << getNumRealVertices());
   BOLT_DEBUG(indent, 1, "   Total edges:            " << getNumEdges());
   BOLT_DEBUG(indent, 1, "   Average degree:         " << averageDegree);
   BOLT_DEBUG(indent, 1, "   Connected Components:   " << numSets);

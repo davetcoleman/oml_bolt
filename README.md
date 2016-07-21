@@ -91,9 +91,9 @@ There are 6 visualization windows that are each used for multiple different thin
 ### Edge Colors
 
  - orange:    connectivity
- - yellow:    interface
+ - magenta:    interface
  - red:       quality
- - magenta:   cartesian
+ - yellow:   cartesian
  - blue       discretized
 
 ## Testing and Linting

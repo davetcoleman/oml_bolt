@@ -90,8 +90,7 @@ void BoltPlanner::setup(void)
 base::PlannerStatus BoltPlanner::solve(Termination &ptc)
 {
   std::size_t indent = 0;
-  BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner::solve()");
-  indent += 2;
+  BOLT_FUNC(indent, verbose_, "BoltPlanner::solve()");
 
   bool solved = false;
 
@@ -184,8 +183,7 @@ base::PlannerStatus BoltPlanner::solve(Termination &ptc)
 bool BoltPlanner::getPathOffGraph(const base::State *start, const base::State *goal,
                                   og::PathGeometric &geometricSolution, Termination &ptc, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner::getPathOffGraph()");
-  indent += 2;
+  BOLT_FUNC(indent, verbose_, "BoltPlanner::getPathOffGraph()");
 
   // Attempt to connect to graph x times, because if it fails we start adding samples
   std::size_t maxAttempts = 2;
@@ -283,8 +281,7 @@ bool BoltPlanner::getPathOnGraph(const std::vector<TaskVertex> &candidateStarts,
                                  const base::State *actualGoal, og::PathGeometric &geometricSolution, Termination &ptc,
                                  bool debug, bool &feedbackStartFailed, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner::getPathOnGraph()");
-  indent += 2;
+  BOLT_FUNC(indent, verbose_, "BoltPlanner::getPathOnGraph()");
 
   bool foundValidStart = false;
   bool foundValidGoal = false;
@@ -397,8 +394,7 @@ bool BoltPlanner::lazyCollisionSearch(const TaskVertex &start, const TaskVertex 
                                       const base::State *actualGoal, og::PathGeometric &geometricSolution,
                                       Termination &ptc, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner::lazyCollisionSearch()");
-  indent += 2;
+  BOLT_FUNC(indent, verbose_, "BoltPlanner::lazyCollisionSearch()");
 
   // Vector to store candidate paths in before they are converted to PathPtrs
   std::vector<TaskVertex> vertexPath;
@@ -493,8 +489,7 @@ bool BoltPlanner::lazyCollisionSearch(const TaskVertex &start, const TaskVertex 
 
 bool BoltPlanner::lazyCollisionCheck(std::vector<TaskVertex> &vertexPath, Termination &ptc, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner::lazyCollisionCheck()");
-  indent += 2;
+  BOLT_FUNC(indent, verbose_, "BoltPlanner::lazyCollisionCheck()");
 
   bool hasInvalidEdges = false;
 
@@ -556,8 +551,7 @@ bool BoltPlanner::lazyCollisionCheck(std::vector<TaskVertex> &vertexPath, Termin
 bool BoltPlanner::findGraphNeighbors(const base::State *state, std::vector<TaskVertex> &neighbors, int requiredLevel,
                                      std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner::findGraphNeighbors()");
-  indent += 2;
+  BOLT_FUNC(indent, verbose_, "BoltPlanner::findGraphNeighbors()");
 
   assert(requiredLevel == 0 || requiredLevel == 2);
 
@@ -664,9 +658,8 @@ bool BoltPlanner::convertVertexPathToStatePath(std::vector<TaskVertex> &vertexPa
 
 bool BoltPlanner::simplifyPath(og::PathGeometric &path, Termination &ptc, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner: simplifyPath()");
+  BOLT_FUNC(indent, verbose_, "BoltPlanner: simplifyPath()");
   BOLT_RED_DEBUG(indent, true, "BoltPlanner: simplifyPath() - why no task??");
-  indent += 2;
 
   time::point simplifyStart = time::now();
   std::size_t numStates = path.getStateCount();
@@ -683,8 +676,7 @@ bool BoltPlanner::simplifyPath(og::PathGeometric &path, Termination &ptc, std::s
 
 bool BoltPlanner::simplifyTaskPath(og::PathGeometric &path, Termination &ptc, std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner: simplifyTaskPath()");
-  indent += 2;
+  BOLT_FUNC(indent, verbose_, "BoltPlanner: simplifyTaskPath()");
 
   time::point simplifyStart = time::now();
   std::size_t origNumStates = path.getStateCount();
@@ -780,8 +772,7 @@ bool BoltPlanner::simplifyTaskPath(og::PathGeometric &path, Termination &ptc, st
 bool BoltPlanner::canConnect(const base::State *randomState, Termination &ptc,
                              std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, verbose_, "BoltPlanner::canConnect()");
-  indent += 2;
+  BOLT_FUNC(indent, verbose_, "BoltPlanner::canConnect()");
 
   std::vector<TaskVertex> candidateNeighbors;
 

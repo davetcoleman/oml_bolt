@@ -54,6 +54,7 @@ namespace bolt
 {
 /// @cond IGNORE
 OMPL_CLASS_FORWARD(VertexDiscretizer);
+OMPL_CLASS_FORWARD(SparseGraph);
 /// @endcond
 
 /** \class ompl::tools::bolt::VertexDiscretizerPtr
@@ -65,7 +66,7 @@ public:
   /** \brief Constructor needs the state space used for planning.
    *  \param space - state space
    */
-  VertexDiscretizer(base::SpaceInformationPtr si, VisualizerPtr visual);
+  VertexDiscretizer(SparseGraphPtr sg);
 
   ~VertexDiscretizer();
 
@@ -81,9 +82,9 @@ public:
    */
   bool generateGrid(std::size_t indent);
 
-  std::vector<base::State*>& getCandidateVertices()
+  std::vector<base::State*>& getFailedStates()
   {
-    return candidateVertices_;
+    return failedStates_;
   }
 
   /** \brief Getter for Discretization */
@@ -143,19 +144,28 @@ private:
                                base::SpaceInformationPtr si, base::State* candidateState,
                                std::size_t maxDiscretizationLevel, std::size_t indent);
 
+  void createState(std::size_t threadID, std::vector<double>& values, base::SpaceInformationPtr si,
+                   base::State* candidateState, std::size_t indent);
+
+  /** \brief Sparse graph main datastructure that this class operates on */
+  SparseGraphPtr sg_;
+
   /** \brief The created space information */
   base::SpaceInformationPtr si_;
 
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;
 
-  /** \brief Prevent two vertices from being added to graph at same time */
+  /** \brief Prevent two invalid vertices from being added to the invalid list at the same time */
   boost::mutex vertexMutex_;
+
+  /** \brief Prevent two vertices from being added to graph at same time */
+  boost::mutex sparseGraphMutex_;
 
   /** \brief How many threads to use while generating vertices */
   std::size_t numThreads_;
 
-  std::vector<base::State*> candidateVertices_;
+  std::vector<base::State*> failedStates_;
 
   /** \brief Distance between grid points (discretization level) */
   double discretization_ = 2.0;
@@ -167,6 +177,7 @@ private:
   double clearance_;
 
 public:
+
   /** \brief Show more debug info */
   bool verbose_ = false;
   bool vThread_ = false;
