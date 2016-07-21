@@ -68,6 +68,7 @@ static const double MAX_POPULARITY_WEIGHT = 100.0;  // 100 means the edge is ver
 // Everytime an edge is used, it is reduced by this amount (becomes more popular)
 static const double POPULARITY_WEIGHT_REDUCTION = 5;
 
+
 ////////////////////////////////////////////////////////////////////////////////////////
 // VERTEX PROPERTIES
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -470,6 +471,19 @@ typedef std::map<TaskVertex, std::vector<TaskVertex> > TaskDisjointSetsMap;
  */
 class FoundGoalException
 {
+};
+
+////////////////////////////////////////////////////////////////////////////////////////
+// CANDIDATE STATE STRUCT
+////////////////////////////////////////////////////////////////////////////////////////
+struct CandidateState
+{
+  // The sampled state to be added to the graph
+  base::State* state_;
+  // The time the sample was taken, so that we know if the graph has been invalidated since
+  time::point sampleTime_;
+  // The resulting vertex, if the state was added
+  SparseVertex newVertex_;
 };
 
 }  // namespace bolt

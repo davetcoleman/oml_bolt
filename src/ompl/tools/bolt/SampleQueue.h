@@ -90,8 +90,7 @@ public:
 
   void startSampling(std::size_t indent)
   {
-    indent += 2;
-    BOLT_DEBUG(indent, true, "Starting sampling thread");
+    BOLT_FUNC(indent, true, "startSampling() Starting sampling thread");
     running_ = true;
 
     // Setup
@@ -112,8 +111,7 @@ public:
 
   void stopSampling(std::size_t indent)
   {
-    indent += 2;
-    BOLT_DEBUG(indent, true, "Stopping sampling thread");
+    BOLT_FUNC(indent, true, "stopSampling() Stopping sampling thread");
     running_ = false;
 
     // End thread
@@ -122,23 +120,14 @@ public:
 
   void samplingThread(base::SpaceInformationPtr si, std::size_t indent)
   {
-    indent += 2;
+    BOLT_FUNC(indent, true, "samplingThread()");
+
     while (running_ && !visual_->viz1()->shutdownRequested())
     {
-      bool oneTimeFlag = true;
-      while (statesQueue_.size() >= 100)
-      {
-        if (oneTimeFlag)
-        {
-          BOLT_DEBUG(indent, vStatus_, "Queue is full, sampler is waiting");
-          oneTimeFlag = false;
-        }
-        usleep(0.001*1000000);
-      }
-      if (!oneTimeFlag)
-        BOLT_DEBUG(indent, vStatus_, "No longer waiting on full queue");
+      // Do not add more states if queue is full
+      waitForQueue(indent);
 
-      // Create new state
+      // Create new state or recycle one
       base::State* candidateState;
 
       // Attempt to reuse a state
@@ -217,6 +206,23 @@ public:
       boost::lock_guard<boost::shared_mutex> writeLock(recyclingMutex_);
       recycling_.push_back(state);
     }
+  }
+
+  /** \brief Do not add more states if queue is full */
+  void waitForQueue(std::size_t indent)
+  {
+    bool oneTimeFlag = true;
+    while (statesQueue_.size() >= 100)
+    {
+      if (oneTimeFlag)
+      {
+        BOLT_DEBUG(indent, vStatus_, "Queue is full, sampler is waiting");
+        oneTimeFlag = false;
+      }
+      usleep(0.001*1000000);
+    }
+    if (!oneTimeFlag)
+      BOLT_DEBUG(indent, vStatus_, "No longer waiting on full queue");
   }
 
 private:

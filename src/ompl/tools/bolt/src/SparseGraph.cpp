@@ -1024,7 +1024,7 @@ void SparseGraph::clearInterfaceData(base::State *state)
 
 void SparseGraph::clearEdgesNearVertex(SparseVertex vertex, std::size_t indent)
 {
-  BOLT_RED_DEBUG(indent, true, "clearEdgesNearVertex()");
+  BOLT_FUNC(indent, true, "clearEdgesNearVertex()");
 
   // Optionally disable this feature
   if (!sparseCriteria_->useClearEdgesNearVertex_)
@@ -1037,6 +1037,7 @@ void SparseGraph::clearEdgesNearVertex(SparseVertex vertex, std::size_t indent)
   // Search
   nn_->nearestR(vertex, sparseCriteria_->sparseDelta_, graphNeighbors);
 
+  std::size_t origNumEdges = getNumEdges();
   // For each of the vertices
   foreach (SparseVertex v, graphNeighbors)
   {
@@ -1044,14 +1045,20 @@ void SparseGraph::clearEdgesNearVertex(SparseVertex vertex, std::size_t indent)
     boost::clear_vertex(v, g_);
   }
 
+  BOLT_DEBUG(indent, true, "clearEdgesNearVertex() removed " << origNumEdges - getNumEdges());
+
   // Only display database if enabled
   if (visualizeSparseGraph_ && visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
+  {
+    //visual_->waitForUserFeedback("before clear edge near vertex");
     displayDatabase(true, indent);
+    //visual_->waitForUserFeedback("after clear edge near vertex");
+  }
 }
 
 void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
 {
-  BOLT_RED_DEBUG(indent, vVisualize_ || true, "Displaying Sparse database");
+  BOLT_FUNC(indent, vVisualize_ || true, "displayDatabase() - Display Sparse Database");
 
   // Error check
   if (getNumVertices() == 0 && getNumEdges() == 0)
@@ -1061,12 +1068,9 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
   }
 
   // Clear previous visualization
-  //visual_->viz1()->deleteAllMarkers();
-  //visual_->viz1()->trigger();
-  if (visualizeProjection_) // Hack: Project to 2D space
-  {
+  visual_->viz1()->deleteAllMarkers();
+  if (visualizeProjection_) // For joint-space robots: project to 2D space
     visual_->viz7()->deleteAllMarkers();
-  }
 
   // Edges
   if (visualizeDatabaseEdges_)
@@ -1078,7 +1082,10 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
       SparseVertex v1 = boost::source(e, g_);
       SparseVertex v2 = boost::target(e, g_);
 
-      visualizeEdge(v1, v2, edgeTypeProperty_[e], /*windowID*/ 7); // projection to 2D space
+      visualizeEdge(v1, v2, edgeTypeProperty_[e], /*windowID*/ 1);
+
+      if (visualizeProjection_) // For joint-space robots: project to 2D space
+        visualizeEdge(v1, v2, edgeTypeProperty_[e], /*windowID*/ 7); // projection to 2D space
     }
   }
 
@@ -1114,17 +1121,17 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
     }
 
     // Create marker and push to queue
-    //visual_->viz1()->states(states, colors, vertexSize_);
-    visual_->viz7()->states(states, colors, vertexSize_);
+    visual_->viz1()->states(states, colors, vertexSize_);
+
+    if (visualizeProjection_) // For joint-space robots: project to 2D space
+      visual_->viz7()->states(states, colors, vertexSize_);
   }
 
   // Publish remaining edges
-  //visual_->viz1()->trigger();
+  visual_->viz1()->trigger();
 
-  if (visualizeProjection_) // Hack: Project to 2D space
-  {
+  if (visualizeProjection_) // For joint-space robots: project to 2D space
     visual_->viz7()->trigger();
-  }
 
   usleep(0.001 * 1000000);
 }
@@ -1141,7 +1148,7 @@ void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
   // Show vertex
   visual_->viz1()->state(getState(v), vertexSize_, color, 0);
 
-  if (visualizeProjection_) // Hack: Project to 2D space
+  if (visualizeProjection_) // For joint-space robots: project to 2D space
   {
     visual_->viz7()->state(getState(v), vertexSize_, color, 0);
     visual_->viz7()->state(getState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseCriteria_->sparseDelta_ * 2.0);

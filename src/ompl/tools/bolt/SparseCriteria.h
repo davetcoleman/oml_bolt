@@ -84,7 +84,9 @@ public:
   void addDiscretizedStates(std::size_t indent);
 
   bool addRandomSamples(std::size_t indent);
+  bool addRandomSamplesThreadedDeprecated(std::size_t indent);
   bool addRandomSamplesThreaded(std::size_t indent);
+  bool addRandomSamplesThread(std::size_t indent);
 
   /**
    * \brief Add state to sparse graph
@@ -115,7 +117,7 @@ public:
                            std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex, std::size_t indent);
   bool checkAddQuality(base::State* candidateState, std::vector<SparseVertex>& graphNeighborhood,
                        std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
-                       std::size_t indent);
+                       std::size_t threadID, std::size_t indent);
   void visualizeCheckAddQuality(base::State* candidateState, SparseVertex candidateRep);
 
   /* ----------------------------------------------------------------------------------------*/
@@ -147,7 +149,7 @@ public:
              Referred to as 'Get_Close_Reps' in paper
    */
   void findCloseRepresentatives(const base::State* candidateState, SparseVertex candidateRep,
-                                std::map<SparseVertex, base::State*>& closeRepresentatives, std::size_t indent);
+                                std::map<SparseVertex, base::State*>& closeRepresentatives, std::size_t threadID, std::size_t indent);
 
   /** \brief Updates pair point information for a representative with neighbor r
              Referred to as 'Update_Points' in paper
@@ -283,13 +285,11 @@ protected:
 
   VertexDiscretizerPtr vertexDiscretizer_;
 
-  // double ignoreEdgesSmallerThan_ = 32.502; // 3D
-  double ignoreEdgesSmallerThan_ = 12.7;  // 2D
-
   /** \brief Temporary state for doing sparse criteria sampling */
-  base::State* sampledState_;
+  std::vector<base::State*> closeRepSampledState_;
 
 public:
+
   /** \brief SPARS parameter for dense graph connection distance as a fraction of max. extent */
   double denseDeltaFraction_ = 0.05;
 

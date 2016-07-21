@@ -67,7 +67,10 @@ SparseCriteria::SparseCriteria(SparseGraphPtr sg) : sg_(sg)
   // Initialize discretizer
   vertexDiscretizer_.reset(new VertexDiscretizer(sg_));
 
-  sampledState_ = si_->allocState();
+  for (std::size_t i = 0; i < sg_->getNumQueryVertices(); ++i)
+  {
+    closeRepSampledState_.push_back(si_->allocState());
+  }
 }
 
 SparseCriteria::~SparseCriteria(void)
@@ -75,7 +78,10 @@ SparseCriteria::~SparseCriteria(void)
   clearanceSampler_.reset();
   regularSampler_.reset();
 
-  si_->freeState(sampledState_);
+  for (std::size_t i = 0; i < sg_->getNumQueryVertices(); ++i)
+  {
+    si_->freeState(closeRepSampledState_[i]);
+  }
 }
 
 bool SparseCriteria::setup()
@@ -128,8 +134,6 @@ bool SparseCriteria::setup()
   // std::cout << "hack here at disc " << std::endl;
   // discretization_ /= 2.0; // TODO(davetcoleman):hack
 
-  ignoreEdgesSmallerThan_ = (discretization_ + 0.01);
-
   // Calculate optimum stretch factor
   bool autoStretchFactor = stretchFactor_ < std::numeric_limits<double>::epsilon();
   if (autoStretchFactor)  // if stretchFactor is zero, auto set it
@@ -137,22 +141,20 @@ bool SparseCriteria::setup()
     BOLT_DEBUG(indent, 1, "Auto settings stretch factor because input value was 0");
     // stretchFactor_ = discretization_ / (0.5 * discretization_ * sqrt(2) - 2.0 * denseDelta_);
     nearestDiscretizedV_ = sqrt(dim * std::pow(0.5 * discretization_, 2));  // z in my calculations
-    // stretchFactor_ = 2.0 * discretization_ / ( nearestDiscretizedV_ - 2.0 * denseDelta_) + stretchFactor_; // 2D case
+    // stretchFactor_ = 2.0 * discretization_ / ( nearestDiscretizedV_ - 2.0 * denseDelta_) + stretchFactor_; // 2D ca
     // but not 3D
     stretchFactor_ =
-        2.0 * discretization_ / (nearestDiscretizedV_) + stretchFactor_;  // 2D case without estimated interface amount
-    // stretchFactor_ = (discretization_ + nearestDiscretizedV_) / ( 2 * (nearestDiscretizedV_ - 2.0 * denseDelta_)); //
+      2.0 * discretization_ / (nearestDiscretizedV_) + stretchFactor_;  // 2D case without estimated interface amoun
+    // stretchFactor_ = (discretization_ + nearestDiscretizedV_) / ( 2 * (nearestDiscretizedV_ - 2.0 * denseDelta_));
     // N-D case
     // stretchFactor_ = discretization_ / (discretization_ - 2.0 * denseDelta_); // N-D case
   }
-
   // Estimate size of graph
   ob::RealVectorBounds bounds = si_->getStateSpace()->getBounds();
   const std::size_t jointID = 0;
   const double range = bounds.high[jointID] - bounds.low[jointID];
   const std::size_t jointIncrements = floor(range / discretization_);
   const std::size_t maxStatesCount = pow(jointIncrements, dim);
-
   BOLT_DEBUG(indent, 1, "--------------------------------------------------");
   BOLT_DEBUG(indent, 1, "SparseCriteria Setup:");
   BOLT_DEBUG(indent + 2, 1, "Dimensions              = " << dim);
@@ -168,7 +170,6 @@ bool SparseCriteria::setup()
   BOLT_DEBUG(indent + 2, 1, "Discret Penetration     = " << discretizePenetrationDist_);
   BOLT_DEBUG(indent + 2, autoStretchFactor, "Nearest Discretized V   = " << nearestDiscretizedV_);
   BOLT_DEBUG(indent + 2, 1, "Stretch Factor          = " << stretchFactor_);
-  BOLT_DEBUG(indent + 2, 1, "Viz ignore edges below  = " << ignoreEdgesSmallerThan_);
   BOLT_DEBUG(indent, 1, "--------------------------------------------------");
 
   assert(maxExtent_ > 0);
@@ -241,7 +242,8 @@ void SparseCriteria::createSPARS()
   // Finish the graph with random samples
   if (useRandomSamples_)
   {
-    addRandomSamplesThreaded(indent);
+    //addRandomSamplesThreaded(indent);
+    addRandomSamples(indent);
   }
 
   // Profiler
@@ -273,7 +275,7 @@ void SparseCriteria::createSPARS()
   foreach (const SparseEdge e, boost::edges(sg_->getGraph()))
   {
     const double length = sg_->getEdgeWeightProperty(e);
-    std::cout << "Edge " << e << " length: " << length << std::endl;
+    //std::cout << "Edge " << e << " length: " << length << std::endl;
     totalEdgeLength += length;
     if (maxEdgeLength < length)
       maxEdgeLength = length;
@@ -443,6 +445,34 @@ bool SparseCriteria::addRandomSamples(std::size_t indent)
   return true; // program should never reach here
 }
 
+bool SparseCriteria::addRandomSamplesThreadedDeprecated(std::size_t indent)
+{
+  BOLT_FUNC(indent, true, "addRandomSamplesThreaded()");
+
+  // Clear stats
+  numRandSamplesAdded_ = 0;
+
+  sampleQueue_->startSampling(indent);
+
+  while (true)
+  {
+    base::State *candidateState = sampleQueue_->getNextState(indent);
+
+    si_->printState(candidateState);
+
+    bool usedState = false;
+    if (!addSample(candidateState, usedState, indent))
+    {
+      return true; // no more states needed
+    }
+
+    // Tell other thread whether the state should be re-used
+    sampleQueue_->setNextStateUsed(usedState);
+  } // while(true) create random sample
+
+  return true; // program should never reach here
+}
+
 bool SparseCriteria::addRandomSamplesThreaded(std::size_t indent)
 {
   BOLT_FUNC(indent, true, "addRandomSamplesThreaded()");
@@ -455,6 +485,8 @@ bool SparseCriteria::addRandomSamplesThreaded(std::size_t indent)
   while (true)
   {
     base::State *candidateState = sampleQueue_->getNextState(indent);
+
+    si_->printState(candidateState);
 
     bool usedState = false;
     if (!addSample(candidateState, usedState, indent))
@@ -507,7 +539,15 @@ bool SparseCriteria::addSample(base::State *candidateState, bool &usedState, std
   {
     BOLT_YELLOW_DEBUG(indent, true, "Starting to check for 4th quality criteria because "
                       << numConsecutiveFailures_ << " consecutive failures have occured");
-    useFourthCriteria_ = true;
+    bool disableFourth = false;
+    if (disableFourth)
+    {
+      OMPL_WARN("Disabled use fourth criteria");
+      return false; // stop inserting states
+    }
+    else
+      useFourthCriteria_ = true;
+
     visualizeOverlayNodes_ = true;  // visualize all added nodes in a separate window
     numConsecutiveFailures_ = 0;    // reset for new criteria
 
@@ -582,7 +622,7 @@ bool SparseCriteria::addStateToRoadmap(base::State *candidateState, SparseVertex
     addReason = INTERFACE;
     stateAdded = true;
   }
-  else if (checkAddQuality(candidateState, graphNeighborhood, visibleNeighborhood, newVertex, indent + 12))
+  else if (checkAddQuality(candidateState, graphNeighborhood, visibleNeighborhood, newVertex, threadID, indent + 12))
   {
     BOLT_GREEN_DEBUG(indent, vAddedReason_, "Graph updated: QUALITY, state: "
                                                 << candidateState << " RandSamplesAdded: " << numRandSamplesAdded_
@@ -628,7 +668,9 @@ bool SparseCriteria::checkAddCoverage(base::State *candidateState, std::vector<S
   // No free paths means we add for coverage
   BOLT_DEBUG(indent, vCriteria_, "Adding node for COVERAGE ");
 
-  newVertex = sg_->addVertex(candidateState, COVERAGE, indent + 4);
+  //newVertex = sg_->addVertex(candidateState, COVERAGE, indent + 4);
+  if (!sg_->addVertexThreaded(candidateState, COVERAGE, newVertex, indent))
+    return false;
 
   // Note: we do not connect this node with any edges because we have already determined
   // it is too far away from any nearby nodes
@@ -688,10 +730,12 @@ bool SparseCriteria::checkAddConnectivity(base::State *candidateState, std::vect
   BOLT_DEBUG(indent, vCriteria_, "Adding node for CONNECTIVITY ");
 
   // Add the node
-  newVertex = sg_->addVertex(candidateState, CONNECTIVITY, indent + 2);
+  //newVertex = sg_->addVertex(candidateState, CONNECTIVITY, indent + 2);
+  if (!sg_->addVertexThreaded(candidateState, CONNECTIVITY, newVertex, indent))
+    return false;
 
   // Check if there are really close vertices nearby which should be merged
-  checkRemoveCloseVertices(newVertex, indent + 2);
+  checkRemoveCloseVertices(newVertex, indent);
 
   // Add the edges
   for (std::set<SparseVertex>::const_iterator vertexIt = statesInDiffConnectedComponents.begin();
@@ -723,7 +767,9 @@ bool SparseCriteria::checkAddConnectivity(base::State *candidateState, std::vect
     if (!sg_->sameComponent(*vertexIt, newVertex))
     {
       // Connect
-      sg_->addEdge(newVertex, *vertexIt, eCONNECTIVITY, indent + 4);
+      //sg_->addEdge(newVertex, *vertexIt, eCONNECTIVITY, indent + 4);
+      if (!sg_->addEdgeThreaded(newVertex, *vertexIt, eCONNECTIVITY, indent))
+        return false;
     }
     else
     {
@@ -779,7 +825,9 @@ bool SparseCriteria::checkAddInterface(base::State *candidateState, std::vector<
         }
 
         // Connect them
-        sg_->addEdge(v1, v2, eINTERFACE, indent);
+        //sg_->addEdge(v1, v2, eINTERFACE, indent);
+        if (!sg_->addEdgeThreaded(v1, v2, eINTERFACE, indent))
+          return false;
 
         // Also add the vertex if we are in a special mode where we know its desired
         if (discretizedSamplesInsertion_)
@@ -793,7 +841,9 @@ bool SparseCriteria::checkAddInterface(base::State *candidateState, std::vector<
         // Add the new node to the graph, to bridge the interface
         BOLT_DEBUG(indent, vCriteria_, "Adding node for INTERFACE");
 
-        newVertex = sg_->addVertex(candidateState, INTERFACE, indent);
+        //newVertex = sg_->addVertex(candidateState, INTERFACE, indent);
+        if (!sg_->addVertexThreaded(candidateState, INTERFACE, newVertex, indent))
+          return false;
 
         // Check if there are really close vertices nearby which should be merged
         if (checkRemoveCloseVertices(newVertex, indent))
@@ -808,7 +858,11 @@ bool SparseCriteria::checkAddInterface(base::State *candidateState, std::vector<
           visual_->waitForUserFeedback("skipping edge 0");
         }
         else
-          sg_->addEdge(newVertex, v1, eINTERFACE, indent);
+        {
+          //sg_->addEdge(newVertex, v1, eINTERFACE, indent);
+          if (!sg_->addEdgeThreaded(newVertex, v1, eINTERFACE, indent))
+            return false;
+        }
 
         if (sg_->getState(v2) == NULL)
         {
@@ -816,7 +870,11 @@ bool SparseCriteria::checkAddInterface(base::State *candidateState, std::vector<
           visual_->waitForUserFeedback("skipping edge 2");
         }
         else
-          sg_->addEdge(newVertex, v2, eINTERFACE, indent);
+        {
+          //sg_->addEdge(newVertex, v2, eINTERFACE, indent);
+          if (!sg_->addEdgeThreaded(newVertex, v2, eINTERFACE, indent))
+            return false;
+        }
 
         BOLT_DEBUG(indent, vCriteria_, "INTERFACE: connected two neighbors through new interface node");
       }
@@ -843,14 +901,18 @@ bool SparseCriteria::checkAddDiscretized(base::State *candidateState, std::vecto
   BOLT_FUNC(indent, vCriteria_, "checkAddDiscretized() Force vertex addition");
 
   // Add the vertex, no matter what
-  newVertex = sg_->addVertex(candidateState, DISCRETIZED, indent);
+  //newVertex = sg_->addVertex(candidateState, DISCRETIZED, indent);
+  if (!sg_->addVertexThreaded(candidateState, DISCRETIZED, newVertex, indent))
+    return false;
 
   // If there is a nearby state, create an edge to it
   if (!visibleNeighborhood.empty())
   {
     BOLT_DEBUG(indent, vCriteria_, "Discretized: forcing edge");
     SparseVertex v1 = visibleNeighborhood[0];
-    sg_->addEdge(v1, newVertex, eDISCRETIZED, indent);
+    //sg_->addEdge(v1, newVertex, eDISCRETIZED, indent);
+    if (!sg_->addEdgeThreaded(v1, newVertex, eDISCRETIZED, indent))
+      return false;
   }
   else
   {
@@ -862,7 +924,7 @@ bool SparseCriteria::checkAddDiscretized(base::State *candidateState, std::vecto
 
 bool SparseCriteria::checkAddQuality(base::State *candidateState, std::vector<SparseVertex> &graphNeighborhood,
                                      std::vector<SparseVertex> &visibleNeighborhood,
-                                     SparseVertex &newVertex, std::size_t indent)
+                                     SparseVertex &newVertex, std::size_t threadID, std::size_t indent)
 {
   if (!useFourthCriteria_)
     return false;
@@ -880,7 +942,7 @@ bool SparseCriteria::checkAddQuality(base::State *candidateState, std::vector<Sp
 
   bool added = false;
   std::map<SparseVertex, base::State *> closeRepresentatives;  // [nearSampledRep, nearSampledState]
-  findCloseRepresentatives(candidateState, candidateRep, closeRepresentatives, indent);
+  findCloseRepresentatives(candidateState, candidateRep, closeRepresentatives, threadID, indent);
 
   BOLT_DEBUG(indent, vQuality_, "back in checkAddQuality(): Found " << closeRepresentatives.size()
                                                                     << " close representatives");
@@ -1130,8 +1192,9 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
       exit(-1);
     }
 
-    // SparseEdge e =
-    sg_->addEdge(vp, vpp, eQUALITY, indent + 2);
+    //sg_->addEdge(vp, vpp, eQUALITY, indent + 2);
+    if (!sg_->addEdgeThreaded(vp, vpp, eQUALITY, indent))
+      return false;
 
     return true;
   }
@@ -1227,7 +1290,9 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
 
     // no need to clone state, since we will destroy p; we just copy the pointer
     BOLT_DEBUG(indent + 2, vQuality_, "Adding node from shortcut path for QUALITY");
-    newVertex = sg_->addVertex(si_->cloneState(state), QUALITY, indent + 4);
+    //newVertex = sg_->addVertex(si_->cloneState(state), QUALITY, indent + 4);
+    if (!sg_->addVertexThreaded(si_->cloneState(state), QUALITY, newVertex, indent))
+      return false;
 
     // Check if there are really close vertices nearby which should be merged
     if (checkRemoveCloseVertices(newVertex, indent + 4))
@@ -1248,7 +1313,9 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
     if (addEdgeEnabled)
     {
       assert(prior != newVertex);
-      sg_->addEdge(prior, newVertex, eQUALITY, indent + 2);
+      //sg_->addEdge(prior, newVertex, eQUALITY, indent + 2);
+      if (!sg_->addEdgeThreaded(prior, newVertex, eQUALITY, indent))
+        return false;
       prior = newVertex;
     }
   }
@@ -1259,7 +1326,9 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
   if (addEdgeEnabled)
   {
     assert(prior != vpp);
-    sg_->addEdge(prior, vpp, eQUALITY, indent + 2);
+    //sg_->addEdge(prior, vpp, eQUALITY, indent + 2);
+    if (!sg_->addEdgeThreaded(prior, vpp, eQUALITY, indent))
+      return false;
   }
 
   delete path;
@@ -1451,11 +1520,13 @@ SparseVertex SparseCriteria::findGraphRepresentative(base::State *state, std::si
 void SparseCriteria::findCloseRepresentatives(const base::State *candidateState,
                                               const SparseVertex candidateRep,
                                               std::map<SparseVertex, base::State *> &closeRepresentatives,
-                                              std::size_t indent)
+                                              std::size_t threadID, std::size_t indent)
 {
   BOLT_FUNC(indent, vQuality_, "findCloseRepresentatives()");
   BOLT_DEBUG(indent, vQuality_, "nearSamplePoints: " << nearSamplePoints_ << " denseDelta: " << denseDelta_);
   const bool visualizeSampler = false;
+
+  base::State* sampledState = closeRepSampledState_[threadID]; // alias the var name
 
   assert(closeRepresentatives.empty());
 
@@ -1470,37 +1541,37 @@ void SparseCriteria::findCloseRepresentatives(const base::State *candidateState,
     {
       BOLT_DEBUG(indent + 2, vQuality_, "Sample attempt " << attempt);
 
-      regularSampler_->sampleNear(sampledState_, candidateState, denseDelta_);
+      regularSampler_->sampleNear(sampledState, candidateState, denseDelta_);
 
-      if (!si_->isValid(sampledState_))
+      if (!si_->isValid(sampledState))
       {
         BOLT_DEBUG(indent + 4, vQuality_, "notValid ");
 
         if (visualizeQualityCriteria_ && visualizeSampler)
-          visual_->viz3()->state(sampledState_, tools::SMALL, tools::RED, 0);
+          visual_->viz3()->state(sampledState, tools::SMALL, tools::RED, 0);
 
         continue;
       }
-      if (si_->distance(candidateState, sampledState_) > denseDelta_)
+      if (si_->distance(candidateState, sampledState) > denseDelta_)
       {
-        BOLT_DEBUG(indent + 4, vQuality_, "Distance too far " << si_->distance(candidateState, sampledState_)
+        BOLT_DEBUG(indent + 4, vQuality_, "Distance too far " << si_->distance(candidateState, sampledState)
                                                               << " needs to be less than " << denseDelta_);
 
         if (visualizeQualityCriteria_ && visualizeSampler)
-          visual_->viz3()->state(sampledState_, tools::SMALL, tools::RED, 0);
+          visual_->viz3()->state(sampledState, tools::SMALL, tools::RED, 0);
         continue;
       }
-      if (!si_->checkMotion(candidateState, sampledState_))
+      if (!si_->checkMotion(candidateState, sampledState))
       {
         BOLT_DEBUG(indent + 4, vQuality_, "Motion invalid ");
 
         if (visualizeQualityCriteria_ && visualizeSampler)
-          visual_->viz3()->state(sampledState_, tools::SMALL, tools::RED, 0);
+          visual_->viz3()->state(sampledState, tools::SMALL, tools::RED, 0);
         continue;
       }
 
       if (visualizeQualityCriteria_ && visualizeSampler)
-        visual_->viz3()->state(sampledState_, tools::SMALL, tools::GREEN, 0);
+        visual_->viz3()->state(sampledState, tools::SMALL, tools::GREEN, 0);
 
       foundValidSample = true;
       break;
@@ -1521,7 +1592,7 @@ void SparseCriteria::findCloseRepresentatives(const base::State *candidateState,
       BOLT_DEBUG(indent + 2, vQuality_, "Found valid nearby sample");
 
     // Compute which sparse vertex represents this new candidate vertex
-    SparseVertex sampledStateRep = findGraphRepresentative(sampledState_, indent + 6);
+    SparseVertex sampledStateRep = findGraphRepresentative(sampledState, indent + 6);
 
     // Check if sample is not visible to any other node (it should be visible in all likelihood)
     if (sampledStateRep == boost::graph_traits<SparseAdjList>::null_vertex())
@@ -1530,10 +1601,13 @@ void SparseCriteria::findCloseRepresentatives(const base::State *candidateState,
 
       // It can't be seen by anybody, so we should take this opportunity to add him
       // But first check for proper clearance
-      if (sufficientClearance(sampledState_))
+      if (sufficientClearance(sampledState))
       {
         BOLT_DEBUG(indent + 2, vQuality_, "Adding node for COVERAGE");
-        sg_->addVertex(si_->cloneState(sampledState_), COVERAGE, indent + 2);
+        //sg_->addVertex(si_->cloneState(sampledState), COVERAGE, indent + 2);
+        SparseVertex newVertex; // TODO: we don't use this anywhere
+        if (!sg_->addVertexThreaded(si_->cloneState(sampledState), COVERAGE, newVertex, indent))
+          BOLT_YELLOW_DEBUG(indent, true, "Unable to add close rep state that we found");
       }
 
       BOLT_DEBUG(indent + 2, vQuality_, "STOP EFFORTS TO ADD A DENSE PATH");
@@ -1559,7 +1633,7 @@ void SparseCriteria::findCloseRepresentatives(const base::State *candidateState,
         BOLT_DEBUG(indent + 2, vQuality_, "Track the representative");
 
         // Track the representative
-        closeRepresentatives[sampledStateRep] = si_->cloneState(sampledState_);
+        closeRepresentatives[sampledStateRep] = si_->cloneState(sampledState);
       }
       else
       {
@@ -1897,7 +1971,9 @@ bool SparseCriteria::checkRemoveCloseVertices(SparseVertex v1, std::size_t inden
   {
     SparseVertex v3 = boost::target(edge, sg_->getGraph());
     BOLT_DEBUG(indent + 2, vRemoveClose_, "Connecting v1= " << v1 << " to v3=" << v3);
-    sg_->addEdge(v1, v3, eINTERFACE, indent + 4);
+    //sg_->addEdge(v1, v3, eINTERFACE, indent + 4);
+    if (!sg_->addEdgeThreaded(v1, v3, eINTERFACE, indent))
+      return false;
   }
 
   // Delete old vertex

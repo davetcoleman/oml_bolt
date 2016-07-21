@@ -60,6 +60,7 @@
 // C++
 #include <list>
 #include <random>
+#include <mutex>
 
 namespace ompl
 {
@@ -282,6 +283,31 @@ public:
    * Add/remove vertices, edges, states
    * --------------------------------------------------------------------------------- */
 
+  /**
+   * \brief Allow vertices to be added from multiple threads, with possiblity of throwing away candidate vertices
+   * \param state - the new vertex to add
+   * \param type - the type of vertex
+   * \param newVertex - the returned new vertex this function creates
+   * \return false if the vertex was expired and was thrown out
+   */
+  bool addVertexThreaded(base::State *state, const VertexType &type, SparseVertex &newVertex, std::size_t indent)
+  {
+    BOLT_FUNC(indent, vAdd_, "addVertexThreaded()");
+
+    // TODO(davetcoleman): check if sample is expired
+
+    // Only one thing can modify graph at a time
+    {
+      std::lock_guard<std::mutex> guard(modifyGraphMutex_);
+      newVertex = addVertex(state, type, indent);
+
+      // timestamp of the last graph modification - any sample taken before that is invalid
+      //lastSampledModTime_ = time::now();
+    }
+
+    return true;
+  }
+
   /** \brief Add vertex to graph */
   SparseVertex addVertex(base::State* state, const VertexType& type, std::size_t indent);
 
@@ -296,6 +322,29 @@ public:
 
   /** \brief Add edge to graph */
   SparseEdge addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent);
+
+  /**
+   * \brief Allow edges to be added from multiple threads, with possiblity of throwing away candidate edges
+   * \param type - the type of edge
+   * \return false if the edge was expired and was thrown out
+   */
+  bool addEdgeThreaded(SparseVertex v1, SparseVertex v2, const EdgeType &type, std::size_t indent)
+  {
+    BOLT_FUNC(indent, vAdd_, "addEdgeThreaded()");
+
+    // TODO(davetcoleman): check if edge is expired
+
+    // Only one thing can modify graph at a time
+    {
+      std::lock_guard<std::mutex> guard(modifyGraphMutex_);
+      addEdge(v1, v2, type, indent);
+
+      // timestamp of the last graph modification - any sample taken before that is invalid
+      //lastSampledModTime_ = time::now();
+    }
+
+    return true;
+  }
 
   /** \brief Check graph for edge existence */
   bool hasEdge(SparseVertex v1, SparseVertex v2);
@@ -439,6 +488,10 @@ protected:
 
   tools::VizSizes vertexSize_ = tools::LARGE;
   tools::VizSizes edgeSize_ = tools::MEDIUM;
+
+  // Multi-threading modifying graph
+  std::mutex modifyGraphMutex_;
+  time::point lastSampledModTime_; // timestamp of the last graph modification - any sample taken before that is invalid
 
 public:  // user settings from other applications
   /** \brief Allow the database to save to file (new experiences) */
