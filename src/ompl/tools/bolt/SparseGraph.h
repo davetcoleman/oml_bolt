@@ -118,6 +118,11 @@ public:
     return sparseStorage_;
   }
 
+  SparseCriteriaPtr getSparseCriteria()
+  {
+    return sparseCriteria_;
+  }
+
   base::SpaceInformationPtr getSpaceInformation()
   {
     return si_;

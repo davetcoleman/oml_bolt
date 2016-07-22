@@ -42,7 +42,7 @@
 // OMPL
 #include <ompl/tools/bolt/SparseGraph.h>
 #include <ompl/base/samplers/MinimumClearanceValidStateSampler.h>
-#include <ompl/tools/bolt/SampleQueue.h>
+#include <ompl/tools/bolt/SamplingQueue.h>
 
 namespace ompl
 {
@@ -75,6 +75,11 @@ public:
   /** \brief Deconstructor */
   virtual ~SparseCriteria();
 
+  SamplingQueuePtr getSamplingQueue()
+  {
+    return samplingQueue_;
+  }
+
   /** \brief Initialize sparse parameters */
   bool setup();
 
@@ -86,6 +91,7 @@ public:
   /** \brief Randomly sample */
   bool addRandomSamples(std::size_t indent);
   bool addRandomSamplesOneThread(std::size_t indent);
+  bool addRandomSamplesTwoThread(std::size_t indent);
   bool addRandomSamplesThreaded(std::size_t indent);
   void addRandomSampleThread(std::size_t threadID, base::SpaceInformationPtr si, std::size_t indent);
 
@@ -240,7 +246,7 @@ protected:
   base::MinimumClearanceValidStateSamplerPtr clearanceSampler_;
 
   /** \brief Secondary thread for sampling and garbage collection */
-  SampleQueuePtr sampleQueue_;
+  SamplingQueuePtr samplingQueue_;
 
   /** \brief Special flag for tracking mode when inserting into sparse graph */
   bool secondSparseInsertionAttempt_ = false;

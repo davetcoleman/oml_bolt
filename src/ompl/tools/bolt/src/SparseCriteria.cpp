@@ -38,6 +38,7 @@
 
 // OMPL
 #include <ompl/tools/bolt/SparseCriteria.h>
+#include <ompl/tools/bolt/CandidateQueue.h>
 
 // Boost
 #include <boost/foreach.hpp>
@@ -188,7 +189,7 @@ bool SparseCriteria::setup()
     clearanceSampler_->setMinimumObstacleClearance(obstacleClearance_);
     si_->getStateValidityChecker()->setClearanceSearchDistance(obstacleClearance_);
 
-    sampleQueue_.reset(new SampleQueue(si_, visual_, clearanceSampler_));
+    samplingQueue_.reset(new SamplingQueue(si_, visual_, clearanceSampler_));
   }
 
   // Load regular state sampler
@@ -245,9 +246,10 @@ void SparseCriteria::createSPARS()
   // Finish the graph with random samples
   if (useRandomSamples_)
   {
-    addRandomSamplesOneThread(indent);
-    // addRandomSamplesThreaded(indent);
     // addRandomSamples(indent);
+    //addRandomSamplesOneThread(indent);
+    addRandomSamplesTwoThread(indent);
+    // addRandomSamplesThreaded(indent);
   }
 
   // Profiler
@@ -379,7 +381,7 @@ void SparseCriteria::addDiscretizedStates(std::size_t indent)
 
       si_->freeState(candidateState);
       // Erase the state eventually
-      // sampleQueue_->recycleState(candidateState);
+      // samplingQueue_->recycleState(candidateState);
     }
     else
     {
@@ -461,19 +463,19 @@ bool SparseCriteria::addRandomSamples(std::size_t indent)
 
 bool SparseCriteria::addRandomSamplesOneThread(std::size_t indent)
 {
-  BOLT_FUNC(indent, true, "addRandomSamplesThreaded()");
+  BOLT_FUNC(indent, true, "addRandomSamplesOneThread()");
 
   // Clear stats
   numRandSamplesAdded_ = 0;
 
-  sampleQueue_->startSampling(indent);
+  samplingQueue_->startSampling(indent);
 
   base::State *candidateState;
   const std::size_t threadID = 0;
 
   while (true)
   {
-    candidateState = sampleQueue_->getNextState(indent);
+    samplingQueue_->getNextState(candidateState, indent);
 
     // Find nearby nodes
     CandidateData candidateD(candidateState);
@@ -482,11 +484,49 @@ bool SparseCriteria::addRandomSamplesOneThread(std::size_t indent)
     bool usedState = false;
     if (!addSample(candidateD, threadID, usedState, indent))
     {
+      samplingQueue_->stopSampling(indent);
       return true;  // no more states needed
     }
 
     // Tell other thread whether the state should be re-used
-    sampleQueue_->setNextStateUsed(usedState);
+    //samplingQueue_->setNextStateUsed(usedState);
+  }  // while(true) create random sample
+
+  return true;  // program should never reach here
+}
+
+bool SparseCriteria::addRandomSamplesTwoThread(std::size_t indent)
+{
+  BOLT_FUNC(indent, true, "addRandomSamplesTwoThread()");
+
+  // Clear stats
+  numRandSamplesAdded_ = 0;
+
+  samplingQueue_->startSampling(indent);
+
+  CandidateQueue candidateQueue(sg_);
+  candidateQueue.startGenerating(indent);
+
+  const std::size_t threadID = 0;
+  //std::size_t count = 0;
+  while (!visual_->viz1()->shutdownRequested())
+  {
+    // Find nearby nodes
+    CandidateData candidateD = candidateQueue.getNextCandidate(indent);
+
+    bool usedState = false;
+    if (!addSample(candidateD, threadID, usedState, indent))
+    {
+      candidateQueue.stopGenerating(indent);
+      samplingQueue_->stopSampling(indent);
+      return true;  // no more states needed
+    }
+
+    BOLT_DEBUG(indent, false, "SparseCriteria: used: " << usedState << " state: " << candidateD.state_ << " numRandSamplesAdded: " << numRandSamplesAdded_);
+
+    // Tell other thread whether the candidate was used
+    candidateQueue.setCandidateUsed(usedState, indent + 2);
+
   }  // while(true) create random sample
 
   return true;  // program should never reach here
@@ -1896,10 +1936,7 @@ void SparseCriteria::findGraphNeighbors(CandidateData &candidateD, std::size_t t
   // Note that the main thread could be modifying the NN, so we have to lock it
   const bool useMutex = true;
   sg_->getQueryStateNonConst(threadID) = candidateD.state_;
-  {
-    std::lock_guard<std::mutex> guard(sg_->getNNGuard());
-    sg_->getNN(useMutex)->nearestR(sg_->getQueryVertices(threadID), sparseDelta_, candidateD.graphNeighborhood_);
-  }
+  sg_->getNN(useMutex)->nearestR(sg_->getQueryVertices(threadID), sparseDelta_, candidateD.graphNeighborhood_);
   sg_->getQueryStateNonConst(threadID) = nullptr;
 
   // Now that we got the neighbors from the NN, we must remove any we can't see

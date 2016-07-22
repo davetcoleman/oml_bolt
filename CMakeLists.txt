@@ -51,8 +51,9 @@ add_library(${PROJECT_NAME}
   src/ompl/tools/bolt/src/SparseCriteria.cpp
   src/ompl/tools/bolt/src/SparseStorage.cpp
   src/ompl/tools/bolt/src/TaskGraph.cpp
-  #src/ompl/tools/bolt/src/DenseCache.cpp
   src/ompl/tools/bolt/src/VertexDiscretizer.cpp
+  src/ompl/tools/bolt/src/SamplingQueue.cpp
+  src/ompl/tools/bolt/src/CandidateQueue.cpp
 )
 # Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}

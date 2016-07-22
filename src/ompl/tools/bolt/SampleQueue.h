@@ -90,7 +90,12 @@ public:
   void startSampling(std::size_t indent)
   {
     BOLT_FUNC(indent, true, "startSampling() Starting sampling thread");
-    running_ = true;
+    if (threadRunning_)
+    {
+      BOLT_RED_DEBUG(indent, true, "SampleQueue already running");
+      return;
+    }
+    threadRunning_ = true;
 
     // Setup
     base::SpaceInformationPtr si(new base::SpaceInformation(si_->getStateSpace()));
@@ -111,17 +116,50 @@ public:
   void stopSampling(std::size_t indent)
   {
     BOLT_FUNC(indent, true, "stopSampling() Stopping sampling thread");
-    running_ = false;
+    threadRunning_ = false;
 
     // End thread
     samplingThread_->join();
   }
 
+  /** \brief This function is called from the parent thread */
+  base::State *getNextState(std::size_t indent)
+  {
+    if (statesQueue_.empty())
+      waitForQueueNotEmpty(indent + 2);
+
+    return statesQueue_.front();
+  }
+
+  /** \brief This function is called from the parent thread */
+  void setNextStateUsed(bool wasUsed)
+  {
+    // If state was not used, recycle
+    if (!wasUsed)
+      recycleState(statesQueue_.front());
+
+    std::cout << "statesQueue_.size(): " << statesQueue_.size() << std::endl;
+    std::cout << "before statesQueue_.front(): " << statesQueue_.front() << std::endl;
+    statesQueue_.pop();
+    std::cout << "after  statesQueue_.front(): " << statesQueue_.front() << std::endl;
+  }
+
+  /** \brief This function is called from the parent thread */
+  void recycleState(base::State *state)
+  {
+    {  // Get write mutex
+      boost::lock_guard<boost::shared_mutex> writeLock(recyclingMutex_);
+      recycling_.push_back(state);
+    }
+  }
+
+private:
+
   void samplingThread(base::SpaceInformationPtr si, std::size_t indent)
   {
     BOLT_FUNC(indent, true, "samplingThread()");
 
-    while (running_ && !visual_->viz1()->shutdownRequested())
+    while (threadRunning_ && !visual_->viz1()->shutdownRequested())
     {
       // Do not add more states if queue is full
       waitForQueueNotFull(indent);
@@ -142,13 +180,6 @@ public:
         exit(-1);  // this should never happen
       }
 
-      // Debug
-      if (false)
-      {
-        BOLT_DEBUG(indent, vStatus_, "Randomly sampled state: " << candidateState);
-        // sg_->debugState(candidateState);
-      }
-
       statesQueue_.push(candidateState);
     }
   }
@@ -164,69 +195,44 @@ public:
         unusedState = recycling_.back();
         recycling_.pop_back();
       }
+      BOLT_DEBUG(0, true, "using recycled state");
       return true;
     }
     return false;  // no recycled state is available
-  }
-
-  /** \brief This function is called from the parent thread */
-  base::State *getNextState(std::size_t indent)
-  {
-    waitForQueueNotEmpty(indent + 2);
-
-    return statesQueue_.front();
-  }
-
-  /** \brief This function is called from the parent thread */
-  void setNextStateUsed(bool wasUsed)
-  {
-    // If state was not used, recycle
-    if (!wasUsed)
-      recycleState(statesQueue_.front());
-    statesQueue_.pop();
-  }
-
-  /** \brief This function is called from the parent thread */
-  void recycleState(base::State *state)
-  {
-    {  // Get write mutex
-      boost::lock_guard<boost::shared_mutex> writeLock(recyclingMutex_);
-      recycling_.push_back(state);
-    }
   }
 
   /** \brief Do not add more states if queue is full */
   void waitForQueueNotFull(std::size_t indent)
   {
     bool oneTimeFlag = true;
-    while (statesQueue_.size() >= 100)
+    while (statesQueue_.size() >= targetQueueSize_ && threadRunning_)
     {
       if (oneTimeFlag)
       {
-        BOLT_DEBUG(indent, vStatus_, "Queue is full, sampler is waiting");
+        BOLT_DEBUG(indent, vStatus_, "SampleQueue: Queue is full, sampler is waiting");
         oneTimeFlag = false;
       }
       usleep(0.001 * 1000000);
     }
     if (!oneTimeFlag)
-      BOLT_DEBUG(indent, vStatus_, "No longer waiting on full queue");
+      BOLT_DEBUG(indent, vStatus_, "SampleQueue: No longer waiting on full queue");
   }
 
   /** \brief Wait until there is at least one state ready */
   void waitForQueueNotEmpty(std::size_t indent)
   {
     bool oneTimeFlag = true;
-    while (statesQueue_.empty())
+    while (statesQueue_.empty() && threadRunning_)
     {
       if (oneTimeFlag)
       {
-        BOLT_YELLOW_DEBUG(indent, true, "Queue is empty, waiting");
+        BOLT_YELLOW_DEBUG(indent, true, "SampleQueue: Queue is empty, waiting to provide State");
         oneTimeFlag = false;
       }
       usleep(0.001 * 1000000);
     }
     if (!oneTimeFlag)
-      BOLT_DEBUG(indent, true, "No longer waiting on queue");
+      BOLT_DEBUG(indent, false, "SampleQueue: No longer waiting on queue");
   }
 
 private:
@@ -247,10 +253,13 @@ private:
   base::MinimumClearanceValidStateSamplerPtr clearanceSampler_;
 
   /** \brief Flag indicating sampler is active */
-  bool running_ = false;
+  bool threadRunning_ = false;
 
   /** \brief Mutex for  */
   boost::shared_mutex recyclingMutex_;
+
+  /** \brief Mutex for only getting one sample at a time from the thread */
+  boost::shared_mutex sampleQueueMutex_;
 
 public:
   bool vStatus_ = false;
