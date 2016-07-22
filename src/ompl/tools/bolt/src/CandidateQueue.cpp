@@ -78,9 +78,12 @@ void CandidateQueue::startGenerating(std::size_t indent)
   }
   threadsRunning_ = true;
 
+  // Stats
+  totalMisses_ = 0;
+
   // Set number threads - should be at least less than 1 from total number of threads on system
   // 1 thread is for parent, 1 is for sampler, 1 is for GUIs, etc, remainder are for this
-  numThreads_ = std::max(1, int(sg_->getNumQueryVertices() - 3));
+  numThreads_ = 1; //std::max(1, int(sg_->getNumQueryVertices() - 3));
   BOLT_DEBUG(indent, true, "Running CandidateQueue with " << numThreads_ << " threads");
   if (numThreads_ < 2)
     BOLT_YELLOW_DEBUG(indent, true, "Only running CandidateQueue with 1 thread");
@@ -94,15 +97,15 @@ void CandidateQueue::startGenerating(std::size_t indent)
   samplingThreads_.resize(numThreads_);
 
   // Starts on thread 1 because thread 0 is reserved for parent process
-  std::size_t skipNCountThreads = 1;
-  for (std::size_t i = skipNCountThreads; i < samplingThreads_.size() + skipNCountThreads; ++i)
+  for (std::size_t i = 0; i < samplingThreads_.size(); ++i)
   {
     // Create new collision checker
     base::SpaceInformationPtr si(new base::SpaceInformation(si_->getStateSpace()));
     si->setStateValidityChecker(si_->getStateValidityChecker());
     si->setMotionValidator(si_->getMotionValidator());
 
-    samplingThreads_[i] = new boost::thread(boost::bind(&CandidateQueue::generatingThread, this, i, si, indent));
+    std::size_t threadID = i + 1; // the first thread (0) is reserved for the parent process for use of samplingQuery
+    samplingThreads_[i] = new boost::thread(boost::bind(&CandidateQueue::generatingThread, this, threadID, si, indent));
   }
 
   // Wait for first sample to be found
@@ -115,7 +118,7 @@ void CandidateQueue::startGenerating(std::size_t indent)
 
 void CandidateQueue::stopGenerating(std::size_t indent)
 {
-  BOLT_FUNC(indent, true, "stopGenerating() Stopping generating thread");
+  BOLT_FUNC(indent, true, "CandidateQueue.stopGenerating() Stopping generating thread");
   threadsRunning_ = false;
   abortNeighborSearch_ = true;
 
@@ -125,6 +128,8 @@ void CandidateQueue::stopGenerating(std::size_t indent)
     samplingThreads_[i]->join();
     delete samplingThreads_[i];
   }
+
+  BOLT_FUNC(indent, true, "CandidateQueue.stopGenerating() Generating threads have stopped");
 }
 
 void CandidateQueue::generatingThread(std::size_t threadID, base::SpaceInformationPtr si, std::size_t indent)
@@ -146,12 +151,15 @@ void CandidateQueue::generatingThread(std::size_t threadID, base::SpaceInformati
 
     BOLT_DEBUG(indent + 2, false, "New candidateState: " << candidateState << " on thread " << threadID);
 
+    if (!threadsRunning_) // Check for thread ending
+      break;
+
     // Find nearby nodes
     CandidateData candidateD(candidateState);
     bool result;
     {
       // Get shared read access - we don't want to delete the queue if this is running
-      // boost::shared_lock<boost::shared_mutex> lock(candidateQueueMutex_);
+      //boost::shared_lock<boost::shared_mutex> lock(candidateQueueMutex_);
       boost::lock_guard<boost::shared_mutex> lock(candidateQueueMutex_);
       result = findGraphNeighbors(candidateD, threadID, indent + 2);
     }
@@ -159,22 +167,23 @@ void CandidateQueue::generatingThread(std::size_t threadID, base::SpaceInformati
     if (!result)
     {
       // Wait until abort is over before finding next candidate
-      while (abortNeighborSearch_)
+      while (abortNeighborSearch_ && threadsRunning_)
       {
-        usleep(0.0001 * 1000000);
+        usleep(10);
       }
       continue;
     }
 
     // Add to queue - thread-safe
+    if (!abortNeighborSearch_)
     {
+      //boost::shared_lock<boost::shared_mutex> lock(candidateQueueMutex_);
       boost::lock_guard<boost::shared_mutex> lock(candidateQueueMutex_);
       queue_.push(candidateD);
     }
   }
 }
 
-/** \brief This function is called from the parent thread */
 CandidateData CandidateQueue::getNextCandidate(std::size_t indent)
 {
   // if (!queue_.empty())
@@ -185,7 +194,6 @@ CandidateData CandidateQueue::getNextCandidate(std::size_t indent)
   return queue_.front();
 }
 
-/** \brief This function is called from the parent thread */
 void CandidateQueue::setCandidateUsed(bool wasUsed, std::size_t indent)
 {
   if (wasUsed)  // this means whole queue is invalid :-/
@@ -196,19 +204,22 @@ void CandidateQueue::setCandidateUsed(bool wasUsed, std::size_t indent)
     abortNeighborSearch_ = true;
 
     // Get mutex on candidate queue
-    boost::lock_guard<boost::shared_mutex> lock(candidateQueueMutex_);
-
-    // Free first state without freeing memory, because it is in use. I'm not sure how though...
-    queue_.pop();
-
-    // Free states and clear queue
-    while (!queue_.empty())
     {
-      // samplingQueue_->recycleState(queue_.front().state_);
-      si_->freeState(queue_.front().state_);
+      boost::lock_guard<boost::shared_mutex> lock(candidateQueueMutex_);
+
+      // Free first state without freeing memory, because it is in use. I'm not sure how though...
       queue_.pop();
+
+      // Free states and clear queue
+      while (!queue_.empty())
+      {
+        // samplingQueue_->recycleState(queue_.front().state_);
+        si_->freeState(queue_.front().state_);
+        queue_.pop();
+      }
+      abortNeighborSearch_ = false;  // allow search to continue
     }
-    abortNeighborSearch_ = false;  // allow search to continue
+    BOOST_ASSERT_MSG(queue_.empty(), "Queue is somehow not empty when it should be!");
 
     return;
   }
@@ -216,10 +227,11 @@ void CandidateQueue::setCandidateUsed(bool wasUsed, std::size_t indent)
   // Instead of freeing the unused state, recycle the memory
   // samplingQueue_->recycleState(queue_.front().state_);
   si_->freeState(queue_.front().state_);
-  queue_.pop();
+
+  //boost::lock_guard<boost::shared_mutex> lock(candidateQueueMutex_);
+  queue_.pop(); // TODO: is this thread safe? not really but it probably works
 }
 
-/** \brief Do not add more states if queue is full */
 void CandidateQueue::waitForQueueNotFull(std::size_t indent)
 {
   bool oneTimeFlag = true;
@@ -230,16 +242,16 @@ void CandidateQueue::waitForQueueNotFull(std::size_t indent)
       BOLT_DEBUG(indent, vQueueFull_, "CandidateQueue: Queue is full, generator is waiting");
       oneTimeFlag = false;
     }
-    usleep(0.001 * 1000000);
+    usleep(10);
   }
   if (!oneTimeFlag)
     BOLT_DEBUG(indent, vQueueFull_, "CandidateQueue: No longer waiting on full queue");
 }
 
-/** \brief Wait until there is at least one state ready */
 void CandidateQueue::waitForQueueNotEmpty(std::size_t indent)
 {
   bool oneTimeFlag = true;
+  totalMisses_++;
   while (queue_.empty() && threadsRunning_)
   {
     if (oneTimeFlag)
@@ -248,7 +260,7 @@ void CandidateQueue::waitForQueueNotEmpty(std::size_t indent)
                                               "CandidateData");
       oneTimeFlag = false;
     }
-    usleep(0.001 * 1000000);
+    usleep(10);
   }
   if (!oneTimeFlag)
     BOLT_DEBUG(indent, vQueueEmpty_ && false, "CandidateQueue: No longer waiting on queue");
@@ -275,7 +287,7 @@ bool CandidateQueue::findGraphNeighbors(CandidateData &candidateD, std::size_t t
     SparseVertex v2 = candidateD.graphNeighborhood_[i];
 
     // Check for termination condition
-    if (abortNeighborSearch_)
+    if (abortNeighborSearch_ || !threadsRunning_)
     {
       BOLT_YELLOW_DEBUG(indent, false, "findGraphNeighbors aborted b/c term cond");
       return false;
@@ -291,7 +303,7 @@ bool CandidateQueue::findGraphNeighbors(CandidateData &candidateD, std::size_t t
     }
 
     // Check for termination condition
-    if (abortNeighborSearch_)
+    if (abortNeighborSearch_ || !threadsRunning_)
     {
       BOLT_YELLOW_DEBUG(indent, false, "findGraphNeighbors aborted b/c term cond");
       return false;

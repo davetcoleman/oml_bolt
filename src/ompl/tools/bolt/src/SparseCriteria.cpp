@@ -246,10 +246,10 @@ void SparseCriteria::createSPARS()
   // Finish the graph with random samples
   if (useRandomSamples_)
   {
-    // addRandomSamples(indent);
+    //addRandomSamples(indent);
     //addRandomSamplesOneThread(indent);
     addRandomSamplesTwoThread(indent);
-    // addRandomSamplesThreaded(indent);
+    //addRandomSamplesThreaded(indent);
   }
 
   // Profiler
@@ -508,7 +508,6 @@ bool SparseCriteria::addRandomSamplesTwoThread(std::size_t indent)
   candidateQueue.startGenerating(indent);
 
   const std::size_t threadID = 0;
-  //std::size_t count = 0;
   while (!visual_->viz1()->shutdownRequested())
   {
     // Find nearby nodes
@@ -517,12 +516,14 @@ bool SparseCriteria::addRandomSamplesTwoThread(std::size_t indent)
     bool usedState = false;
     if (!addSample(candidateD, threadID, usedState, indent))
     {
-      candidateQueue.stopGenerating(indent);
       samplingQueue_->stopSampling(indent);
+      candidateQueue.stopGenerating(indent);
+
+      std::cout << "getTotalMisses " << candidateQueue.getTotalMisses() << std::endl;
       return true;  // no more states needed
     }
 
-    BOLT_DEBUG(indent, false, "SparseCriteria: used: " << usedState << " state: " << candidateD.state_ << " numRandSamplesAdded: " << numRandSamplesAdded_);
+    //BOLT_DEBUG(indent, true, "SparseCriteria: used: " << usedState << " state: " << candidateD.state_ << " numRandSamplesAdded: " << numRandSamplesAdded_);
 
     // Tell other thread whether the candidate was used
     candidateQueue.setCandidateUsed(usedState, indent + 2);
@@ -1093,17 +1094,6 @@ bool SparseCriteria::checkAddQuality(CandidateData &candidateD, std::size_t thre
   {
     BOLT_DEBUG(indent, vQuality_, "No representatives were updated, so not calling checkAddPath()");
     return false;
-  }
-
-  // Visualize the interfaces around the candidate rep
-  if (visualizeQualityCriteria_)
-  {
-    // visualizeCheckAddQuality(candidateD.state_, candidateRep);
-    // visualizeInterfaces(candidateRep, indent);
-
-    // static std::size_t updateCount = 0;
-    // if (updateCount++ % 50 == 0)
-    //   visualizeAllInterfaces(indent);
   }
 
   // Attempt to find shortest path through closest neighbour

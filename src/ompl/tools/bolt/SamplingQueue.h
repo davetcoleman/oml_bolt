@@ -117,8 +117,8 @@ private:
 
 public:
   bool verbose_ = false;
-  bool vStatus_ = false;
-  bool vQueueEmpty_ = true; // when queue is empty and holding up process
+  bool vQueueFull_ = false; // when queue is full
+  bool vQueueEmpty_ = false; // when queue is empty and holding up process
 
 };  // end of class SamplingQueue
 

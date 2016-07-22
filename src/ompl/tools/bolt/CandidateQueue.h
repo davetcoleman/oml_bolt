@@ -58,12 +58,6 @@ OMPL_CLASS_FORWARD(CandidateQueue);
 OMPL_CLASS_FORWARD(SparseGraph);
 OMPL_CLASS_FORWARD(SparseCriteria);
 
-// struct Sample
-// {
-//   base::State* state_;
-//   bool used_; // Flag indicating whether the state needs to be garbage collected
-// }
-
 class CandidateQueue
 {
 public:
@@ -76,13 +70,20 @@ public:
 
   void stopGenerating(std::size_t indent);
 
-  void generatingThread(std::size_t threadID, base::SpaceInformationPtr si, std::size_t indent);
-
   /** \brief This function is called from the parent thread */
   CandidateData getNextCandidate(std::size_t indent);
 
   /** \brief This function is called from the parent thread */
   void setCandidateUsed(bool wasUsed, std::size_t indent);
+
+  std::size_t getTotalMisses()
+  {
+    return totalMisses_;
+  }
+
+private:
+
+  void generatingThread(std::size_t threadID, base::SpaceInformationPtr si, std::size_t indent);
 
   /** \brief Do not add more states if queue is full */
   void waitForQueueNotFull(std::size_t indent);
@@ -92,7 +93,6 @@ public:
 
   bool findGraphNeighbors(CandidateData &candidateD, std::size_t threadID, std::size_t indent);
 
-private:
   SparseGraphPtr sg_;
   SparseCriteriaPtr sc_;
 
@@ -120,13 +120,14 @@ private:
   bool threadsRunning_ = false;
 
   std::size_t numThreads_ = 1;
+  std::size_t totalMisses_ = 0;
 
 public:
-  bool verbose_ = true;      // general program direction
-  bool vQueueFull_ = false;;       // status of queue
+  bool verbose_ = false;      // general program direction
   bool vNeighbor_ = false;   // nearest neighbor search
-  bool vClear_ = true;       // when queue is being cleared because of change
-  bool vQueueEmpty_ = true;  // when queue is empty and holding up process
+  bool vClear_ = false;       // when queue is being cleared because of change
+  bool vQueueFull_ = false;  // status of queue
+  bool vQueueEmpty_ = false; // alert when queue is empty and holding up process
 
 };  // end of class CandidateQueue
 
