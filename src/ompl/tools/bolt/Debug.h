@@ -44,7 +44,7 @@
 // clang-format off
 
 // BOLT_DEBUG()
-//#ifdef ENABLE_DEBUG_MACRO
+#ifdef ENABLE_DEBUG_MACRO
 #define BOLT_DEBUG(indent, flag, stream)                                \
   do                                                                    \
   {                                                                     \
@@ -52,14 +52,13 @@
     if (flag)                                                           \
       std::cout << std::string(indent, ' ') << o.str() << std::endl;    \
   } while (0)
-/* #else
-// #define BOLT_DEBUG(indent, flag, stream)        \
-//   do {} while (0)
-// #endif
-*/
+#else
+#define BOLT_DEBUG(indent, flag, stream)        \
+  do {} while (0)
+#endif
 
 // BOLT_COLOR_DEBUG()
-//#ifdef ENABLE_DEBUG_MACRO
+#ifdef ENABLE_DEBUG_MACRO
 #define BOLT_COLOR_DEBUG(indent, flag, stream, color)                   \
       do                                                                \
       {                                                                 \
@@ -67,13 +66,13 @@
         if (flag)                                                       \
           std::cout << color << std::string(indent, ' ') << o.str() << ANSI_COLOR_RESET << std::endl; \
       } while (0)
-/* // #else
-// #define BOLT_COLOR_DEBUG(indent, flag, stream, color)   \
-//       do {} while (0)
-// #endif
-*/
+#else
+#define BOLT_COLOR_DEBUG(indent, flag, stream, color)   \
+  do {} while (0)
+#endif
 
 // BOLT_FUNC() - use only for function names, auto adds 2 to the indent value
+#ifdef ENABLE_DEBUG_MACRO
 #define BOLT_FUNC(indent, flag, stream)                   \
       do                                                                \
       {                                                                 \
@@ -82,10 +81,32 @@
         if (flag)                                                       \
           std::cout << ANSI_COLOR_CYAN << std::string(indent, ' ') << o.str() << ANSI_COLOR_RESET << std::endl; \
       } while (0)
+#else
+#define BOLT_FUNC(indent, flag, stream)   \
+  do {} while (0)
+#endif
 
-#define BOLT_RED_DEBUG(indent, flag, stream) BOLT_COLOR_DEBUG(indent, flag, stream, ANSI_COLOR_RED);
+// BOLT_INFO()
+#define BOLT_INFO(indent, flag, stream)                                \
+  do                                                                    \
+  {                                                                     \
+    std::stringstream o; o << stream;                                   \
+    if (flag)                                                           \
+      std::cout << std::string(indent, ' ') << o.str() << std::endl;    \
+  } while (0)
+
+// BOLT_COLOR_INFO()
+#define BOLT_COLOR_INFO(indent, flag, stream, color)                   \
+    do                                                                  \
+    {                                                                   \
+      std::stringstream o; o << stream;                                 \
+      if (flag)                                                         \
+        std::cout << color << std::string(indent, ' ') << o.str() << ANSI_COLOR_RESET << std::endl; \
+    } while (0)
+
+#define BOLT_RED_DEBUG(indent, flag, stream) BOLT_COLOR_INFO(indent, flag, stream, ANSI_COLOR_RED);
+#define BOLT_YELLOW_DEBUG(indent, flag, stream) BOLT_COLOR_INFO(indent, flag, stream, ANSI_COLOR_YELLOW);
 #define BOLT_GREEN_DEBUG(indent, flag, stream) BOLT_COLOR_DEBUG(indent, flag, stream, ANSI_COLOR_GREEN);
-#define BOLT_YELLOW_DEBUG(indent, flag, stream) BOLT_COLOR_DEBUG(indent, flag, stream, ANSI_COLOR_YELLOW);
 #define BOLT_BLUE_DEBUG(indent, flag, stream) BOLT_COLOR_DEBUG(indent, flag, stream, ANSI_COLOR_BLUE);
 #define BOLT_MAGENTA_DEBUG(indent, flag, stream) BOLT_COLOR_DEBUG(indent, flag, stream, ANSI_COLOR_MAGENTA);
 #define BOLT_CYAN_DEBUG(indent, flag, stream) BOLT_COLOR_DEBUG(indent, flag, stream, ANSI_COLOR_CYAN);

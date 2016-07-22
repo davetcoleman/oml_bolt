@@ -5,10 +5,10 @@ project(ompl_bolt)
 add_compile_options(-std=c++11)
 
 # Warnings
-add_definitions(-W -Wall -Wextra
-  -Wcast-qual -Wwrite-strings -Wunreachable-code -Wpointer-arith
-  -Winit-self -Wredundant-decls
-  -Wno-unused-parameter -Wno-unused-function)
+# add_definitions(-W -Wall -Wextra
+#   -Wcast-qual -Wwrite-strings -Wunreachable-code -Wpointer-arith
+#   -Winit-self -Wredundant-decls
+#   -Wno-unused-parameter -Wno-unused-function)
 
 find_package(catkin REQUIRED COMPONENTS
 )
@@ -27,6 +27,7 @@ catkin_package(
 
 # User debug code only if not release
 #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DENABLE_DEBUG_MACRO")
+#add_definitions(-DENABLE_DEBUG_MACRO)
 
 ###########
 ## Build ##
