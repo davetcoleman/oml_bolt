@@ -173,7 +173,7 @@ bool VertexDiscretizer::generateGrid(std::size_t indent)
     vertexDuration = time::seconds(time::now() - startTime);
   }
   BOLT_DEBUG(indent, verbose_, "Generated " << failedStates_.size() << " vertices in " << vertexDuration << " se"
-                                                                                                                 "c");
+                                                                                                            "c");
 
   // Error check
   if (failedStates_.size() < 2)
@@ -348,9 +348,9 @@ void VertexDiscretizer::recursiveDiscretization(std::size_t threadID, std::vecto
     {
       const double percent = (value - bounds.low[jointID]) / (bounds.high[jointID] - bounds.low[jointID]) * 100.0;
 
-      BOLT_DEBUG(indent, vThread_, "Level 1 vertex generation progress: "
-                                       << std::setprecision(1) << percent << " % Total vertices: "
-                                       << (failedStates_.size() > 0 ? failedStates_.size() - 1 : 0));
+      BOLT_DEBUG(indent, vThread_,
+                 "Level 1 vertex generation progress: " << std::setprecision(1) << percent << " % Total vertices: "
+                                                        << (failedStates_.size() > 0 ? failedStates_.size() - 1 : 0));
     }
 
     // Set value

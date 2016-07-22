@@ -178,7 +178,7 @@ bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::
   if (visualizeAstar_)
   {
     // Assume this was cleared by the parent program
-    //visual_->viz4()->deleteAllMarkers();
+    // visual_->viz4()->deleteAllMarkers();
   }
 
   try
@@ -432,8 +432,8 @@ double TaskGraph::astarTaskHeuristic(const TaskVertex a, const TaskVertex b) con
     OMPL_WARN("Unknown task level mode");
   }
 
-  BOLT_DEBUG(indent, vHeuristic_, "Vertex " << a << " @level " << taskLevelA << " to Vertex " << b << " @level " << taskLevelB
-             << " has distance " << dist);
+  BOLT_DEBUG(indent, vHeuristic_, "Vertex " << a << " @level " << taskLevelA << " to Vertex " << b << " @level "
+                                            << taskLevelB << " has distance " << dist);
   return dist;
 }
 
@@ -446,7 +446,7 @@ bool TaskGraph::isEmpty() const
 void TaskGraph::generateTaskSpace(std::size_t indent)
 {
   BOLT_FUNC(indent, verbose_, "TaskGraph.generateTaskSpace()");
-  time::point startTime = time::now(); // Benchmark
+  time::point startTime = time::now();  // Benchmark
 
   // Clear pre-existing graphs
   if (!isEmpty())
@@ -507,7 +507,7 @@ void TaskGraph::generateTaskSpace(std::size_t indent)
   }
 
   // Visualize
-  //displayDatabase();
+  // displayDatabase();
 
   printGraphStats();
 
@@ -589,7 +589,7 @@ void TaskGraph::clearCartesianVerticesDeprecated(std::size_t indent)
 {
   BOLT_FUNC(indent, verbose_, "TaskGraph.clearCartesianVerticesDeprecated()");
 
-  time::point startTime = time::now(); // Benchmark
+  time::point startTime = time::now();  // Benchmark
 
   // Remove all vertices that are of type CARTESIAN
   std::size_t numRemoved = 0;
@@ -619,10 +619,9 @@ void TaskGraph::clearCartesianVerticesDeprecated(std::size_t indent)
     }
   }
   BOLT_DEBUG(indent, verbose_, "Removed " << numRemoved << " vertices from graph of type CARTESIAN");
-  OMPL_INFORM("took %f seconds", time::seconds(time::now() - startTime)); // Benchmark
+  OMPL_INFORM("took %f seconds", time::seconds(time::now() - startTime));  // Benchmark
 
-
-  startTime = time::now(); // Benchmark
+  startTime = time::now();  // Benchmark
 
   // Reset min connector vars
   startConnectorVertex_ = 0;
@@ -667,7 +666,7 @@ void TaskGraph::clearCartesianVerticesDeprecated(std::size_t indent)
   // displayDatabase(showVertices, indent);
 
   BOLT_DEBUG(indent, verbose_, "TaskGraph.clearCartesianVerticesDeprecated() completed");
-  OMPL_INFORM("took %f seconds", time::seconds(time::now() - startTime)); // Benchmark
+  OMPL_INFORM("took %f seconds", time::seconds(time::now() - startTime));  // Benchmark
 }
 
 bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const VertexLevel level, bool isStart,
@@ -744,8 +743,9 @@ void TaskGraph::getNeighborsAtLevel(const TaskVertex origVertex, const VertexLev
       // Collision check
       if (!si_->checkMotion(origState, getState(nearVertex)))  // is not valid motion
       {
-        BOLT_DEBUG(indent, vGenerateTask_, "Skipping neighbor " << nearVertex << ", i=" << i << ", at level="
-                   << getTaskLevel(nearVertex) << " because invalid motion");
+        BOLT_DEBUG(indent, vGenerateTask_, "Skipping neighbor " << nearVertex << ", i=" << i
+                                                                << ", at level=" << getTaskLevel(nearVertex)
+                                                                << " because invalid motion");
         neighbors.erase(neighbors.begin() + i);
         i--;
         continue;
@@ -1238,10 +1238,10 @@ TaskEdge TaskGraph::addEdge(TaskVertex v1, TaskVertex v2, EdgeType type, std::si
   BOOST_ASSERT_MSG(v1 != v2, "Verticex IDs are the same");
   BOOST_ASSERT_MSG(!hasEdge(v1, v2), "There already exists an edge between two vertices requested");
   BOOST_ASSERT_MSG(hasEdge(v1, v2) == hasEdge(v2, v1), "There already exists an edge between two vertices requested, "
-                   "other direction");
+                                                       "other direction");
   BOOST_ASSERT_MSG(getState(v1) != getState(v2), "States on both sides of an edge are the same");
-  BOOST_ASSERT_MSG(!si_->getStateSpace()->equalStates(getState(v1), getState(v2)),
-                   "Vertex IDs are different but states are the equal");
+  BOOST_ASSERT_MSG(!si_->getStateSpace()->equalStates(getState(v1), getState(v2)), "Vertex IDs are different but "
+                                                                                   "states are the equal");
 
   // Create the new edge
   TaskEdge e = (boost::add_edge(v1, v2, g_)).first;
@@ -1326,8 +1326,7 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
       {
-        std::cout << static_cast<int>((static_cast<double>(count + 1) / getNumEdges()) * 100.0)
-                  << "% " << std::flush;
+        std::cout << static_cast<int>((static_cast<double>(count + 1) / getNumEdges()) * 100.0) << "% " << std::flush;
         visual_->viz2()->trigger();
         usleep(0.01 * 1000000);
       }
@@ -1372,8 +1371,8 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       // Prevent viz cache from getting too big
       if (count % debugFrequency == 0)
       {
-        std::cout << static_cast<int>((static_cast<double>(count + 1) / getNumVertices()) * 100.0)
-                  << "% " << std::flush;
+        std::cout << static_cast<int>((static_cast<double>(count + 1) / getNumVertices()) * 100.0) << "% "
+                  << std::flush;
         visual_->viz2()->trigger();
         // usleep(0.01 * 1000000);
       }
@@ -1415,7 +1414,7 @@ void TaskGraph::visualizeVertex(TaskVertex v, std::size_t windowID)
   visual_->viz(windowID)->state(getState(v), size, color, 0);
 
   // Show robot state
-  //visual_->viz(windowID)->state(getState(v), tools::ROBOT, tools::DEFAULT, 0);
+  // visual_->viz(windowID)->state(getState(v), tools::ROBOT, tools::DEFAULT, 0);
 }
 
 void TaskGraph::visualizeEdge(TaskEdge e, std::size_t windowID)
@@ -1541,9 +1540,9 @@ void otb::TaskAstarVisitor::discover_vertex(TaskVertex v, const TaskAdjList &) c
 
 void otb::TaskAstarVisitor::examine_vertex(TaskVertex v, const TaskAdjList &) const
 {
-  parent_->recordNodeClosed(); // Statistics
+  parent_->recordNodeClosed();  // Statistics
 
-  if (parent_->visualizeAstar_) // Visualize
+  if (parent_->visualizeAstar_)  // Visualize
   {
     // Show state
     parent_->visualizeVertex(v, 4 /*windowID*/);
@@ -1555,7 +1554,7 @@ void otb::TaskAstarVisitor::examine_vertex(TaskVertex v, const TaskAdjList &) co
     }
 
     parent_->getVisual()->viz4()->trigger();
-    //usleep(parent_->visualizeAstarSpeed_ * 1000000);
+    // usleep(parent_->visualizeAstarSpeed_ * 1000000);
     parent_->getVisual()->waitForUserFeedback("astar");
   }
 

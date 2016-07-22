@@ -177,7 +177,6 @@ private:
   double clearance_;
 
 public:
-
   /** \brief Show more debug info */
   bool verbose_ = false;
   bool vThread_ = false;

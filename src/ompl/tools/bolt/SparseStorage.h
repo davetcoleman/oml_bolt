@@ -162,13 +162,13 @@ public:
   void loadEdges(unsigned int numEdges, boost::archive::binary_iarchive &ia, std::size_t indent = 0);
 
   /** \brief Getter for where to save auditing data about size of graph, etc */
-  const std::string& getLoggingPath() const
+  const std::string &getLoggingPath() const
   {
     return loggingPath_;
   }
 
   /** \brief Setter for where to save auditing data about size of graph, etc */
-  void setLoggingPath(const std::string& loggingPath)
+  void setLoggingPath(const std::string &loggingPath)
   {
     loggingPath_ = loggingPath;
   }

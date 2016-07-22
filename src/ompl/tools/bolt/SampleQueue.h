@@ -87,7 +87,6 @@ public:
     }
   }
 
-
   void startSampling(std::size_t indent)
   {
     BOLT_FUNC(indent, true, "startSampling() Starting sampling thread");
@@ -105,7 +104,7 @@ public:
     BOLT_DEBUG(indent, true, "Waiting for first sample to be found");
     while (statesQueue_.empty())
     {
-      usleep(0.001*1000000);
+      usleep(0.001 * 1000000);
     }
   }
 
@@ -128,7 +127,7 @@ public:
       waitForQueueNotFull(indent);
 
       // Create new state or recycle one
-      base::State* candidateState;
+      base::State *candidateState;
 
       // Attempt to reuse a state
       if (!getRecycledState(candidateState))
@@ -154,12 +153,12 @@ public:
     }
   }
 
-  bool getRecycledState(base::State* &unusedState)
+  bool getRecycledState(base::State *&unusedState)
   {
     // If none found, copy in any available states from parent thread's cache
     if (!recycling_.empty())
     {
-      //std::cout << "emptying parent thread's recycling cache " << std::endl;
+      // std::cout << "emptying parent thread's recycling cache " << std::endl;
       {  // Get write mutex
         boost::lock_guard<boost::shared_mutex> writeLock(recyclingMutex_);
         unusedState = recycling_.back();
@@ -167,7 +166,7 @@ public:
       }
       return true;
     }
-    return false; // no recycled state is available
+    return false;  // no recycled state is available
   }
 
   /** \brief This function is called from the parent thread */
@@ -188,7 +187,7 @@ public:
   }
 
   /** \brief This function is called from the parent thread */
-  void recycleState(base::State* state)
+  void recycleState(base::State *state)
   {
     {  // Get write mutex
       boost::lock_guard<boost::shared_mutex> writeLock(recyclingMutex_);
@@ -207,7 +206,7 @@ public:
         BOLT_DEBUG(indent, vStatus_, "Queue is full, sampler is waiting");
         oneTimeFlag = false;
       }
-      usleep(0.001*1000000);
+      usleep(0.001 * 1000000);
     }
     if (!oneTimeFlag)
       BOLT_DEBUG(indent, vStatus_, "No longer waiting on full queue");
@@ -237,8 +236,8 @@ private:
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;
 
-  std::queue<base::State*> statesQueue_;
-  std::vector<base::State*> recycling_;
+  std::queue<base::State *> statesQueue_;
+  std::vector<base::State *> recycling_;
 
   std::size_t targetQueueSize_ = 100;
 
@@ -254,7 +253,6 @@ private:
   boost::shared_mutex recyclingMutex_;
 
 public:
-
   bool vStatus_ = false;
 
 };  // end of class SampleQueue

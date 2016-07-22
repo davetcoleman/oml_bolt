@@ -144,8 +144,8 @@ public:
    * \param requiredLevel - if -1, allows states from all levels, otherwise only returns states from a certain level
    * \return false is no neighbors found
    */
-  bool findGraphNeighbors(const base::State *state, std::vector<bolt::TaskVertex> &neighbors,
-                          int requiredLevel = -1, std::size_t indent = 0);
+  bool findGraphNeighbors(const base::State *state, std::vector<bolt::TaskVertex> &neighbors, int requiredLevel = -1,
+                          std::size_t indent = 0);
 
   /** \brief Check if there exists a solution, i.e., there exists a pair of milestones such that the
    *   first is in \e start and the second is in \e goal, and the two milestones are in the same
@@ -156,16 +156,16 @@ public:
    */
   bool getPathOnGraph(const std::vector<bolt::TaskVertex> &candidateStarts,
                       const std::vector<bolt::TaskVertex> &candidateGoals, const base::State *actualStart,
-                      const base::State *actualGoal, geometric::PathGeometric &geometricSolution,
-                      Termination &ptc, bool debug, bool &feedbackStartFailed, std::size_t indent);
+                      const base::State *actualGoal, geometric::PathGeometric &geometricSolution, Termination &ptc,
+                      bool debug, bool &feedbackStartFailed, std::size_t indent);
 
   /**
    * \brief Repeatidly search through graph for connection then check for collisions then repeat
    * \return true if a valid path is found
    */
-  bool lazyCollisionSearch(const bolt::TaskVertex &start, const bolt::TaskVertex &goal,
-                           const base::State *actualStart, const base::State *actualGoal,
-                           geometric::PathGeometric &geometricSolution, Termination &ptc, std::size_t indent);
+  bool lazyCollisionSearch(const bolt::TaskVertex &start, const bolt::TaskVertex &goal, const base::State *actualStart,
+                           const base::State *actualGoal, geometric::PathGeometric &geometricSolution, Termination &ptc,
+                           std::size_t indent);
 
   /** \brief Check recalled path for collision and disable as needed */
   bool lazyCollisionCheck(std::vector<bolt::TaskVertex> &vertexPath, Termination &ptc, std::size_t indent);
@@ -184,7 +184,6 @@ public:
   }
 
 protected:
-
   /** \brief The database of motions to search through */
   TaskGraphPtr taskGraph_;
 
@@ -214,4 +213,4 @@ public:
 }  // namespace tools
 }  // namespace ompl
 
-#endif // OMPL_BOLT_BOLT_PLANNER_
+#endif  // OMPL_BOLT_BOLT_PLANNER_

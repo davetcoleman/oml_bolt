@@ -221,7 +221,7 @@ bool Bolt::checkOptimalityGuarantees(std::size_t indent)
   BOLT_YELLOW_DEBUG(indent + 2, 1, "Percent of max allowed:  " << percentOfMaxAllows << " %");
   BOLT_DEBUG(indent, 1, "-----------------------------------------");
 
-  //visual_->waitForUserFeedback("review results");
+  // visual_->waitForUserFeedback("review results");
 
   return true;
 }
@@ -263,8 +263,8 @@ void Bolt::logResults()
       og::PathGeometric solutionPath = og::SimpleSetup::getSolutionPath();  // copied so that it is non-const
 
       std::cout << ANSI_COLOR_BLUE;
-      std::cout << "Bolt Finished - solution found in " << planTime_ << " seconds with "
-                << solutionPath.getStateCount() << " states" << std::endl;
+      std::cout << "Bolt Finished - solution found in " << planTime_ << " seconds with " << solutionPath.getStateCount()
+                << " states" << std::endl;
       std::cout << ANSI_COLOR_RESET;
 
       // Show in Rviz
@@ -275,8 +275,8 @@ void Bolt::logResults()
         exit(-1);
 
       // Check optimality
-      //if (!checkOptimalityGuarantees())
-      //exit(-1);
+      // if (!checkOptimalityGuarantees())
+      // exit(-1);
 
       // Stats
       stats_.numSolutionsFromRecall_++;
@@ -426,8 +426,7 @@ void Bolt::printLogs(std::ostream &out) const
   out << "    Regenerations:               " << sparseCriteria_->numGraphGenerations_ << std::endl;
   out << "    Disjoint Samples Added:      " << sparseCriteria_->numRandSamplesAdded_ << std::endl;
   out << "    Sparse Delta:                " << sparseCriteria_->getSparseDelta() << std::endl;
-  out << "  Average planning time:         " << stats_.getAveragePlanningTime() << " seconds"
-      << std::endl;
+  out << "  Average planning time:         " << stats_.getAveragePlanningTime() << " seconds" << std::endl;
   out << "  Average insertion time:        " << stats_.getAverageInsertionTime() << " seconds" << std::endl;
   out << std::endl;
 }
@@ -551,17 +550,17 @@ void Bolt::benchmarkSparseGraphGeneration()
 {
   std::cout << "-------------------------------------------------------" << std::endl;
   OMPL_INFORM("Running graph generation benchmark");
-  time::point startTime = time::now(); // Benchmark
+  time::point startTime = time::now();  // Benchmark
 
   // Create graph
   sparseCriteria_->createSPARS();
 
   double time = time::seconds(time::now() - startTime);
-  OMPL_INFORM("Graph generation took %f seconds", time); // Benchmark
+  OMPL_INFORM("Graph generation took %f seconds", time);  // Benchmark
 
-  std::ofstream loggingFile;                           // open to append
-  //loggingFile.open(benchmarkFilePath_.c_str(), std::ios::out);  // no append
-  loggingFile.open(benchmarkFilePath_.c_str(), std::ios::app); // append
+  std::ofstream loggingFile;  // open to append
+  // loggingFile.open(benchmarkFilePath_.c_str(), std::ios::out);  // no append
+  loggingFile.open(benchmarkFilePath_.c_str(), std::ios::app);  // append
   loggingFile << time << ", " << sparseGraph_->getNumEdges() << ", " << sparseGraph_->getNumVertices() << std::endl;
   loggingFile.close();
 

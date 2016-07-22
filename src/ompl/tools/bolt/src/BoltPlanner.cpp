@@ -168,7 +168,7 @@ base::PlannerStatus BoltPlanner::solve(Termination &ptc)
     BOLT_YELLOW_DEBUG(indent, true, "Smoothing not enabled");
 
   // Add more points to path
-  //geometricSolution.interpolate();
+  // geometricSolution.interpolate();
 
   // Save solution
   double approximateDifference = -1;
@@ -519,7 +519,8 @@ bool BoltPlanner::lazyCollisionCheck(std::vector<TaskVertex> &vertexPath, Termin
       if (!si_->checkMotion(taskGraph_->getState(fromVertex), taskGraph_->getState(toVertex)))
       {
         // Path between (from, to) states not valid, disable the edge
-        //BOLT_GREEN_DEBUG(indent, verbose_, "LAZY CHECK: disabling edge from vertex " << fromVertex << " to vertex " << toVertex);
+        // BOLT_GREEN_DEBUG(indent, verbose_, "LAZY CHECK: disabling edge from vertex " << fromVertex << " to vertex "
+        // << toVertex);
 
         // Disable edge
         taskGraph_->edgeCollisionStatePropertyTask_[thisEdge] = IN_COLLISION;
@@ -693,17 +694,17 @@ bool BoltPlanner::simplifyTaskPath(og::PathGeometric &path, Termination &ptc, st
   og::PathGeometric smoothedPath(si_);
 
   // Divide the path into different levels
-  VertexLevel previousLevel = 0; // Error check ordering of input path
+  VertexLevel previousLevel = 0;  // Error check ordering of input path
   for (std::size_t i = 0; i < path.getStateCount(); ++i)
   {
-    base::State* state = path.getState(i);
+    base::State *state = path.getState(i);
     VertexLevel level = si_->getStateSpace()->getLevel(state);
 
     assert(level < NUM_LEVELS);
 
     pathSegment[level].append(state);
 
-    if (previousLevel > level) // Error check ordering of input path
+    if (previousLevel > level)  // Error check ordering of input path
       throw Exception(name_, "Level increasing in wrong order");
     previousLevel = level;
   }
@@ -715,9 +716,9 @@ bool BoltPlanner::simplifyTaskPath(og::PathGeometric &path, Termination &ptc, st
     std::size_t seg0Size = pathSegment[0].getStateCount();
     std::size_t seg1Size = pathSegment[1].getStateCount();
     std::size_t seg2Size = pathSegment[2].getStateCount();
-    (void)seg0Size; // silence unused warning
-    (void)seg1Size; // silence unused warning
-    (void)seg2Size; // silence unused warning
+    (void)seg0Size;  // silence unused warning
+    (void)seg1Size;  // silence unused warning
+    (void)seg2Size;  // silence unused warning
 
     // Move first state
     pathSegment[0].append(pathSegment[1].getStates().front());
@@ -746,7 +747,7 @@ bool BoltPlanner::simplifyTaskPath(og::PathGeometric &path, Termination &ptc, st
   {
     for (std::size_t i = 0; i < pathSegment[segmentLevel].getStateCount(); ++i)
     {
-      base::State* state = pathSegment[segmentLevel].getState(i);
+      base::State *state = pathSegment[segmentLevel].getState(i);
 
       // Enforce the correct level on the state because the OMPL components don't understand the concept
       si_->getStateSpace()->setLevel(state, segmentLevel);
@@ -763,14 +764,13 @@ bool BoltPlanner::simplifyTaskPath(og::PathGeometric &path, Termination &ptc, st
 
   int diff = origNumStates - path.getStateCount();
   BOLT_DEBUG(indent, verbose_, "BoltPlanner: Path simplification took " << simplifyTime << " seconds and removed "
-             << diff << " states");
+                                                                        << diff << " states");
 
   return true;
 }
 
 // This is used to check connectivity of graph
-bool BoltPlanner::canConnect(const base::State *randomState, Termination &ptc,
-                             std::size_t indent)
+bool BoltPlanner::canConnect(const base::State *randomState, Termination &ptc, std::size_t indent)
 {
   BOLT_FUNC(indent, verbose_, "BoltPlanner::canConnect()");
 

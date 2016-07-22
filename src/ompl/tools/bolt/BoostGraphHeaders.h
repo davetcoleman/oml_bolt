@@ -68,7 +68,6 @@ static const double MAX_POPULARITY_WEIGHT = 100.0;  // 100 means the edge is ver
 // Everytime an edge is used, it is reduced by this amount (becomes more popular)
 static const double POPULARITY_WEIGHT_REDUCTION = 5;
 
-
 ////////////////////////////////////////////////////////////////////////////////////////
 // VERTEX PROPERTIES
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -105,10 +104,10 @@ typedef std::pair<VertexIndexType, VertexIndexType> VertexPair;
 typedef std::unordered_map<VertexPair, InterfaceData> InterfaceHash;
 
 /** \brief Identification for states in the StateCache */
-//typedef VertexIndexType StateID;
+// typedef VertexIndexType StateID;
 
 /** \brief Task level dimension data type */
-typedef std::size_t VertexLevel; // TODO(davetcoleman): rename to TaskLevel
+typedef std::size_t VertexLevel;  // TODO(davetcoleman): rename to TaskLevel
 
 /** \brief Boost vertex properties */
 struct vertex_state_t
@@ -302,7 +301,6 @@ typedef boost::graph_traits<TaskAdjList>::edge_descriptor TaskEdge;
 /** \brief Access map that stores the lazy collision checking status of each edge */
 typedef boost::property_map<TaskAdjList, edge_collision_state_t>::type TaskEdgeCollisionStateMap;
 
-
 ////////////////////////////////////////////////////////////////////////////////////////
 /**
  * Used to artifically supress edges during A* search.
@@ -476,13 +474,19 @@ class FoundGoalException
 ////////////////////////////////////////////////////////////////////////////////////////
 // CANDIDATE STATE STRUCT
 ////////////////////////////////////////////////////////////////////////////////////////
-struct CandidateState
+struct CandidateData
 {
+  CandidateData(base::State* state) : state_(state)
+  {
+  }
+
   // The sampled state to be added to the graph
   base::State* state_;
-  // The time the sample was taken, so that we know if the graph has been invalidated since
-  time::point sampleTime_;
-  // The resulting vertex, if the state was added
+  // Nodes near our input state
+  std::vector<SparseVertex> graphNeighborhood_;
+  // Visible nodes near our input state
+  std::vector<SparseVertex> visibleNeighborhood_;
+  // The generated state
   SparseVertex newVertex_;
 };
 

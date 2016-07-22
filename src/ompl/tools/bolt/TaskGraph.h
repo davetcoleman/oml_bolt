@@ -264,7 +264,7 @@ public:
                            std::vector<TaskVertex>& neighbors, std::size_t indent);
 
   /** \brief Error checking function to ensure solution has correct task path/level changes */
-  bool checkTaskPathSolution(geometric::PathGeometric &path, base::State *start, base::State *goal);
+  bool checkTaskPathSolution(geometric::PathGeometric& path, base::State* start, base::State* goal);
 
   /** \brief Getter for ShortestDistAcrossCart */
   const double& getShortestDistAcrossCart() const
@@ -366,7 +366,6 @@ public:
   void printGraphStats();
 
 protected:
-
   /** \brief Short name of this class */
   const std::string name_ = "TaskGraph";
 
@@ -434,7 +433,6 @@ protected:
   bool taskPlanningEnabled_ = false;
 
 public:  // user settings from other applications
-
   /** \brief How many neighbors to a Cartesian start or goal point to attempt to connect to in the free space graph */
   std::size_t numNeighborsConnectToCart_ = 10;
 
@@ -448,9 +446,9 @@ public:  // user settings from other applications
   bool vSearch_ = false;
   bool vVisualize_ = false;
   bool vHeuristic_ = false;
-  bool vClear_ = false; // clearing cartesian vertices
-  bool vGenerateTask_ = false; // functions that deal with Cartesian paths
-  bool verbose_ = true; // general verbosity level for everything else
+  bool vClear_ = false;         // clearing cartesian vertices
+  bool vGenerateTask_ = false;  // functions that deal with Cartesian paths
+  bool verbose_ = true;         // general verbosity level for everything else
 
   /** \brief Show the task graph being generated */
   bool visualizeCartPath_ = false;

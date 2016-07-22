@@ -94,31 +94,23 @@ public:
    * \param stateID representing a pre-populate state
    * \return true if sparse graph is still accepting states, false if the sparse graph has completed
    */
-  bool addSample(base::State* candidateState, std::size_t threadID, bool &usedState, std::size_t indent);
+  bool addSample(CandidateData& candidateD, std::size_t threadID, bool& usedState, std::size_t indent);
 
   /**
    * \brief Run various checks/criteria to determine if to keep TaskVertex in sparse graph
    * \param denseVertex - the original vertex to consider
-   * \param newVertex - if function returns true, the newly generated sparse vertex
    * \param addReason - if function returns true, the reson the denseVertex was added to the sparse graph
    * \return true on success
    */
-  bool addStateToRoadmap(base::State* candidateState, SparseVertex& newVertex, VertexType& addReason,
-                         std::size_t threadID, std::size_t indent);
+  bool addStateToRoadmap(CandidateData& candidateD, VertexType& addReason, std::size_t threadID, std::size_t indent);
 
   /* ----------------------------------------------------------------------------------------*/
   /** \brief SPARS-related functions */
-  bool checkAddCoverage(base::State* candidateState, std::vector<SparseVertex>& visibleNeighborhood,
-                        SparseVertex& newVertex, std::size_t indent);
-  bool checkAddConnectivity(base::State* candidateState, std::vector<SparseVertex>& visibleNeighborhood,
-                            SparseVertex& newVertex, std::size_t indent);
-  bool checkAddInterface(base::State* candidateState, std::vector<SparseVertex>& graphNeighborhood,
-                         std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex, std::size_t indent);
-  bool checkAddDiscretized(base::State* candidateState, std::vector<SparseVertex>& graphNeighborhood,
-                           std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex, std::size_t indent);
-  bool checkAddQuality(base::State* candidateState, std::vector<SparseVertex>& graphNeighborhood,
-                       std::vector<SparseVertex>& visibleNeighborhood, SparseVertex& newVertex,
-                       std::size_t threadID, std::size_t indent);
+  bool checkAddCoverage(CandidateData& candidateD, std::size_t indent);
+  bool checkAddConnectivity(CandidateData& candidateD, std::size_t indent);
+  bool checkAddInterface(CandidateData& candidateD, std::size_t indent);
+  bool checkAddDiscretized(CandidateData& candidateD, std::size_t indent);
+  bool checkAddQuality(CandidateData& candidateD, std::size_t threadID, std::size_t indent);
   void visualizeCheckAddQuality(base::State* candidateState, SparseVertex candidateRep);
 
   /* ----------------------------------------------------------------------------------------*/
@@ -150,7 +142,8 @@ public:
              Referred to as 'Get_Close_Reps' in paper
    */
   void findCloseRepresentatives(const base::State* candidateState, SparseVertex candidateRep,
-                                std::map<SparseVertex, base::State*>& closeRepresentatives, std::size_t threadID, std::size_t indent);
+                                std::map<SparseVertex, base::State*>& closeRepresentatives, std::size_t threadID,
+                                std::size_t indent);
 
   /** \brief Updates pair point information for a representative with neighbor r
              Referred to as 'Update_Points' in paper
@@ -181,8 +174,7 @@ public:
    * \param visibleNeighborhood - resulting nearby states that are visible
    * \param indent - debugging tool
    */
-  void findGraphNeighbors(base::State* candidateState, std::vector<SparseVertex>& graphNeighborhood,
-                          std::vector<SparseVertex>& visibleNeighborhood, std::size_t threadID, std::size_t indent);
+  void findGraphNeighbors(CandidateData& candidateD, std::size_t threadID, std::size_t indent);
 
   /** \brief After adding a new vertex, check if there is a really close nearby vertex that can be merged with this one
    */
@@ -290,7 +282,6 @@ protected:
   std::vector<base::State*> closeRepSampledState_;
 
 public:
-
   /** \brief SPARS parameter for dense graph connection distance as a fraction of max. extent */
   double denseDeltaFraction_ = 0.05;
 

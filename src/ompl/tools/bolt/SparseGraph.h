@@ -129,10 +129,15 @@ public:
     return visual_;
   }
 
-  /** \brief Get the nearest neifhbor structure */
-  std::shared_ptr<NearestNeighbors<SparseVertex> > getNN()
+  /** \brief Get the nearest neighbor structure */
+  std::shared_ptr<NearestNeighbors<SparseVertex> > getNN(bool useMutex = false)
   {
     return nn_;
+  }
+
+  std::mutex& getNNGuard()
+  {
+    return nearestNeighborMutex_;
   }
 
   /** \brief Free all the memory allocated by the database */
@@ -288,13 +293,13 @@ public:
    * \param newVertex - the returned new vertex this function creates
    * \return false if the vertex was expired and was thrown out
    */
-  bool addVertexThreaded(base::State *state, const VertexType &type, SparseVertex &newVertex, std::size_t indent);
+  bool addVertexThreaded(base::State* state, const VertexType& type, SparseVertex& newVertex, std::size_t indent);
 
   /** \brief Add vertex to graph */
   SparseVertex addVertex(base::State* state, const VertexType& type, std::size_t indent);
 
   /** \brief Quickly add vertex to graph when loading from file */
-  SparseVertex addVertexFromFile(base::State *state, const VertexType &type, std::size_t indent);
+  SparseVertex addVertexFromFile(base::State* state, const VertexType& type, std::size_t indent);
 
   /** \brief Remove vertex from graph */
   void removeVertex(SparseVertex v);
@@ -310,7 +315,7 @@ public:
    * \param type - the type of edge
    * \return false if the edge was expired and was thrown out
    */
-  bool addEdgeThreaded(SparseVertex v1, SparseVertex v2, const EdgeType &type, std::size_t indent)
+  bool addEdgeThreaded(SparseVertex v1, SparseVertex v2, const EdgeType& type, std::size_t indent)
   {
     BOLT_FUNC(indent, vAdd_, "addEdgeThreaded()");
 
@@ -318,11 +323,11 @@ public:
 
     // Only one thing can modify graph at a time
     {
-      //std::lock_guard<std::mutex> guard(modifyGraphMutex_);
+      // std::lock_guard<std::mutex> guard(modifyGraphMutex_);
       addEdge(v1, v2, type, indent);
 
       // timestamp of the last graph modification - any sample taken before that is invalid
-      //lastSampledModTime_ = time::now();
+      // lastSampledModTime_ = time::now();
     }
 
     return true;
@@ -470,11 +475,12 @@ protected:
   tools::VizSizes edgeSize_ = tools::MEDIUM;
 
   // Multi-threading modifying graph
+  std::mutex nearestNeighborMutex_;
   std::mutex modifyGraphMutex_;
-  time::point lastSampledModTime_; // timestamp of the last graph modification - any sample taken before that is invalid
+  time::point lastSampledModTime_;  // timestamp of the last graph modification - any sample taken before that is
+                                    // invalid
 
 public:  // user settings from other applications
-
   /** \brief For statistics */
   int numSamplesAddedForCoverage_ = 0;
   int numSamplesAddedForConnectivity_ = 0;

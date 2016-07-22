@@ -73,7 +73,8 @@ void SparseStorage::save(const std::string &filePath, std::size_t indent)
   BOLT_DEBUG(indent, true, "Saving Sparse Graph");
   BOLT_DEBUG(indent, true, "  Path:            " << filePath.c_str());
   BOLT_DEBUG(indent, true, "  Edges:           " << sparseGraph_->getNumEdges() << " (Change: " << diffEdges << ")");
-  BOLT_DEBUG(indent, true, "  Vertices:        " << sparseGraph_->getNumVertices() << " (Change: " << diffVertices << ")");
+  BOLT_DEBUG(indent, true, "  Vertices:        " << sparseGraph_->getNumVertices() << " (Change: " << diffVertices
+                                                 << ")");
   BOLT_DEBUG(indent, true, "------------------------------------------------");
 
   std::ofstream out(filePath.c_str(), std::ios::binary);
@@ -86,7 +87,7 @@ void SparseStorage::save(const std::string &filePath, std::size_t indent)
   out.close();
 
   // Log the graph size
-  std::ofstream loggingFile;                           // open to append
+  std::ofstream loggingFile;                              // open to append
   loggingFile.open(loggingPath_.c_str(), std::ios::out);  // no append | std::ios::app);
   loggingFile << sparseGraph_->getNumEdges() << ", " << sparseGraph_->getNumVertices() << std::endl;
   loggingFile.close();
@@ -155,8 +156,7 @@ void SparseStorage::saveVertices(boost::archive::binary_oarchive &oa)
 
     // Feedback
     if ((++count) % feedbackFrequency == 0)
-      std::cout << static_cast<int>(count / double(sparseGraph_->getNumVertices()) * 100.0)
-                << "% " << std::flush;
+      std::cout << static_cast<int>(count / double(sparseGraph_->getNumVertices()) * 100.0) << "% " << std::flush;
   }
   BOOST_ASSERT_MSG(errorCheckNumQueryVertices == numQueryVertices_, "There should be the same number of query vertex "
                                                                     "as threads that were skipped while saving");
@@ -190,8 +190,7 @@ void SparseStorage::saveEdges(boost::archive::binary_oarchive &oa)
 
     // Feedback
     if ((++count) % feedbackFrequency == 0)
-      std::cout << static_cast<int>(count / double(sparseGraph_->getNumEdges()) * 100.0) << "% "
-                << std::flush;
+      std::cout << static_cast<int>(count / double(sparseGraph_->getNumEdges()) * 100.0) << "% " << std::flush;
 
   }  // for each edge
   std::cout << std::endl;
@@ -202,7 +201,7 @@ bool SparseStorage::load(const std::string &filePath, std::size_t indent)
   BOLT_DEBUG(indent, true, "------------------------------------------------");
   BOLT_DEBUG(indent, true, "SparseStorage: Loading Sparse Graph");
   indent += 2;
-  BOLT_DEBUG(indent, true, "Path: " <<  filePath.c_str());
+  BOLT_DEBUG(indent, true, "Path: " << filePath.c_str());
 
   // Error checking
   if (sparseGraph_->getNumEdges() > numQueryVertices_ ||
@@ -328,14 +327,14 @@ void SparseStorage::loadVertices(unsigned int numVertices, boost::archive::binar
   // Join thread
   loadVerticesFinished_ = true;
 
-  //time::point startTime = time::now(); // Benchmark
+  // time::point startTime = time::now(); // Benchmark
   nnThread.join();
-  //OMPL_INFORM("NN thread took %f seconds to catch up", time::seconds(time::now() - startTime)); // Benchmark
+  // OMPL_INFORM("NN thread took %f seconds to catch up", time::seconds(time::now() - startTime)); // Benchmark
 }
 
 void SparseStorage::populateNNThread(std::size_t startingVertex)
 {
-  SparseVertex vertexID = startingVertex; // skip the query vertices
+  SparseVertex vertexID = startingVertex;  // skip the query vertices
 
   while (!loadVerticesFinished_)
   {
@@ -348,10 +347,11 @@ void SparseStorage::populateNNThread(std::size_t startingVertex)
       vertexID++;
     }
 
-    if (!loadVerticesFinished_) // only wait if the parent thread isn't already done
+    if (!loadVerticesFinished_)  // only wait if the parent thread isn't already done
     {
-      //std::cout << "sleeping in NN, current vertexID: " << vertexID << " total: " << sparseGraph_->getNumVertices() << std::endl;
-      usleep(0.0001*1000000);
+      // std::cout << "sleeping in NN, current vertexID: " << vertexID << " total: " << sparseGraph_->getNumVertices()
+      // << std::endl;
+      usleep(0.0001 * 1000000);
     }
 
     // When we wake up, check if there are more vertices ready again, before checking if we are done
@@ -399,7 +399,6 @@ void SparseStorage::loadEdges(unsigned int numEdges, boost::archive::binary_iarc
 }
 
 }  // namespace bolt
-
 
 }  // namespace tools
 }  // namespace ompl
