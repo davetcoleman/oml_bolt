@@ -83,17 +83,18 @@ public:
 
   void addDiscretizedStates(std::size_t indent);
 
+  /** \brief Randomly sample */
   bool addRandomSamples(std::size_t indent);
-  bool addRandomSamplesThreadedDeprecated(std::size_t indent);
+  bool addRandomSamplesOneThread(std::size_t indent);
   bool addRandomSamplesThreaded(std::size_t indent);
-  bool addRandomSamplesThread(std::size_t indent);
+  void addRandomSampleThread(std::size_t threadID, base::SpaceInformationPtr si, std::size_t indent);
 
   /**
    * \brief Add state to sparse graph
    * \param stateID representing a pre-populate state
    * \return true if sparse graph is still accepting states, false if the sparse graph has completed
    */
-  bool addSample(base::State* candidateState, bool &usedState, std::size_t indent);
+  bool addSample(base::State* candidateState, std::size_t threadID, bool &usedState, std::size_t indent);
 
   /**
    * \brief Run various checks/criteria to determine if to keep TaskVertex in sparse graph
@@ -143,7 +144,7 @@ public:
   bool spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData& iData, std::size_t indent);
 
   /** \brief Finds the representative of the input state, st  */
-  SparseVertex findGraphRepresentative(base::State* st, std::size_t indent);
+  SparseVertex findGraphRepresentative(base::State* st, std::size_t threadID, std::size_t indent);
 
   /** \brief Finds representatives of samples near candidateState_ which are not his representative
              Referred to as 'Get_Close_Reps' in paper

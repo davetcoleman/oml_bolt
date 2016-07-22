@@ -125,7 +125,7 @@ public:
     while (running_ && !visual_->viz1()->shutdownRequested())
     {
       // Do not add more states if queue is full
-      waitForQueue(indent);
+      waitForQueueNotFull(indent);
 
       // Create new state or recycle one
       base::State* candidateState;
@@ -160,9 +160,9 @@ public:
     if (!recycling_.empty())
     {
       //std::cout << "emptying parent thread's recycling cache " << std::endl;
-      unusedState = recycling_.back();
       {  // Get write mutex
         boost::lock_guard<boost::shared_mutex> writeLock(recyclingMutex_);
+        unusedState = recycling_.back();
         recycling_.pop_back();
       }
       return true;
@@ -173,19 +173,7 @@ public:
   /** \brief This function is called from the parent thread */
   base::State *getNextState(std::size_t indent)
   {
-    indent += 2;
-    bool oneTimeFlag = true;
-    while (statesQueue_.empty())
-    {
-      if (oneTimeFlag)
-      {
-        BOLT_YELLOW_DEBUG(indent, true, "Queue is empty, waiting");
-        oneTimeFlag = false;
-      }
-      usleep(0.001 * 1000000);
-    }
-    if (!oneTimeFlag)
-      BOLT_DEBUG(indent, true, "No longer waiting on queue");
+    waitForQueueNotEmpty(indent + 2);
 
     return statesQueue_.front();
   }
@@ -209,7 +197,7 @@ public:
   }
 
   /** \brief Do not add more states if queue is full */
-  void waitForQueue(std::size_t indent)
+  void waitForQueueNotFull(std::size_t indent)
   {
     bool oneTimeFlag = true;
     while (statesQueue_.size() >= 100)
@@ -225,6 +213,23 @@ public:
       BOLT_DEBUG(indent, vStatus_, "No longer waiting on full queue");
   }
 
+  /** \brief Wait until there is at least one state ready */
+  void waitForQueueNotEmpty(std::size_t indent)
+  {
+    bool oneTimeFlag = true;
+    while (statesQueue_.empty())
+    {
+      if (oneTimeFlag)
+      {
+        BOLT_YELLOW_DEBUG(indent, true, "Queue is empty, waiting");
+        oneTimeFlag = false;
+      }
+      usleep(0.001 * 1000000);
+    }
+    if (!oneTimeFlag)
+      BOLT_DEBUG(indent, true, "No longer waiting on queue");
+  }
+
 private:
   /** \brief The created space information */
   base::SpaceInformationPtr si_;
@@ -234,7 +239,6 @@ private:
 
   std::queue<base::State*> statesQueue_;
   std::vector<base::State*> recycling_;
-  //std::queue<base::State*> internalRecycling_;
 
   std::size_t targetQueueSize_ = 100;
 

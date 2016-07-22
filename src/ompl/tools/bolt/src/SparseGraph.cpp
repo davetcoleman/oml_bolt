@@ -99,7 +99,8 @@ SparseGraph::SparseGraph(base::SpaceInformationPtr si, VisualizerPtr visual)
   sparseStorage_.reset(new SparseStorage(si_, this));
 
   // Initialize nearest neighbor datastructure
-  nn_.reset(new NearestNeighborsGNATNoThreadSafety<SparseVertex>());
+  //nn_.reset(new NearestNeighborsGNATNoThreadSafety<SparseVertex>());
+  nn_.reset(new NearestNeighborsGNAT<SparseVertex>());
   nn_->setDistanceFunction(boost::bind(&otb::SparseGraph::distanceFunction, this, _1, _2));
 
   if (superDebug_)
@@ -232,13 +233,15 @@ bool SparseGraph::save(std::size_t indent)
   time::point start = time::now();
 
   // Save
-  sparseStorage_->save(filePath_.c_str());
+  {
+    //std::lock_guard<std::mutex> guard(modifyGraphMutex_);
+    sparseStorage_->save(filePath_.c_str());
+    graphUnsaved_ = false;
+  }
 
   // Benchmark
   double loadTime = time::seconds(time::now() - start);
   BOLT_DEBUG(indent, true, "Saved database to file in " << loadTime << " seconds. Time: " << time::as_string(time::now()));
-
-  graphUnsaved_ = false;
   return true;
 }
 
@@ -453,7 +456,7 @@ void SparseGraph::errorCheckDuplicateStates(std::size_t indent)
   //   throw Exception(name_, "Duplicate state found");
 }
 
-bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent)
+bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent) const
 {
   BOLT_RED_DEBUG(indent, visualizeQualityPathSimp_, "smoothQualityPathOriginal()");
 
@@ -483,7 +486,7 @@ bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std:
   return true;
 }
 
-bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clearance, std::size_t indent)
+bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clearance, std::size_t indent) const
 {
   BOLT_FUNC(indent, visualizeQualityPathSimp_, "smoothQualityPath()");
 
@@ -552,7 +555,7 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
   return true;
 }
 
-std::size_t SparseGraph::getDisjointSetsCount(bool verbose)
+std::size_t SparseGraph::getDisjointSetsCount(bool verbose) const
 {
   std::size_t numSets = 0;
   foreach (SparseVertex v, boost::vertices(g_))
@@ -698,6 +701,24 @@ std::size_t SparseGraph::checkConnectedComponents()
 bool SparseGraph::sameComponent(SparseVertex v1, SparseVertex v2)
 {
   return boost::same_component(v1, v2, disjointSets_);
+}
+
+bool SparseGraph::addVertexThreaded(base::State *state, const VertexType &type, SparseVertex &newVertex, std::size_t indent)
+{
+  BOLT_FUNC(indent, vAdd_, "addVertexThreaded()");
+
+  // TODO(davetcoleman): check if sample is expired
+
+  // Only one thing can modify graph at a time
+  {
+    //std::lock_guard<std::mutex> guard(modifyGraphMutex_);
+    newVertex = addVertex(state, type, indent);
+
+    // timestamp of the last graph modification - any sample taken before that is invalid
+    //lastSampledModTime_ = time::now();
+  }
+
+  return true;
 }
 
 SparseVertex SparseGraph::addVertex(base::State *state, const VertexType &type, std::size_t indent)
@@ -966,10 +987,16 @@ VizColors SparseGraph::edgeTypeToColor(EdgeType edgeType)
   return ORANGE;  // dummy return value
 }
 
-base::State *&SparseGraph::getQueryStateNonConst(SparseVertex v)
+base::State *&SparseGraph::getQueryStateNonConst(std::size_t threadID)
 {
-  BOOST_ASSERT_MSG(v < queryVertices_.size(), "Attempted to request state of regular vertex using query function");
-  return queryStates_[v];
+  BOOST_ASSERT_MSG(threadID < queryVertices_.size(), "Attempted to request state of regular vertex using query function");
+  return queryStates_[threadID];
+}
+
+SparseVertex SparseGraph::getQueryVertices(std::size_t threadID)
+{
+  BOOST_ASSERT_MSG(threadID < queryVertices_.size(), "Attempted to request vertex beyond threadID count");
+  return queryVertices_[threadID];
 }
 
 base::State *&SparseGraph::getStateNonConst(SparseVertex v)
@@ -1215,6 +1242,11 @@ InterfaceData &SparseGraph::getInterfaceData(SparseVertex v, SparseVertex vp, Sp
 {
   // BOLT_FUNC(indent, sparseCriteria_->vQuality_, "getInterfaceData() " << v << ", " << vp << ", " << vpp);
   return vertexInterfaceProperty_[v][interfaceDataIndex(vp, vpp)];
+}
+
+InterfaceHash& SparseGraph::getVertexInterfaceProperty(SparseVertex v)
+{
+  return vertexInterfaceProperty_[v];
 }
 
 void SparseGraph::debugState(const ompl::base::State *state)

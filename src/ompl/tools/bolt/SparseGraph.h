@@ -84,9 +84,6 @@ OMPL_CLASS_FORWARD(SparseCriteria);
 /** \brief Near-asypmotically optimal roadmap datastructure */
 class SparseGraph
 {
-  friend class BoltPlanner;
-  friend class SparseCriteria;
-
 public:
   /** \brief Constructor needs the state space used for planning.
    */
@@ -199,6 +196,7 @@ public:
   {
     numNodesOpened_++;
   }
+
   void recordNodeClosed()  // examined
   {
     numNodesClosed_++;
@@ -264,15 +262,15 @@ public:
    * --------------------------------------------------------------------------------- */
 
   /** \brief Path smoothing helpers */
-  bool smoothQualityPathOriginal(geometric::PathGeometric* path, std::size_t indent);
-  bool smoothQualityPath(geometric::PathGeometric* path, double clearance, std::size_t indent);
+  bool smoothQualityPathOriginal(geometric::PathGeometric* path, std::size_t indent) const;
+  bool smoothQualityPath(geometric::PathGeometric* path, double clearance, std::size_t indent) const;
 
   /* ---------------------------------------------------------------------------------
    * Disjoint Sets
    * --------------------------------------------------------------------------------- */
 
   /** \brief Disjoint sets analysis tools */
-  std::size_t getDisjointSetsCount(bool verbose = false);
+  std::size_t getDisjointSetsCount(bool verbose = false) const;
   void getDisjointSets(SparseDisjointSetsMap& disjointSets);
   void printDisjointSets(SparseDisjointSetsMap& disjointSets);
   void visualizeDisjointSets(SparseDisjointSetsMap& disjointSets);
@@ -290,23 +288,7 @@ public:
    * \param newVertex - the returned new vertex this function creates
    * \return false if the vertex was expired and was thrown out
    */
-  bool addVertexThreaded(base::State *state, const VertexType &type, SparseVertex &newVertex, std::size_t indent)
-  {
-    BOLT_FUNC(indent, vAdd_, "addVertexThreaded()");
-
-    // TODO(davetcoleman): check if sample is expired
-
-    // Only one thing can modify graph at a time
-    {
-      std::lock_guard<std::mutex> guard(modifyGraphMutex_);
-      newVertex = addVertex(state, type, indent);
-
-      // timestamp of the last graph modification - any sample taken before that is invalid
-      //lastSampledModTime_ = time::now();
-    }
-
-    return true;
-  }
+  bool addVertexThreaded(base::State *state, const VertexType &type, SparseVertex &newVertex, std::size_t indent);
 
   /** \brief Add vertex to graph */
   SparseVertex addVertex(base::State* state, const VertexType& type, std::size_t indent);
@@ -336,7 +318,7 @@ public:
 
     // Only one thing can modify graph at a time
     {
-      std::lock_guard<std::mutex> guard(modifyGraphMutex_);
+      //std::lock_guard<std::mutex> guard(modifyGraphMutex_);
       addEdge(v1, v2, type, indent);
 
       // timestamp of the last graph modification - any sample taken before that is invalid
@@ -353,7 +335,8 @@ public:
   VizColors edgeTypeToColor(EdgeType edgeType);
 
   /** \brief Get the state of a vertex used for querying - i.e. vertices 0-11 for 12 thread system */
-  base::State*& getQueryStateNonConst(SparseVertex v);
+  base::State*& getQueryStateNonConst(std::size_t threadID);
+  SparseVertex getQueryVertices(std::size_t threadID);
 
   /** \brief Shortcut function for getting the state of a vertex */
   base::State*& getStateNonConst(SparseVertex v);
@@ -397,6 +380,9 @@ public:
 
   /** \brief Retrieves the Vertex data associated with v,vp,vpp */
   InterfaceData& getInterfaceData(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent);
+
+  /** \brief Retrieves the vertex data associated with v */
+  InterfaceHash& getVertexInterfaceProperty(SparseVertex v);
 
   /* ---------------------------------------------------------------------------------
    * Debug Utilities
@@ -480,12 +466,6 @@ protected:
   /** \brief Track if the graph has been modified */
   bool graphUnsaved_ = false;
 
-  /** \brief For statistics */
-  int numSamplesAddedForCoverage_ = 0;
-  int numSamplesAddedForConnectivity_ = 0;
-  int numSamplesAddedForInterface_ = 0;
-  int numSamplesAddedForQuality_ = 0;
-
   tools::VizSizes vertexSize_ = tools::LARGE;
   tools::VizSizes edgeSize_ = tools::MEDIUM;
 
@@ -494,6 +474,13 @@ protected:
   time::point lastSampledModTime_; // timestamp of the last graph modification - any sample taken before that is invalid
 
 public:  // user settings from other applications
+
+  /** \brief For statistics */
+  int numSamplesAddedForCoverage_ = 0;
+  int numSamplesAddedForConnectivity_ = 0;
+  int numSamplesAddedForInterface_ = 0;
+  int numSamplesAddedForQuality_ = 0;
+
   /** \brief Allow the database to save to file (new experiences) */
   bool savingEnabled_ = true;
 

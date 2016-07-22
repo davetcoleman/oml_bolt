@@ -45,6 +45,9 @@
 // Profiling
 #include <valgrind/callgrind.h>
 
+// C++
+#include <thread>
+
 #define foreach BOOST_FOREACH
 
 namespace og = ompl::geometric;
@@ -242,8 +245,9 @@ void SparseCriteria::createSPARS()
   // Finish the graph with random samples
   if (useRandomSamples_)
   {
+    addRandomSamplesOneThread(indent);
     //addRandomSamplesThreaded(indent);
-    addRandomSamples(indent);
+    //addRandomSamples(indent);
   }
 
   // Profiler
@@ -369,8 +373,9 @@ void SparseCriteria::addDiscretizedStates(std::size_t indent)
         visual_->viz1()->state(candidateState, tools::SMALL, tools::RED, 0);
       }
 
+      si_->freeState(candidateState);
       // Erase the state eventually
-      sampleQueue_->recycleState(candidateState);
+      //sampleQueue_->recycleState(candidateState);
     }
     else
     {
@@ -430,7 +435,8 @@ bool SparseCriteria::addRandomSamples(std::size_t indent)
     }
 
     bool usedState = false;
-    if (!addSample(candidateState, usedState, indent))
+    std::size_t threadID = 0;
+    if (!addSample(candidateState, threadID, usedState, indent))
     {
       return true; // no more states needed
     }
@@ -445,7 +451,7 @@ bool SparseCriteria::addRandomSamples(std::size_t indent)
   return true; // program should never reach here
 }
 
-bool SparseCriteria::addRandomSamplesThreadedDeprecated(std::size_t indent)
+bool SparseCriteria::addRandomSamplesOneThread(std::size_t indent)
 {
   BOLT_FUNC(indent, true, "addRandomSamplesThreaded()");
 
@@ -454,14 +460,15 @@ bool SparseCriteria::addRandomSamplesThreadedDeprecated(std::size_t indent)
 
   sampleQueue_->startSampling(indent);
 
+  base::State *candidateState;
+  const std::size_t threadID = 0;
+
   while (true)
   {
-    base::State *candidateState = sampleQueue_->getNextState(indent);
-
-    si_->printState(candidateState);
+    candidateState = sampleQueue_->getNextState(indent);
 
     bool usedState = false;
-    if (!addSample(candidateState, usedState, indent))
+    if (!addSample(candidateState, threadID, usedState, indent))
     {
       return true; // no more states needed
     }
@@ -475,38 +482,81 @@ bool SparseCriteria::addRandomSamplesThreadedDeprecated(std::size_t indent)
 
 bool SparseCriteria::addRandomSamplesThreaded(std::size_t indent)
 {
-  BOLT_FUNC(indent, true, "addRandomSamplesThreaded()");
+  // Set number threads
+  std::size_t numThreads = 1; // sg_->getNumQueryVertices();
+
+  BOLT_FUNC(indent, true, "addRandomSamplesThreaded() - starting " << numThreads << " threads");
 
   // Clear stats
   numRandSamplesAdded_ = 0;
 
-  sampleQueue_->startSampling(indent);
+  // Create threads
+  std::vector<std::thread*> samplingThreads(numThreads);
 
-  while (true)
+  for (std::size_t i = 0; i < samplingThreads.size(); ++i)
   {
-    base::State *candidateState = sampleQueue_->getNextState(indent);
+    // Create new collision checker
+    base::SpaceInformationPtr si(new base::SpaceInformation(si_->getStateSpace()));
+    si->setStateValidityChecker(si_->getStateValidityChecker());
+    si->setMotionValidator(si_->getMotionValidator());
 
-    si_->printState(candidateState);
+    samplingThreads[i] = new std::thread(std::bind(&SparseCriteria::addRandomSampleThread, this, i, si, indent));
+  }
 
-    bool usedState = false;
-    if (!addSample(candidateState, usedState, indent))
-    {
-      return true; // no more states needed
-    }
+  // Join threads
+  for (std::size_t i = 0; i < samplingThreads.size(); ++i)
+  {
+    samplingThreads[i]->join();
+    delete samplingThreads[i];
+  }
 
-    // Tell other thread whether the state should be re-used
-    sampleQueue_->setNextStateUsed(usedState);
-  } // while(true) create random sample
-
-  return true; // program should never reach here
+  return true;
 }
 
-bool SparseCriteria::addSample(base::State *candidateState, bool &usedState, std::size_t indent)
+void SparseCriteria::addRandomSampleThread(std::size_t threadID, base::SpaceInformationPtr si, std::size_t indent)
 {
+  BOLT_FUNC(indent, true, "addRandomSampleThread() threadID: " << threadID);
+
+  base::State* candidateState = si_->allocState();
+
+  // Start sampling
+  while (true)
+  {
+    // Sample randomly
+    if (!clearanceSampler_->sample(candidateState))
+    {
+      OMPL_ERROR("Unable to find valid sample");
+      exit(-1);  // this should never happen
+    }
+
+    // Debug
+    if (false)
+    {
+      BOLT_DEBUG(indent, vCriteria_, "Randomly sampled state: " << candidateState);
+      sg_->debugState(candidateState);
+    }
+
+    bool usedState = false;
+    if (!addSample(candidateState, threadID, usedState, indent))
+    {
+      return; // no more states needed, end thread
+    }
+
+    if (usedState)
+    {
+      // State was used, so allocate new state
+      candidateState = si_->allocState();
+    }
+  }
+}
+
+bool SparseCriteria::addSample(base::State *candidateState, std::size_t threadID, bool &usedState, std::size_t indent)
+{
+  BOLT_FUNC(indent, false, "addSample() threadID: " << threadID);
+
   // Run SPARS checks
   VertexType addReason;    // returns why the state was added
   SparseVertex newVertex;  // the newly generated sparse vertex
-  const std::size_t threadID = 0;
   if (addStateToRoadmap(candidateState, newVertex, addReason, threadID, indent))
   {
     // Save on interval of new state addition
@@ -1485,17 +1535,16 @@ bool SparseCriteria::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVer
   return false;  // spannerPropertyWasViolated = false
 }
 
-SparseVertex SparseCriteria::findGraphRepresentative(base::State *state, std::size_t indent)
+SparseVertex SparseCriteria::findGraphRepresentative(base::State *state, std::size_t threadID, std::size_t indent)
 {
   BOLT_FUNC(indent, vQuality_, "findGraphRepresentative()");
 
   std::vector<SparseVertex> graphNeighbors;
-  const std::size_t threadID = 0;
 
   // Search
-  sg_->queryStates_[threadID] = state;
-  sg_->nn_->nearestR(sg_->queryVertices_[threadID], sparseDelta_, graphNeighbors);
-  sg_->queryStates_[threadID] = nullptr;
+  sg_->getQueryStateNonConst(threadID) = state;
+  sg_->getNN()->nearestR(sg_->getQueryVertices(threadID), sparseDelta_, graphNeighbors);
+  sg_->getQueryStateNonConst(threadID) = nullptr;
 
   BOLT_DEBUG(indent, vQuality_, "Found " << graphNeighbors.size() << " nearest neighbors (graph rep) within "
                                                                          "SparseDelta " << sparseDelta_);
@@ -1592,7 +1641,7 @@ void SparseCriteria::findCloseRepresentatives(const base::State *candidateState,
       BOLT_DEBUG(indent + 2, vQuality_, "Found valid nearby sample");
 
     // Compute which sparse vertex represents this new candidate vertex
-    SparseVertex sampledStateRep = findGraphRepresentative(sampledState, indent + 6);
+    SparseVertex sampledStateRep = findGraphRepresentative(sampledState, threadID, indent + 6);
 
     // Check if sample is not visible to any other node (it should be visible in all likelihood)
     if (sampledStateRep == boost::graph_traits<SparseAdjList>::null_vertex())
@@ -1826,7 +1875,8 @@ bool SparseCriteria::distanceCheck(SparseVertex v, const base::State *q, SparseV
   if (updated)
   {
     // TODO(davetcoleman): do we really need to copy this back in or is it already passed by reference?
-    sg_->vertexInterfaceProperty_[v][sg_->interfaceDataIndex(vp, vpp)] = iData;
+    sg_->getInterfaceData(v, vp, vpp, indent) = iData;
+    //sg_->vertexInterfaceProperty_[v][sg_->interfaceDataIndex(vp, vpp)] = iData;
   }
 
   return updated;
@@ -1840,9 +1890,9 @@ void SparseCriteria::findGraphNeighbors(base::State *candidateState, std::vector
   const bool verbose = false;
 
   // Search
-  sg_->queryStates_[threadID] = candidateState;
-  sg_->nn_->nearestR(sg_->queryVertices_[threadID], sparseDelta_, graphNeighborhood);
-  sg_->queryStates_[threadID] = nullptr;
+  sg_->getQueryStateNonConst(threadID) = candidateState;
+  sg_->getNN()->nearestR(sg_->getQueryVertices(threadID), sparseDelta_, graphNeighborhood);
+  sg_->getQueryStateNonConst(threadID) = nullptr;
 
   // Now that we got the neighbors from the NN, we must remove any we can't see
   for (std::size_t i = 0; i < graphNeighborhood.size(); ++i)
@@ -1879,7 +1929,7 @@ bool SparseCriteria::checkRemoveCloseVertices(SparseVertex v1, std::size_t inden
   // Get neighbors
   std::vector<SparseVertex> graphNeighbors;
   const std::size_t numNeighbors = 2;  // the first neighbor is (usually?) the vertex itself
-  sg_->nn_->nearestK(v1, numNeighbors, graphNeighbors);
+  sg_->getNN()->nearestK(v1, numNeighbors, graphNeighbors);
 
   if (vRemoveClose_)
   {
@@ -1906,7 +1956,7 @@ bool SparseCriteria::checkRemoveCloseVertices(SparseVertex v1, std::size_t inden
   }
 
   // Check that nearest neighbor is not an quality node - these should not be moved
-  if (sg_->vertexTypeProperty_[v2] == QUALITY)
+  if (sg_->getVertexTypeProperty(v2) == QUALITY)
   {
     if (visualizeRemoveCloseVertices_)
     {
@@ -2013,7 +2063,7 @@ void SparseCriteria::visualizeInterfaces(SparseVertex v, std::size_t indent)
 {
   BOLT_FUNC(indent, vQuality_, "visualizeInterfaces()");
 
-  InterfaceHash &iData = sg_->vertexInterfaceProperty_[v];
+  InterfaceHash &iData = sg_->getVertexInterfaceProperty(v);
 
   visual_->viz6()->deleteAllMarkers();
   visual_->viz6()->state(sg_->getState(v), tools::LARGE, tools::RED, 0);
@@ -2063,10 +2113,10 @@ void SparseCriteria::visualizeAllInterfaces(std::size_t indent)
 
   visual_->viz6()->deleteAllMarkers();
 
-  foreach (SparseVertex v, boost::vertices(sg_->g_))
+  foreach (SparseVertex v, boost::vertices(sg_->getGraph()))
   {
     // typedef std::unordered_map<VertexPair, InterfaceData> InterfaceHash;
-    InterfaceHash &hash = sg_->vertexInterfaceProperty_[v];
+    InterfaceHash &hash = sg_->getVertexInterfaceProperty(v);
 
     for (auto it = hash.begin(); it != hash.end(); ++it)
     {
@@ -2094,9 +2144,9 @@ std::pair<std::size_t, std::size_t> SparseCriteria::getInterfaceStateStorageSize
   std::size_t numStates = 0;
   std::size_t numMissingInterfaces = 0;
 
-  foreach (SparseVertex v, boost::vertices(sg_->g_))
+  foreach (SparseVertex v, boost::vertices(sg_->getGraph()))
   {
-    InterfaceHash &hash = sg_->vertexInterfaceProperty_[v];
+    InterfaceHash &hash = sg_->getVertexInterfaceProperty(v);
 
     for (auto it = hash.begin(); it != hash.end(); ++it)
     {
