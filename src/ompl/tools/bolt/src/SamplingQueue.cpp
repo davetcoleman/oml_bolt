@@ -92,10 +92,10 @@ void SamplingQueue::startSampling(std::size_t indent)
   si->getStateValidityChecker()->setClearanceSearchDistance(sc_->getObstacleClearance());
 
   // Create thread
-samplingThread_ = new boost::thread(boost::bind(&SamplingQueue::samplingThread, this, si, clearanceSampler, indent));
+  samplingThread_ = new boost::thread(boost::bind(&SamplingQueue::samplingThread, this, si, clearanceSampler, indent));
 
   // Wait for first sample to be found
-  BOLT_DEBUG(indent, true, "Waiting for first sample to be found");
+  BOLT_DEBUG(indent, verbose_, "SamplingQueue: Waiting for first sample to be found");
   while (statesQueue_.empty())
   {
     usleep(0.001 * 1000000);
@@ -113,29 +113,38 @@ void SamplingQueue::stopSampling(std::size_t indent)
 }
 
 /** \brief This function is called from the parent thread */
-void SamplingQueue::getNextState(base::State *&state, std::size_t indent)
+bool SamplingQueue::getNextState(base::State *&state, std::size_t indent)
 {
+  // static std::size_t totalAttempted = 0;
+  // static std::size_t totalProvided = 0;
+  // totalAttempted++;
+
   while (threadRunning_)
   {
     if (statesQueue_.empty())
-      waitForQueueNotEmpty(indent + 2);
+    {
+      return false;
+    }
+    //waitForQueueNotEmpty(indent + 2);
 
     boost::lock_guard<boost::shared_mutex> lock(sampleQueueMutex_);
     // Something changed before we got the mutex
     if (statesQueue_.empty())
     {
-      BOLT_WARN(indent, true, "SamplingQueue became empty while getting mutex");
-      continue;
+      BOLT_WARN(indent, false, "SamplingQueue became empty while getting mutex");
+      return false;
     }
     BOLT_DEBUG(indent, false, "SamplingQueue size: " << statesQueue_.size());
 
     state = statesQueue_.front();
     statesQueue_.pop();
-    break;
+    //totalProvided++;
+    //BOLT_DEBUG(indent, true, "SamplingQueue percent provided: " << (totalProvided/double(totalAttempted)*100.0) << "%");
+    return true;
   }
 }
 
-void SamplingQueue::samplingThread(base::SpaceInformationPtr si, base::MinimumClearanceValidStateSamplerPtr clearanceSampler, std::size_t indent)
+void SamplingQueue::samplingThread(base::SpaceInformationPtr si, ClearanceSamplerPtr clearanceSampler, std::size_t indent)
 {
   BOLT_FUNC(indent, verbose_, "samplingThread()");
 

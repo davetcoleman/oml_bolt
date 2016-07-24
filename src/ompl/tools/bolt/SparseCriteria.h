@@ -41,7 +41,6 @@
 
 // OMPL
 #include <ompl/tools/bolt/SparseGraph.h>
-#include <ompl/base/samplers/MinimumClearanceValidStateSampler.h>
 #include <ompl/tools/bolt/SamplingQueue.h>
 #include <ompl/tools/bolt/CandidateQueue.h>
 

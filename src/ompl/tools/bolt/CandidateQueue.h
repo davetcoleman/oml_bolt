@@ -70,6 +70,9 @@ public:
 
   void stopGenerating(std::size_t indent);
 
+  /** \brief If SamplingQueue is full just make state in this thread. This is useful at beginning of graph generation */
+  void getNextState(base::State *&candidateState, ClearanceSamplerPtr clearanceSampler, std::size_t indent);
+
   /** \brief This function is called from the parent thread */
   CandidateData& getNextCandidate(std::size_t indent);
 
@@ -83,7 +86,7 @@ public:
 
 private:
 
-  void generatingThread(std::size_t threadID, base::SpaceInformationPtr si, std::size_t indent);
+  void generatingThread(std::size_t threadID, base::SpaceInformationPtr si, ClearanceSamplerPtr clearanceSampler, std::size_t indent);
 
   /** \brief Do not add more states if queue is full */
   void waitForQueueNotFull(std::size_t indent);

@@ -107,8 +107,14 @@ void CandidateQueue::startGenerating(std::size_t indent)
     si->setStateValidityChecker(si_->getStateValidityChecker());
     si->setMotionValidator(si_->getMotionValidator());
 
+    // Load minimum clearance state sampler
+    ob::MinimumClearanceValidStateSamplerPtr clearanceSampler =
+      ob::MinimumClearanceValidStateSamplerPtr(new ob::MinimumClearanceValidStateSampler(si.get()));
+    clearanceSampler->setMinimumObstacleClearance(sc_->getObstacleClearance());
+    si->getStateValidityChecker()->setClearanceSearchDistance(sc_->getObstacleClearance());
+
     std::size_t threadID = i + 1; // the first thread (0) is reserved for the parent process for use of samplingQuery
-    generatorThreads_[i] = new boost::thread(boost::bind(&CandidateQueue::generatingThread, this, threadID, si, indent));
+    generatorThreads_[i] = new boost::thread(boost::bind(&CandidateQueue::generatingThread, this, threadID, si, clearanceSampler, indent));
   }
 
   // Wait for first sample to be found
@@ -134,7 +140,7 @@ void CandidateQueue::stopGenerating(std::size_t indent)
   BOLT_FUNC(indent, true, "CandidateQueue.stopGenerating() Generating threads have stopped");
 }
 
-void CandidateQueue::generatingThread(std::size_t threadID, base::SpaceInformationPtr si, std::size_t indent)
+void CandidateQueue::generatingThread(std::size_t threadID, base::SpaceInformationPtr si, ClearanceSamplerPtr clearanceSampler, std::size_t indent)
 {
   BOLT_FUNC(indent, verbose_, "generatingThread() " << threadID);
 
@@ -149,7 +155,7 @@ void CandidateQueue::generatingThread(std::size_t threadID, base::SpaceInformati
       waitForQueueNotFull(indent + 2);
 
     // Get next sample
-    samplingQueue_->getNextState(candidateState, indent + 2);
+    getNextState(candidateState, clearanceSampler, indent + 2);
 
     BOLT_DEBUG(indent + 2, vThread_, "New candidateState: " << candidateState << " on thread " << threadID);
 
@@ -177,6 +183,23 @@ void CandidateQueue::generatingThread(std::size_t threadID, base::SpaceInformati
       boost::lock_guard<boost::shared_mutex> lock(candidateQueueMutex_);
       queue_.push(candidateD);
       //std::cout << "pushCandidate: added candidate ==================================" << std::endl;
+    }
+  }
+}
+
+void CandidateQueue::getNextState(base::State *&candidateState, ClearanceSamplerPtr clearanceSampler, std::size_t indent)
+{
+  // First attempt to get state from queue, otherwise we do it ourselves
+  if (!samplingQueue_->getNextState(candidateState, indent + 2))
+  {
+    // Create new state ourselves
+    candidateState = si_->allocState();
+
+    // Sample randomly
+    if (!clearanceSampler->sample(candidateState))
+    {
+      OMPL_ERROR("Unable to find valid sample");
+      exit(-1);  // this should never happen
     }
   }
 }

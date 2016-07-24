@@ -44,6 +44,7 @@
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/util/Hash.h>
 #include <ompl/tools/bolt/InterfaceData.h>
+#include <ompl/base/samplers/MinimumClearanceValidStateSampler.h>
 
 // Boost
 #include <boost/range/adaptor/map.hpp>
@@ -63,6 +64,9 @@ namespace tools
 {
 namespace bolt
 {
+
+typedef ompl::base::MinimumClearanceValidStateSamplerPtr ClearanceSamplerPtr;
+
 // TODO(davetcoleman): maybe make all popularity use ints instead of doubles for memory efficiency?
 static const double MAX_POPULARITY_WEIGHT = 100.0;  // 100 means the edge is very unpopular
 // Everytime an edge is used, it is reduced by this amount (becomes more popular)

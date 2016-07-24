@@ -163,6 +163,7 @@ bool SparseCriteria::setup()
   BOLT_INFO(indent + 2, 1, "Dimensions              = " << dim);
   BOLT_INFO(indent + 2, 1, "Max Extent              = " << maxExtent_);
   BOLT_INFO(indent + 2, 1, "Sparse Delta            = " << sparseDelta_);
+  BOLT_INFO(indent + 2, 1, "Sparse Delta Fraction   = " << sparseDeltaFraction_);
   BOLT_INFO(indent + 2, 1, "Dense Delta             = " << denseDelta_);
   BOLT_INFO(indent + 2, 1, "State Dimension         = " << dim);
   BOLT_INFO(indent + 2, 1, "Discretization          = " << discretization_);

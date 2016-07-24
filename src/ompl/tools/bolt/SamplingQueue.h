@@ -44,6 +44,7 @@
 #include <ompl/base/samplers/MinimumClearanceValidStateSampler.h>
 #include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/Debug.h>
+#include <ompl/tools/bolt/BoostGraphHeaders.h>
 
 // Boost
 #include <boost/thread/shared_mutex.hpp>
@@ -83,8 +84,10 @@ public:
 
   void stopSampling(std::size_t indent);
 
-  /** \brief This function is called from the parent thread */
-  void getNextState(base::State*& state, std::size_t indent);
+  /** \brief This function is called from the parent thread
+      \return false if queue is currently empty
+   */
+  bool getNextState(base::State*& state, std::size_t indent);
 
   void setTargetQueue(std::size_t targetQueueSize)
   {
@@ -99,7 +102,7 @@ public:
 
 private:
 
-  void samplingThread(base::SpaceInformationPtr si, base::MinimumClearanceValidStateSamplerPtr clearanceSampler, std::size_t indent);
+  void samplingThread(base::SpaceInformationPtr si, ClearanceSamplerPtr clearanceSampler, std::size_t indent);
 
   /** \brief Do not add more states if queue is full */
   void waitForQueueNotFull(std::size_t indent);
