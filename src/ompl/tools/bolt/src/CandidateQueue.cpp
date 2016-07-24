@@ -73,7 +73,7 @@ void CandidateQueue::startGenerating(std::size_t indent)
   BOLT_FUNC(indent, verbose_, "startGenerating() Starting candidate queue thread");
   if (threadsRunning_)
   {
-    BOLT_RED_DEBUG(indent, true, "CandidateQueue already running");
+    BOLT_ERROR(indent, true, "CandidateQueue already running");
     return;
   }
   threadsRunning_ = true;
@@ -83,21 +83,24 @@ void CandidateQueue::startGenerating(std::size_t indent)
 
   // Set number threads - should be at least less than 1 from total number of threads on system
   // 1 thread is for parent, 1 is for sampler, 1 is for GUIs, etc, remainder are for this
-  numThreads_ = 1; //std::max(1, int(sg_->getNumQueryVertices() - 3));
+  numThreads_ = std::max(1, int(sg_->getNumQueryVertices() - 3));
   BOLT_DEBUG(indent, true, "Running CandidateQueue with " << numThreads_ << " threads");
   if (numThreads_ < 2)
-    BOLT_YELLOW_DEBUG(indent, true, "Only running CandidateQueue with 1 thread");
+    BOLT_WARN(indent, true, "Only running CandidateQueue with 1 thread");
   if (numThreads_ >= sg_->getNumQueryVertices())
   {
-    BOLT_RED_DEBUG(indent, true, "Too many threads requested for candidate queue");
+    BOLT_ERROR(indent, true, "Too many threads requested for candidate queue");
     exit(-1);
   }
 
+  // Set the SamplingQueue queue size based on how many threads are here consuming
+  samplingQueue_->setTargetQueueByThreads(numThreads_);
+
   // Create threads
-  samplingThreads_.resize(numThreads_);
+  generatorThreads_.resize(numThreads_);
 
   // Starts on thread 1 because thread 0 is reserved for parent process
-  for (std::size_t i = 0; i < samplingThreads_.size(); ++i)
+  for (std::size_t i = 0; i < generatorThreads_.size(); ++i)
   {
     // Create new collision checker
     base::SpaceInformationPtr si(new base::SpaceInformation(si_->getStateSpace()));
@@ -105,7 +108,7 @@ void CandidateQueue::startGenerating(std::size_t indent)
     si->setMotionValidator(si_->getMotionValidator());
 
     std::size_t threadID = i + 1; // the first thread (0) is reserved for the parent process for use of samplingQuery
-    samplingThreads_[i] = new boost::thread(boost::bind(&CandidateQueue::generatingThread, this, threadID, si, indent));
+    generatorThreads_[i] = new boost::thread(boost::bind(&CandidateQueue::generatingThread, this, threadID, si, indent));
   }
 
   // Wait for first sample to be found
@@ -120,13 +123,12 @@ void CandidateQueue::stopGenerating(std::size_t indent)
 {
   BOLT_FUNC(indent, true, "CandidateQueue.stopGenerating() Stopping generating thread");
   threadsRunning_ = false;
-  abortNeighborSearch_ = true;
 
   // Join threads
-  for (std::size_t i = 0; i < samplingThreads_.size(); ++i)
+  for (std::size_t i = 0; i < generatorThreads_.size(); ++i)
   {
-    samplingThreads_[i]->join();
-    delete samplingThreads_[i];
+    generatorThreads_[i]->join();
+    delete generatorThreads_[i];
   }
 
   BOLT_FUNC(indent, true, "CandidateQueue.stopGenerating() Generating threads have stopped");
@@ -140,7 +142,7 @@ void CandidateQueue::generatingThread(std::size_t threadID, base::SpaceInformati
 
   while (threadsRunning_ && !visual_->viz1()->shutdownRequested())
   {
-    BOLT_DEBUG(indent + 2, false, threadID << "generatingThread: Running while loop on thread " << threadID);
+    BOLT_DEBUG(indent + 2, vThread_, "generatingThread: Running while loop on thread " << threadID);
 
     // Do not add more states if queue is full
     if (queue_.size() > targetQueueSize_)
@@ -149,87 +151,98 @@ void CandidateQueue::generatingThread(std::size_t threadID, base::SpaceInformati
     // Get next sample
     samplingQueue_->getNextState(candidateState, indent + 2);
 
-    BOLT_DEBUG(indent + 2, false, "New candidateState: " << candidateState << " on thread " << threadID);
+    BOLT_DEBUG(indent + 2, vThread_, "New candidateState: " << candidateState << " on thread " << threadID);
 
     if (!threadsRunning_) // Check for thread ending
       break;
 
     // Find nearby nodes
     CandidateData candidateD(candidateState);
-    bool result;
-    {
-      // Get shared read access - we don't want to delete the queue if this is running
-      //boost::shared_lock<boost::shared_mutex> lock(candidateQueueMutex_);
-      boost::lock_guard<boost::shared_mutex> lock(candidateQueueMutex_);
-      result = findGraphNeighbors(candidateD, threadID, indent + 2);
-    }
 
-    if (!result)
-    {
-      // Wait until abort is over before finding next candidate
-      while (abortNeighborSearch_ && threadsRunning_)
-      {
-        usleep(10);
-      }
-      continue;
-    }
+    //time::point startTime = time::now(); // Benchmark
+
+    findGraphNeighbors(candidateD, threadID, indent + 2);
+
+    // Benchmark
+    // double time = time::seconds(time::now() - startTime);
+    // totalTime_ += time;
+    // totalCandidates_ ++;
+    // double average = totalTime_ / totalCandidates_;
+    // BOLT_MAGENTA_DEBUG(0, true,  time << " CandidateQueue, average: " << average << " queue: " << queue_.size()); // Benchmark
 
     // Add to queue - thread-safe
-    if (!abortNeighborSearch_)
+    if (candidateD.graphVersion_ == sc_->getNumRandSamplesAdded())
     {
-      //boost::shared_lock<boost::shared_mutex> lock(candidateQueueMutex_);
+      //std::cout << "pushCandidate: waiting for lock, " << candidateD.graphVersion_ << " =========================== " << std::endl;
       boost::lock_guard<boost::shared_mutex> lock(candidateQueueMutex_);
       queue_.push(candidateD);
+      //std::cout << "pushCandidate: added candidate ==================================" << std::endl;
     }
   }
 }
 
-CandidateData CandidateQueue::getNextCandidate(std::size_t indent)
+CandidateData& CandidateQueue::getNextCandidate(std::size_t indent)
 {
-  // if (!queue_.empty())
-  //   BOLT_CYAN_DEBUG(indent, true, "getNextCanidate(): not empty queue!");
+  BOLT_CYAN_DEBUG(indent, false, "CandidateQueue.getNextCanidate(): queue size: " << queue_.size() << " num samples added: " << sc_->getNumRandSamplesAdded());
+  // This function is run in the parent thread
 
-  waitForQueueNotEmpty(indent + 2);
+  // Keep looping until a non-expired candidate exists or the thread ends
+  while (threadsRunning_)
+  {
+    // Clear all expired candidates
+    //std::cout << "getNextCandidate: waiting for lock ++++++++++++++++++++++++++++" << std::endl;
+    {
+      boost::lock_guard<boost::shared_mutex> lock(candidateQueueMutex_);
+      std::size_t numCleared = 0;
+      while (!queue_.empty() && queue_.front().graphVersion_ != sc_->getNumRandSamplesAdded() && threadsRunning_)
+      {
+        // Next Candidate state is expired, delete
+        si_->freeState(queue_.front().state_);
+        queue_.pop();
+        numCleared ++;
+      }
+      BOLT_ERROR(indent, vClear_ && numCleared > 0, "Cleared " << numCleared << " states from CandidateQueue");
+
+      // Return the first non-expired candidate if one exists
+      if (!queue_.empty() && queue_.front().graphVersion_ == sc_->getNumRandSamplesAdded())
+      {
+        //std::cout << "getNextCandidate: free lock ++++++++++++++++++++++++++" << std::endl;
+        break;
+      }
+    }
+    //std::cout << "getNextCandidate: free lock ++++++++++++++++++++++++++" << std::endl;
+
+    // Wait for queue to not be empty
+    bool oneTimeFlag = true;
+    totalMisses_++;
+    while (queue_.empty() && threadsRunning_)
+    {
+      if (oneTimeFlag)
+      {
+        BOLT_WARN(indent, vQueueEmpty_, "CandidateQueue: Queue is empty, waiting for next generated "
+                  "CandidateData");
+        oneTimeFlag = false;
+      }
+      usleep(100);
+    }
+    if (!oneTimeFlag)
+      BOLT_DEBUG(indent, vQueueEmpty_ && false, "CandidateQueue: No longer waiting on queue");
+  }
 
   return queue_.front();
 }
 
 void CandidateQueue::setCandidateUsed(bool wasUsed, std::size_t indent)
 {
-  if (wasUsed)  // this means whole queue is invalid :-/
-  {
-    BOLT_RED_DEBUG(indent, vClear_, "Clearing candidate queue of size " << queue_.size());
+  // This function is run in the parent thread
 
-    // Abort current neighbor search early
-    abortNeighborSearch_ = true;
+  if (!wasUsed)  // if was used the state is now in use elsewhere
+    si_->freeState(queue_.front().state_);
 
-    // Get mutex on candidate queue
-    {
-      boost::lock_guard<boost::shared_mutex> lock(candidateQueueMutex_);
-
-      // Free first state without freeing memory, because it is in use. I'm not sure how though...
-      queue_.pop();
-
-      // Free states and clear queue
-      while (!queue_.empty())
-      {
-        // samplingQueue_->recycleState(queue_.front().state_);
-        si_->freeState(queue_.front().state_);
-        queue_.pop();
-      }
-      abortNeighborSearch_ = false;  // allow search to continue
-    }
-    BOOST_ASSERT_MSG(queue_.empty(), "Queue is somehow not empty when it should be!");
-
-    return;
-  }
-
-  // Instead of freeing the unused state, recycle the memory
-  // samplingQueue_->recycleState(queue_.front().state_);
-  si_->freeState(queue_.front().state_);
-
-  //boost::lock_guard<boost::shared_mutex> lock(candidateQueueMutex_);
-  queue_.pop(); // TODO: is this thread safe? not really but it probably works
+  //std::cout << "setCandidateUsed: waiting for lock ------------------------" << std::endl;
+  boost::lock_guard<boost::shared_mutex> lock(candidateQueueMutex_);
+  queue_.pop();
+  //std::cout << "setCandidateUsed: free lock ----------------------------- " << std::endl;
 }
 
 void CandidateQueue::waitForQueueNotFull(std::size_t indent)
@@ -242,43 +255,30 @@ void CandidateQueue::waitForQueueNotFull(std::size_t indent)
       BOLT_DEBUG(indent, vQueueFull_, "CandidateQueue: Queue is full, generator is waiting");
       oneTimeFlag = false;
     }
-    usleep(10);
+    usleep(0.001*1000000);
   }
   if (!oneTimeFlag)
     BOLT_DEBUG(indent, vQueueFull_, "CandidateQueue: No longer waiting on full queue");
-}
-
-void CandidateQueue::waitForQueueNotEmpty(std::size_t indent)
-{
-  bool oneTimeFlag = true;
-  totalMisses_++;
-  while (queue_.empty() && threadsRunning_)
-  {
-    if (oneTimeFlag)
-    {
-      BOLT_YELLOW_DEBUG(indent, vQueueEmpty_, "CandidateQueue: Queue is empty, waiting for next generated "
-                                              "CandidateData");
-      oneTimeFlag = false;
-    }
-    usleep(10);
-  }
-  if (!oneTimeFlag)
-    BOLT_DEBUG(indent, vQueueEmpty_ && false, "CandidateQueue: No longer waiting on queue");
 }
 
 bool CandidateQueue::findGraphNeighbors(CandidateData &candidateD, std::size_t threadID, std::size_t indent)
 {
   BOLT_FUNC(indent, vNeighbor_, "findGraphNeighbors() within sparse delta " << sc_->getSparseDelta());
 
+  // Get the version number of the graph, which is simply the number of states that have thus far been added
+  // during this program's execution (not of all time). This allows us to know if the candidate has potentially
+  // become "expired" because of a change in the graph
+  candidateD.graphVersion_ = sc_->getNumRandSamplesAdded();
+
   // Search in thread-safe manner
   // Note that the main thread could be modifying the NN, so we have to lock it
-  const bool useMutex = true;
   sg_->getQueryStateNonConst(threadID) = candidateD.state_;
   {
+    //std::cout << "getting nn lock " << std::endl;
     std::lock_guard<std::mutex> lock(sg_->getNNGuard());
-    sg_->getNN(useMutex)
-        ->nearestR(sg_->getQueryVertices(threadID), sc_->getSparseDelta(), candidateD.graphNeighborhood_);
+    sg_->getNN()->nearestR(sg_->getQueryVertices(threadID), sc_->getSparseDelta(), candidateD.graphNeighborhood_);
   }
+  //std::cout << "released nn lock " << std::endl;
   sg_->getQueryStateNonConst(threadID) = nullptr;
 
   // Now that we got the neighbors from the NN, we must remove any we can't see
@@ -287,9 +287,9 @@ bool CandidateQueue::findGraphNeighbors(CandidateData &candidateD, std::size_t t
     SparseVertex v2 = candidateD.graphNeighborhood_[i];
 
     // Check for termination condition
-    if (abortNeighborSearch_ || !threadsRunning_)
+    if (candidateD.graphVersion_ != sc_->getNumRandSamplesAdded() || !threadsRunning_)
     {
-      BOLT_YELLOW_DEBUG(indent, false, "findGraphNeighbors aborted b/c term cond");
+      BOLT_WARN(indent, vNeighbor_, "findGraphNeighbors aborted b/c term cond");
       return false;
     }
 
@@ -303,9 +303,9 @@ bool CandidateQueue::findGraphNeighbors(CandidateData &candidateD, std::size_t t
     }
 
     // Check for termination condition
-    if (abortNeighborSearch_ || !threadsRunning_)
+    if (candidateD.graphVersion_ != sc_->getNumRandSamplesAdded() || !threadsRunning_)
     {
-      BOLT_YELLOW_DEBUG(indent, false, "findGraphNeighbors aborted b/c term cond");
+      BOLT_WARN(indent, vNeighbor_, "findGraphNeighbors aborted b/c term cond");
       return false;
     }
 
@@ -317,12 +317,6 @@ bool CandidateQueue::findGraphNeighbors(CandidateData &candidateD, std::size_t t
              "Graph neighborhood: " << candidateD.graphNeighborhood_.size()
                                     << " | Visible neighborhood: " << candidateD.visibleNeighborhood_.size());
 
-  // Do not return true if abort has been called
-  if (abortNeighborSearch_)
-  {
-    BOLT_YELLOW_DEBUG(indent, false, "findGraphNeighbors aborted b/c term cond");
-    return false;
-  }
   return true;
 }
 

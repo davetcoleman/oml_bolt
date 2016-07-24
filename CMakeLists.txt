@@ -26,8 +26,7 @@ catkin_package(
 )
 
 # User debug code only if not release
-#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DENABLE_DEBUG_MACRO")
-#add_definitions(-DENABLE_DEBUG_MACRO)
+add_definitions(-DENABLE_DEBUG_MACRO)
 
 ###########
 ## Build ##

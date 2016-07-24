@@ -38,6 +38,8 @@
 
 // OMPL
 #include <ompl/tools/bolt/SamplingQueue.h>
+#include <ompl/tools/bolt/SparseGraph.h>
+#include <ompl/tools/bolt/SparseCriteria.h>
 
 // C++
 #include <queue>
@@ -49,9 +51,11 @@ namespace tools
 namespace bolt
 {
 
-SamplingQueue::SamplingQueue(base::SpaceInformationPtr si, VisualizerPtr visual,
-                             base::MinimumClearanceValidStateSamplerPtr clearanceSampler)
-  : si_(si), visual_(visual), clearanceSampler_(clearanceSampler)
+SamplingQueue::SamplingQueue(SparseGraphPtr sg)
+  : sg_(sg)
+  , sc_(sg_->getSparseCriteria())
+  , si_(sg_->getSpaceInformation())
+  , visual_(sg_->getVisual())
 {
   // statesQueue_.reserve(targetQueueSize_);
 }
@@ -71,18 +75,24 @@ void SamplingQueue::startSampling(std::size_t indent)
   BOLT_FUNC(indent, true, "startSampling() Starting sampling thread");
   if (threadRunning_)
   {
-    BOLT_RED_DEBUG(indent, true, "SamplingQueue already running");
+    BOLT_ERROR(indent, true, "SamplingQueue already running");
     return;
   }
   threadRunning_ = true;
 
   // Setup
-  base::SpaceInformationPtr si(new base::SpaceInformation(si_->getStateSpace()));
+  ob::SpaceInformationPtr si(new ob::SpaceInformation(si_->getStateSpace()));
   si->setStateValidityChecker(si_->getStateValidityChecker());
   si->setMotionValidator(si_->getMotionValidator());
 
+  // Load minimum clearance state sampler
+  ob::MinimumClearanceValidStateSamplerPtr clearanceSampler =
+    ob::MinimumClearanceValidStateSamplerPtr(new ob::MinimumClearanceValidStateSampler(si.get()));
+  clearanceSampler->setMinimumObstacleClearance(sc_->getObstacleClearance());
+  si->getStateValidityChecker()->setClearanceSearchDistance(sc_->getObstacleClearance());
+
   // Create thread
-  samplingThread_ = new boost::thread(boost::bind(&SamplingQueue::samplingThread, this, si, indent));
+samplingThread_ = new boost::thread(boost::bind(&SamplingQueue::samplingThread, this, si, clearanceSampler, indent));
 
   // Wait for first sample to be found
   BOLT_DEBUG(indent, true, "Waiting for first sample to be found");
@@ -105,17 +115,16 @@ void SamplingQueue::stopSampling(std::size_t indent)
 /** \brief This function is called from the parent thread */
 void SamplingQueue::getNextState(base::State *&state, std::size_t indent)
 {
-  if (statesQueue_.empty())
-    waitForQueueNotEmpty(indent + 2);
-
   while (threadRunning_)
   {
-    //boost::lock_guard<boost::shared_mutex> lock(sampleQueueMutex_);
+    if (statesQueue_.empty())
+      waitForQueueNotEmpty(indent + 2);
+
+    boost::lock_guard<boost::shared_mutex> lock(sampleQueueMutex_);
     // Something changed before we got the mutex
     if (statesQueue_.empty())
     {
-      usleep(10);  // let the sampler add more states
-      // BOLT_YELLOW_DEBUG(indent, true, "SamplingQueue became empty while getting mutex");
+      BOLT_WARN(indent, true, "SamplingQueue became empty while getting mutex");
       continue;
     }
     BOLT_DEBUG(indent, false, "SamplingQueue size: " << statesQueue_.size());
@@ -126,7 +135,7 @@ void SamplingQueue::getNextState(base::State *&state, std::size_t indent)
   }
 }
 
-void SamplingQueue::samplingThread(base::SpaceInformationPtr si, std::size_t indent)
+void SamplingQueue::samplingThread(base::SpaceInformationPtr si, base::MinimumClearanceValidStateSamplerPtr clearanceSampler, std::size_t indent)
 {
   BOLT_FUNC(indent, verbose_, "samplingThread()");
 
@@ -135,19 +144,22 @@ void SamplingQueue::samplingThread(base::SpaceInformationPtr si, std::size_t ind
     // Do not add more states if queue is full
     waitForQueueNotFull(indent);
 
-    // Create new state or recycle one
-    base::State *candidateState;
-    candidateState = si_->allocState();
+
+    //time::point startTime = time::now(); // Benchmark
+
+    // Create new state
+    base::State *candidateState = si_->allocState();
 
     // Sample randomly
-    if (!clearanceSampler_->sample(candidateState))
+    if (!clearanceSampler->sample(candidateState))
     {
       OMPL_ERROR("Unable to find valid sample");
       exit(-1);  // this should never happen
     }
+    //BOLT_CYAN_DEBUG(0, true, time::seconds(time::now() - startTime) << " SamplingQueue, total queue: " << statesQueue_.size()); // Benchmark
 
     {
-      //boost::lock_guard<boost::shared_mutex> lock(sampleQueueMutex_);
+      boost::lock_guard<boost::shared_mutex> lock(sampleQueueMutex_);
       statesQueue_.push(candidateState);
     }
   }
@@ -164,7 +176,7 @@ void SamplingQueue::waitForQueueNotFull(std::size_t indent)
       BOLT_DEBUG(indent, vQueueFull_, "SamplingQueue: Queue is full, sampler is waiting");
       oneTimeFlag = false;
     }
-    usleep(10);
+    usleep(0.001*1000000);
   }
   if (!oneTimeFlag)
     BOLT_DEBUG(indent, vQueueFull_ && false, "SamplingQueue: No longer waiting on full queue");
@@ -178,10 +190,10 @@ void SamplingQueue::waitForQueueNotEmpty(std::size_t indent)
   {
     if (oneTimeFlag)
     {
-      BOLT_YELLOW_DEBUG(indent, vQueueEmpty_, "SamplingQueue: Queue is empty, waiting to provide a new sampled state");
+      BOLT_WARN(indent, vQueueEmpty_, "SamplingQueue: Queue is empty, waiting to provide a new sampled state");
       oneTimeFlag = false;
     }
-    usleep(10);
+    usleep(100);
   }
   if (!oneTimeFlag)
     BOLT_DEBUG(indent, vQueueEmpty_ && false, "SamplingQueue: No longer waiting on queue");

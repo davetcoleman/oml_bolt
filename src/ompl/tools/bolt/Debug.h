@@ -104,8 +104,12 @@
         std::cout << color << std::string(indent, ' ') << o.str() << ANSI_COLOR_RESET << std::endl; \
     } while (0)
 
-#define BOLT_RED_DEBUG(indent, flag, stream) BOLT_COLOR_INFO(indent, flag, stream, ANSI_COLOR_RED);
-#define BOLT_YELLOW_DEBUG(indent, flag, stream) BOLT_COLOR_INFO(indent, flag, stream, ANSI_COLOR_YELLOW);
+// BOLT_ERROR()
+#define BOLT_ERROR(indent, flag, stream) BOLT_COLOR_INFO(indent, flag, stream, ANSI_COLOR_RED);
+
+// BOLT_WARN()
+#define BOLT_WARN(indent, flag, stream) BOLT_COLOR_INFO(indent, flag, stream, ANSI_COLOR_YELLOW);
+
 #define BOLT_GREEN_DEBUG(indent, flag, stream) BOLT_COLOR_DEBUG(indent, flag, stream, ANSI_COLOR_GREEN);
 #define BOLT_BLUE_DEBUG(indent, flag, stream) BOLT_COLOR_DEBUG(indent, flag, stream, ANSI_COLOR_BLUE);
 #define BOLT_MAGENTA_DEBUG(indent, flag, stream) BOLT_COLOR_DEBUG(indent, flag, stream, ANSI_COLOR_MAGENTA);

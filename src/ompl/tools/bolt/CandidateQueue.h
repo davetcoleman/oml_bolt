@@ -71,7 +71,7 @@ public:
   void stopGenerating(std::size_t indent);
 
   /** \brief This function is called from the parent thread */
-  CandidateData getNextCandidate(std::size_t indent);
+  CandidateData& getNextCandidate(std::size_t indent);
 
   /** \brief This function is called from the parent thread */
   void setCandidateUsed(bool wasUsed, std::size_t indent);
@@ -87,9 +87,6 @@ private:
 
   /** \brief Do not add more states if queue is full */
   void waitForQueueNotFull(std::size_t indent);
-
-  /** \brief Wait until there is at least one state ready */
-  void waitForQueueNotEmpty(std::size_t indent);
 
   bool findGraphNeighbors(CandidateData &candidateD, std::size_t threadID, std::size_t indent);
 
@@ -108,19 +105,20 @@ private:
 
   std::size_t targetQueueSize_ = 10;
 
-  std::vector<boost::thread *> samplingThreads_;
+  std::vector<boost::thread *> generatorThreads_;
 
   /** \brief Mutex for  */
   boost::shared_mutex candidateQueueMutex_;
 
-  /** \brief Used to end neighbor search early */
-  bool abortNeighborSearch_ = false;
-
-  /** \brief Flag indicating sampler is active */
+  /** \brief Flag indicating generator is active */
   bool threadsRunning_ = false;
 
   std::size_t numThreads_ = 1;
   std::size_t totalMisses_ = 0;
+
+  // Compute average time to do candidate queue
+  double totalTime_ = 0;
+  std::size_t totalCandidates_ = 0;
 
 public:
   bool verbose_ = false;      // general program direction
@@ -128,6 +126,7 @@ public:
   bool vClear_ = false;       // when queue is being cleared because of change
   bool vQueueFull_ = false;  // status of queue
   bool vQueueEmpty_ = false; // alert when queue is empty and holding up process
+  bool vThread_ = false;
 
 };  // end of class CandidateQueue
 

@@ -234,7 +234,7 @@ bool TaskGraph::astarSearch(const TaskVertex start, const TaskVertex goal, std::
   }
 
   if (!foundGoal)
-    BOLT_YELLOW_DEBUG(indent, vSearch_, "Did not find goal");
+    BOLT_WARN(indent, vSearch_, "Did not find goal");
 
   // Show all predecessors
   if (visualizeAstar_)
@@ -681,7 +681,7 @@ bool TaskGraph::connectVertexToNeighborsAtLevel(TaskVertex fromVertex, const Ver
   // Error check
   if (neighbors.empty())
   {
-    BOLT_RED_DEBUG(indent, vGenerateTask_, "No neighbors found when connecting cartesian path");
+    BOLT_ERROR(indent, vGenerateTask_, "No neighbors found when connecting cartesian path");
     return false;
   }
   else if (neighbors.size() < 3)
@@ -843,7 +843,7 @@ void TaskGraph::clearEdgeCollisionStates()
 
 void TaskGraph::errorCheckDuplicateStates(std::size_t indent)
 {
-  BOLT_RED_DEBUG(indent, verbose_, "TaskGraph.errorCheckDuplicateStates() - NOT IMPLEMENTEDpart of super debug");
+  BOLT_ERROR(indent, verbose_, "TaskGraph.errorCheckDuplicateStates() - NOT IMPLEMENTEDpart of super debug");
 
   // bool found = false;
   // // Error checking: check for any duplicate states
@@ -853,7 +853,7 @@ void TaskGraph::errorCheckDuplicateStates(std::size_t indent)
   //   {
   //     if (si_->getStateSpace()->equalStates(getState(i), getState(j)))
   //     {
-  //       BOLT_RED_DEBUG(indent, 1, "Found equal state: " << i << ", " << j);
+  //       BOLT_ERROR(indent, 1, "Found equal state: " << i << ", " << j);
   //       debugState(getState(i));
   //       found = true;
   //     }
@@ -865,7 +865,7 @@ void TaskGraph::errorCheckDuplicateStates(std::size_t indent)
 
 bool TaskGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent)
 {
-  BOLT_RED_DEBUG(indent, visualizeQualityPathSimp_, "smoothQualityPathOriginal()");
+  BOLT_ERROR(indent, visualizeQualityPathSimp_, "smoothQualityPathOriginal()");
 
   // Visualize path
   if (visualizeQualityPathSimp_)
@@ -1097,7 +1097,7 @@ std::size_t TaskGraph::checkConnectedComponents()
   if (numSets > 1)
   {
     std::size_t indent = 0;
-    BOLT_YELLOW_DEBUG(indent, true, "More than 1 connected component is in the TaskGraph: " << numSets);
+    BOLT_WARN(indent, true, "More than 1 connected component is in the TaskGraph: " << numSets);
   }
 
   return numSets;
@@ -1361,7 +1361,7 @@ void TaskGraph::displayDatabase(bool showVertices, std::size_t indent)
       // Check for null states
       if (!getState(v))
       {
-        BOLT_RED_DEBUG(indent, verbose_, "Null vertex found: " << v);
+        BOLT_ERROR(indent, verbose_, "Null vertex found: " << v);
         continue;
       }
 

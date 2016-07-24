@@ -43,6 +43,7 @@
 #include <ompl/tools/bolt/SparseGraph.h>
 #include <ompl/base/samplers/MinimumClearanceValidStateSampler.h>
 #include <ompl/tools/bolt/SamplingQueue.h>
+#include <ompl/tools/bolt/CandidateQueue.h>
 
 namespace ompl
 {
@@ -228,6 +229,21 @@ public:
     return discretizedSamplesInsertion_;
   }
 
+  std::size_t getNumRandSamplesAdded()
+  {
+    return numRandSamplesAdded_;
+  }
+
+  std::size_t getNumGraphGenerations()
+  {
+    return numGraphGenerations_;
+  }
+
+  double getObstacleClearance()
+  {
+    return obstacleClearance_;
+  }
+
 protected:
   /** \brief Short name of this class */
   const std::string name_ = "SparseCriteria";
@@ -247,6 +263,9 @@ protected:
 
   /** \brief Secondary thread for sampling and garbage collection */
   SamplingQueuePtr samplingQueue_;
+
+  /** \brief Multiple threads for finding nearest neighbors from samples */
+  CandidateQueuePtr candidateQueue_;
 
   /** \brief Special flag for tracking mode when inserting into sparse graph */
   bool secondSparseInsertionAttempt_ = false;
@@ -286,6 +305,11 @@ protected:
 
   /** \brief Temporary state for doing sparse criteria sampling */
   std::vector<base::State*> closeRepSampledState_;
+
+  /** \brief For statistics */
+  std::size_t numGraphGenerations_ = 0;
+  std::size_t numRandSamplesAdded_ = 0;
+  std::size_t numVerticesMoved_ = 0;
 
 public:
   /** \brief SPARS parameter for dense graph connection distance as a fraction of max. extent */
@@ -344,11 +368,6 @@ public:
 
   /** \brief Method for ordering of vertex insertion */
   std::size_t sparseCreationInsertionOrder_ = 0;
-
-  /** \brief For statistics */
-  std::size_t numGraphGenerations_ = 0;
-  std::size_t numRandSamplesAdded_ = 0;
-  std::size_t numVerticesMoved_ = 0;
 
 };  // end SparseCriteria
 

@@ -213,12 +213,12 @@ bool Bolt::checkOptimalityGuarantees(std::size_t indent)
 
   if (sparseLength >= theoryLength)
   {
-    BOLT_RED_DEBUG(indent + 2, 1, "Asymptotic optimality guarantee VIOLATED");
+    BOLT_ERROR(indent + 2, 1, "Asymptotic optimality guarantee VIOLATED");
     return false;
   }
   else
     BOLT_GREEN_DEBUG(indent + 2, 1, "Asymptotic optimality guarantee maintained");
-  BOLT_YELLOW_DEBUG(indent + 2, 1, "Percent of max allowed:  " << percentOfMaxAllows << " %");
+  BOLT_WARN(indent + 2, 1, "Percent of max allowed:  " << percentOfMaxAllows << " %");
   BOLT_DEBUG(indent, 1, "-----------------------------------------");
 
   // visual_->waitForUserFeedback("review results");
@@ -375,7 +375,7 @@ bool Bolt::load()
   // Load from file
   if (!sparseGraph_->isEmpty())
   {
-    BOLT_YELLOW_DEBUG(indent, 1, "Database already loaded, vertices: "
+    BOLT_WARN(indent, 1, "Database already loaded, vertices: "
                                      << sparseGraph_->getNumVertices() << ", edges: " << sparseGraph_->getNumEdges()
                                      << ", queryV: " << sparseGraph_->getNumQueryVertices());
     return false;
@@ -423,8 +423,8 @@ void Bolt::printLogs(std::ostream &out) const
   out << "    Vertices:                    " << sparseGraph_->getNumVertices() << " (" << vertPercent << "%)"
       << std::endl;
   out << "    Edges:                       " << sparseGraph_->getNumEdges() << " (" << edgePercent << "%)" << std::endl;
-  out << "    Regenerations:               " << sparseCriteria_->numGraphGenerations_ << std::endl;
-  out << "    Disjoint Samples Added:      " << sparseCriteria_->numRandSamplesAdded_ << std::endl;
+  out << "    Regenerations:               " << sparseCriteria_->getNumGraphGenerations() << std::endl;
+  out << "    Disjoint Samples Added:      " << sparseCriteria_->getNumRandSamplesAdded() << std::endl;
   out << "    Sparse Delta:                " << sparseCriteria_->getSparseDelta() << std::endl;
   out << "  Average planning time:         " << stats_.getAveragePlanningTime() << " seconds" << std::endl;
   out << "  Average insertion time:        " << stats_.getAverageInsertionTime() << " seconds" << std::endl;

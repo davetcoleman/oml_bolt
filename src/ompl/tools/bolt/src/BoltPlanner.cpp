@@ -165,7 +165,7 @@ base::PlannerStatus BoltPlanner::solve(Termination &ptc)
       simplifyPath(geometricSolution, ptc, indent);
   }
   else
-    BOLT_YELLOW_DEBUG(indent, true, "Smoothing not enabled");
+    BOLT_WARN(indent, true, "Smoothing not enabled");
 
   // Add more points to path
   // geometricSolution.interpolate();
@@ -660,7 +660,7 @@ bool BoltPlanner::convertVertexPathToStatePath(std::vector<TaskVertex> &vertexPa
 bool BoltPlanner::simplifyPath(og::PathGeometric &path, Termination &ptc, std::size_t indent)
 {
   BOLT_FUNC(indent, verbose_, "BoltPlanner: simplifyPath()");
-  BOLT_RED_DEBUG(indent, true, "BoltPlanner: simplifyPath() - why no task??");
+  BOLT_ERROR(indent, true, "BoltPlanner: simplifyPath() - why no task??");
 
   time::point simplifyStart = time::now();
   std::size_t numStates = path.getStateCount();

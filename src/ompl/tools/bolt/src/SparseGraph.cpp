@@ -319,7 +319,7 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
   }
 
   if (!foundGoal)
-    BOLT_YELLOW_DEBUG(indent, vSearch_, "Did not find goal");
+    BOLT_WARN(indent, vSearch_, "Did not find goal");
 
   // Show all predecessors
   if (visualizeAstar_)
@@ -436,7 +436,7 @@ void SparseGraph::clearEdgeCollisionStates()
 
 void SparseGraph::errorCheckDuplicateStates(std::size_t indent)
 {
-  BOLT_RED_DEBUG(indent, true, "errorCheckDuplicateStates() - part of super debug - NOT IMPLEMENTED");
+  BOLT_ERROR(indent, true, "errorCheckDuplicateStates() - part of super debug - NOT IMPLEMENTED");
 
   // bool found = false;
   // // Error checking: check for any duplicate states
@@ -446,7 +446,7 @@ void SparseGraph::errorCheckDuplicateStates(std::size_t indent)
   //   {
   //     if (si_->getStateSpace()->equalStates(getState(i), getState(j)))
   //     {
-  //       BOLT_RED_DEBUG(indent, 1, "Found equal state: " << i << ", " << j);
+  //       BOLT_ERROR(indent, 1, "Found equal state: " << i << ", " << j);
   //       debugState(getState(i));
   //       found = true;
   //     }
@@ -458,7 +458,7 @@ void SparseGraph::errorCheckDuplicateStates(std::size_t indent)
 
 bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent) const
 {
-  BOLT_RED_DEBUG(indent, visualizeQualityPathSimp_, "smoothQualityPathOriginal()");
+  BOLT_ERROR(indent, visualizeQualityPathSimp_, "smoothQualityPathOriginal()");
 
   // Visualize path
   if (visualizeQualityPathSimp_)
@@ -692,7 +692,7 @@ std::size_t SparseGraph::checkConnectedComponents()
   if (numSets > 1)
   {
     std::size_t indent = 0;
-    BOLT_YELLOW_DEBUG(indent, true, "More than 1 connected component is in the sparse graph: " << numSets);
+    BOLT_WARN(indent, true, "More than 1 connected component is in the sparse graph: " << numSets);
   }
 
   return numSets;
@@ -728,7 +728,7 @@ SparseVertex SparseGraph::addVertex(base::State *state, const VertexType &type, 
   SparseVertex v = boost::add_vertex(g_);
 
   // Feedback
-  BOLT_FUNC(indent, vAdd_, "addVertex(): v: " << v << ", state: " << state << " type " << type);
+  BOLT_FUNC(indent, vAdd_, "addVertex(): v: " << v << ", type " << type);
 
   // Add properties
   vertexTypeProperty_[v] = type;
@@ -907,7 +907,7 @@ void SparseGraph::removeDeletedVertices(std::size_t indent)
 
 SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type, std::size_t indent)
 {
-  BOLT_FUNC(indent, vAdd_, "addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
+  BOLT_FUNC(indent, vAdd_ && false, "addEdge(): from vertex " << v1 << " to " << v2 << " type " << type);
 
   if (superDebug_)  // Extra checks
   {
@@ -1146,7 +1146,7 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
       // Check for null states
       if (!getState(v))
       {
-        BOLT_RED_DEBUG(indent, true, "Null vertex found: " << v);
+        BOLT_ERROR(indent, true, "Null vertex found: " << v);
         continue;
       }
 

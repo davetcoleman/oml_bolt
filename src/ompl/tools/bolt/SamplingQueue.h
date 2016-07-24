@@ -53,6 +53,8 @@
 // C++
 #include <queue>
 
+namespace ob = ompl::base;
+
 namespace ompl
 {
 namespace tools
@@ -61,6 +63,7 @@ namespace bolt
 {
 OMPL_CLASS_FORWARD(SamplingQueue);
 OMPL_CLASS_FORWARD(SparseGraph);
+OMPL_CLASS_FORWARD(SparseCriteria);
 
 // struct Sample
 // {
@@ -72,8 +75,7 @@ class SamplingQueue
 {
 public:
   /** \brief Constructor */
-  SamplingQueue(base::SpaceInformationPtr si, VisualizerPtr visual,
-                base::MinimumClearanceValidStateSamplerPtr clearanceSampler);
+  SamplingQueue(SparseGraphPtr sg);
 
   ~SamplingQueue();
 
@@ -84,15 +86,29 @@ public:
   /** \brief This function is called from the parent thread */
   void getNextState(base::State*& state, std::size_t indent);
 
+  void setTargetQueue(std::size_t targetQueueSize)
+  {
+    targetQueueSize_ = targetQueueSize;
+  }
+
+  /** \brief Auto-configure desired queue size by how many consumers will be reading from this */
+  void setTargetQueueByThreads(std::size_t numThreads)
+  {
+    targetQueueSize_ = 20 * numThreads;
+  }
+
 private:
 
-  void samplingThread(base::SpaceInformationPtr si, std::size_t indent);
+  void samplingThread(base::SpaceInformationPtr si, base::MinimumClearanceValidStateSamplerPtr clearanceSampler, std::size_t indent);
 
   /** \brief Do not add more states if queue is full */
   void waitForQueueNotFull(std::size_t indent);
 
   /** \brief Wait until there is at least one state ready */
   void waitForQueueNotEmpty(std::size_t indent);
+
+  SparseGraphPtr sg_;
+  SparseCriteriaPtr sc_;
 
   /** \brief The created space information */
   base::SpaceInformationPtr si_;
@@ -102,12 +118,10 @@ private:
 
   std::queue<base::State *> statesQueue_;
 
+  // When to stop generating states - this is preferrably calculated by formulas, above
   std::size_t targetQueueSize_ = 100;
 
   boost::thread *samplingThread_;
-
-  /** \brief Sampler user for generating valid samples in the state space */
-  base::MinimumClearanceValidStateSamplerPtr clearanceSampler_;
 
   /** \brief Flag indicating sampler is active */
   bool threadRunning_ = false;

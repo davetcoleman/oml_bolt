@@ -8,13 +8,13 @@ void SparseCriteria::addSamplesFromCache(std::size_t indent)
 
   if (denseCache_->getStateCacheSize() <= 1)
   {
-    BOLT_YELLOW_DEBUG(indent, true, "Cache is empty, no states to add");
+    BOLT_WARN(indent, true, "Cache is empty, no states to add");
     return;
   }
 
   if (useDiscretizedSamples_)
   {
-    BOLT_YELLOW_DEBUG(indent, true, "Not using cache for random samples because discretized samples is enabled.");
+    BOLT_WARN(indent, true, "Not using cache for random samples because discretized samples is enabled.");
     return;
   }
 

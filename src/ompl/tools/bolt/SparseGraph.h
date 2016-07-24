@@ -135,7 +135,7 @@ public:
   }
 
   /** \brief Get the nearest neighbor structure */
-  std::shared_ptr<NearestNeighbors<SparseVertex> > getNN(bool useMutex = false)
+  std::shared_ptr<NearestNeighbors<SparseVertex> > getNN()
   {
     return nn_;
   }

@@ -92,7 +92,7 @@ public:
     BOLT_FUNC(indent, true, "startSampling() Starting sampling thread");
     if (threadRunning_)
     {
-      BOLT_RED_DEBUG(indent, true, "SampleQueue already running");
+      BOLT_ERROR(indent, true, "SampleQueue already running");
       return;
     }
     threadRunning_ = true;
@@ -226,7 +226,7 @@ private:
     {
       if (oneTimeFlag)
       {
-        BOLT_YELLOW_DEBUG(indent, true, "SampleQueue: Queue is empty, waiting to provide State");
+        BOLT_WARN(indent, true, "SampleQueue: Queue is empty, waiting to provide State");
         oneTimeFlag = false;
       }
       usleep(0.001 * 1000000);
