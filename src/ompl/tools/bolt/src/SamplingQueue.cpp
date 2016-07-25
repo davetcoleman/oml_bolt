@@ -88,8 +88,8 @@ void SamplingQueue::startSampling(std::size_t indent)
   // Load minimum clearance state sampler
   ob::MinimumClearanceValidStateSamplerPtr clearanceSampler =
     ob::MinimumClearanceValidStateSamplerPtr(new ob::MinimumClearanceValidStateSampler(si.get()));
-  clearanceSampler->setMinimumObstacleClearance(sc_->getObstacleClearance());
-  si->getStateValidityChecker()->setClearanceSearchDistance(sc_->getObstacleClearance());
+  clearanceSampler->setMinimumObstacleClearance(sg_->getObstacleClearance());
+  si->getStateValidityChecker()->setClearanceSearchDistance(sg_->getObstacleClearance());
 
   // Create thread
   samplingThread_ = new boost::thread(boost::bind(&SamplingQueue::samplingThread, this, si, clearanceSampler, indent));

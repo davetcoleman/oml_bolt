@@ -34,10 +34,16 @@
 
 /* Author: Dave Coleman */
 
-#include <ompl/tools/bolt/Bolt.h>
-#include <ompl/geometric/planners/rrt/RRTConnect.h>
+// OMPL
 #include <ompl/base/PlannerStatus.h>
 #include <ompl/util/Console.h>
+
+// Bolt
+#include <ompl/tools/bolt/Bolt.h>
+#include <ompl/tools/bolt/SparseGenerator.h>
+#include <ompl/tools/bolt/SparseCriteria.h>
+
+//#include <ompl/geometric/planners/rrt/RRTConnect.h>
 
 namespace og = ompl::geometric;
 namespace ob = ompl::base;
@@ -73,11 +79,15 @@ void Bolt::initialize()
   // Load the sparse graph datastructure
   sparseGraph_.reset(new SparseGraph(si_, visual_));
 
-  // Load the generator of sparse vertices and edges
+  // Load criteria used to determine if samples are saved or rejected
   sparseCriteria_.reset(new SparseCriteria(sparseGraph_));
+
+  // Load the generator of sparse vertices and edges
+  sparseGenerator_.reset(new SparseGenerator(sparseGraph_));
 
   // Give the sparse graph reference to the criteria, because sometimes it needs data from there
   sparseGraph_->setSparseCriteria(sparseCriteria_);
+  sparseGenerator_->setSparseCriteria(sparseCriteria_);
 
   // Load the task graph used for combining multiple layers of sparse graph
   taskGraph_.reset(new TaskGraph(sparseGraph_));
@@ -89,8 +99,10 @@ void Bolt::initialize()
   OMPL_INFORM("Bolt Framework initialized using %u threads", numThreads);
 }
 
-void Bolt::setup(void)
+void Bolt::setup()
 {
+  std::size_t indent = 0;
+
   if (!configured_ || !si_->isSetup() || !boltPlanner_->isSetup())
   {
     // Setup Space Information if we haven't already done so
@@ -105,7 +117,8 @@ void Bolt::setup(void)
 
     // Setup SPARS
     sparseGraph_->setup();
-    sparseCriteria_->setup();
+    sparseCriteria_->setup(indent);
+    sparseGenerator_->setup(indent);
     taskGraph_->setup();
 
     // Set the configured flag
@@ -423,7 +436,7 @@ void Bolt::printLogs(std::ostream &out) const
   out << "    Vertices:                    " << sparseGraph_->getNumVertices() << " (" << vertPercent << "%)"
       << std::endl;
   out << "    Edges:                       " << sparseGraph_->getNumEdges() << " (" << edgePercent << "%)" << std::endl;
-  out << "    Disjoint Samples Added:      " << sparseCriteria_->getNumRandSamplesAdded() << std::endl;
+  out << "    Disjoint Samples Added:      " << sparseGenerator_->getNumRandSamplesAdded() << std::endl;
   out << "    Sparse Delta:                " << sparseCriteria_->getSparseDelta() << std::endl;
   out << "  Average planning time:         " << stats_.getAveragePlanningTime() << " seconds" << std::endl;
   out << "  Average insertion time:        " << stats_.getAverageInsertionTime() << " seconds" << std::endl;
@@ -552,7 +565,7 @@ void Bolt::benchmarkSparseGraphGeneration()
   time::point startTime = time::now();  // Benchmark
 
   // Create graph
-  sparseCriteria_->createSPARS();
+  sparseGenerator_->createSPARS();
 
   double time = time::seconds(time::now() - startTime);
   OMPL_INFORM("Graph generation took %f seconds", time);  // Benchmark

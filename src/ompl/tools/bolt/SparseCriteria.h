@@ -41,8 +41,6 @@
 
 // OMPL
 #include <ompl/tools/bolt/SparseGraph.h>
-#include <ompl/tools/bolt/SamplingQueue.h>
-#include <ompl/tools/bolt/CandidateQueue.h>
 
 namespace ompl
 {
@@ -50,11 +48,6 @@ namespace tools
 {
 namespace bolt
 {
-/**
-   @anchor SparseCriteria
-   @par Short description
-   Database for storing and retrieving past plans
-*/
 
 /// @cond IGNORE
 OMPL_CLASS_FORWARD(SparseCriteria);
@@ -65,8 +58,6 @@ OMPL_CLASS_FORWARD(SparseCriteria);
 
 class SparseCriteria
 {
-  friend class SparseGraph;
-
 public:
   /** \brief Constructor needs the state space used for planning.
    */
@@ -75,30 +66,15 @@ public:
   /** \brief Deconstructor */
   virtual ~SparseCriteria();
 
-  SamplingQueuePtr getSamplingQueue()
-  {
-    return samplingQueue_;
-  }
-
   /** \brief Initialize sparse parameters */
-  bool setup();
+  bool setup(std::size_t indent);
 
-  /** \brief Create a SPARS graph from the discretized dense graph and its popularity metric */
-  void createSPARS();
+  void resetStats()
+  {
+    numVerticesMoved_ = 0;
 
-  void addDiscretizedStates(std::size_t indent);
-
-  /** \brief Randomly sample */
-  bool addRandomSamples(std::size_t indent);
-  bool addRandomSamplesOneThread(std::size_t indent);
-  bool addRandomSamplesTwoThread(std::size_t indent);
-
-  /**
-   * \brief Add state to sparse graph
-   * \param stateID representing a pre-populate state
-   * \return true if sparse graph is still accepting states, false if the sparse graph has completed
-   */
-  bool addSample(CandidateData& candidateD, std::size_t threadID, bool& usedState, std::size_t indent);
+    // TODO: move addVertex stats in SparseGraph here
+  }
 
   /**
    * \brief Run various checks/criteria to determine if to keep TaskVertex in sparse graph
@@ -170,15 +146,6 @@ public:
   bool distanceCheck(SparseVertex v, const base::State* q, SparseVertex vp, const base::State* qp, SparseVertex vpp,
                      std::size_t indent);
 
-  /**
-   * \brief Get neighbors within sparseDelta radius
-   * \param denseV - origin state to search from
-   * \param graphNeighborhood - resulting nearby states
-   * \param visibleNeighborhood - resulting nearby states that are visible
-   * \param indent - debugging tool
-   */
-  void findGraphNeighbors(CandidateData& candidateD, std::size_t threadID, std::size_t indent);
-
   /** \brief After adding a new vertex, check if there is a really close nearby vertex that can be merged with this one
    */
   bool checkRemoveCloseVertices(SparseVertex v1, std::size_t indent = 0);
@@ -196,12 +163,6 @@ public:
   /** \brief Return true if state is far enough away from nearest obstacle */
   bool sufficientClearance(base::State* state);
 
-  /** \brief Getter for vertexDiscretizer */
-  VertexDiscretizerPtr& getVertexDiscretizer()
-  {
-    return vertexDiscretizer_;
-  }
-
   double getSparseDelta()
   {
     return sparseDelta_;
@@ -215,24 +176,29 @@ public:
     return stretchFactor_;
   }
 
-  void setDiscretizedSamplesInsertion(bool discretizedSamplesInsertion)
+  double getDiscretization()
   {
-    discretizedSamplesInsertion_ = discretizedSamplesInsertion;
+    return discretization_;
   }
 
-  bool getDiscretizedSamplesInsertion()
+  bool getUseFourthCriteria()
   {
-    return discretizedSamplesInsertion_;
+    return useFourthCriteria_;
   }
 
-  std::size_t getNumRandSamplesAdded()
+  void setUseFourthCriteria(bool useFourthCriteria)
   {
-    return numRandSamplesAdded_;
+    useFourthCriteria_ = useFourthCriteria;
   }
 
-  double getObstacleClearance()
+  double getDiscretizePenetrationDist()
   {
-    return obstacleClearance_;
+    return discretizePenetrationDist_;
+  }
+
+  std::size_t getNumVerticesMoved()
+  {
+    return numVerticesMoved_;
   }
 
 protected:
@@ -252,26 +218,14 @@ protected:
   base::ValidStateSamplerPtr regularSampler_;
   base::MinimumClearanceValidStateSamplerPtr clearanceSampler_;
 
-  /** \brief Secondary thread for sampling and garbage collection */
-  SamplingQueuePtr samplingQueue_;
-
-  /** \brief Multiple threads for finding nearest neighbors from samples */
-  CandidateQueuePtr candidateQueue_;
-
-  /** \brief Special flag for tracking mode when inserting into sparse graph */
-  bool secondSparseInsertionAttempt_ = false;
-
-  /** \brief Special flag for tracking mode when inserting from discretized grid */
-  bool discretizedSamplesInsertion_ = false;
-
   /** \brief Amount of sub-optimality allowed */
-  double sparseDelta_ = 2.0;
+  double sparseDelta_;
 
   /** \brief SPARS parameter for dense graph connection distance */
   double denseDelta_;
 
   /** \brief How overlapping two visibility regions should be to each other, where 0 is just barely touching */
-  double discretizePenetrationDist_ = 0.001;
+  double discretizePenetrationDist_;
 
   /** \brief Number of sample points to use when trying to detect interfaces. */
   std::size_t nearSamplePoints_;
@@ -288,20 +242,12 @@ protected:
   /** \brief Distance to the nearest possible vertex in the grid, referred to as z */
   double nearestDiscretizedV_;
 
-  bool useFourthCriteria_ = false;
-
-  std::size_t numConsecutiveFailures_;
-  std::size_t maxConsecutiveFailures_ = 0; // find the closest to completion the process has gotten
-  std::size_t maxPercentComplete_; // the whole number percentage presented to user
-
-  VertexDiscretizerPtr vertexDiscretizer_;
+  bool useFourthCriteria_;
 
   /** \brief Temporary state for doing sparse criteria sampling */
   std::vector<base::State*> closeRepSampledState_;
 
   /** \brief For statistics */
-  std::size_t numRandSamplesAdded_ = 0;
-  time::point timeRandSamplesStarted_; // calculate rate at which the graph is being built
   std::size_t numVerticesMoved_ = 0;
 
 public:
@@ -320,31 +266,14 @@ public:
   /** \brief Percent of sparse fraction that should overlap via the discretization  */
   double penetrationOverlapFraction_ = 0.1;
 
-  /** \brief Number of failed state insertion attempts before stopping the algorithm */
-  std::size_t terminateAfterFailures_ = 1000;
-
-  /** \brief Number of failed state insertion attempts before starting to apply the fourth quality criteria from SPARS
-   */
-  std::size_t fourthCriteriaAfterFailures_ = 500;
-
-  /** \brief How often to save */
-  std::size_t saveInterval_ = 1000;
-
-  /** \brief How much the popularity of a node can cause its cost-to-go heuristic to be underestimated */
-  double percentMaxExtentUnderestimate_ = 0.01;
-
-  /** \brief Generate the Sparse graph with discretized and/or random samples */
   bool useL2Norm_ = false;
-  bool useDiscretizedSamples_;
-  bool useRandomSamples_;
 
   /** \brief Experimental feature that allows very closeby vertices to be merged with newly added ones */
   bool useCheckRemoveCloseVertices_ = true;
   bool useClearEdgesNearVertex_ = true;
   bool useOriginalSmoother_ = false;
 
-  /** \brief Clearance of obstacles in order to be considered "cl-robust" as described in paper */
-  double obstacleClearance_ = 1;
+  /** \brief Verbose flags */
   bool vCriteria_ = false;
   bool vQuality_ = false;
   bool vRemoveClose_ = false;
@@ -355,13 +284,7 @@ public:
   bool visualizeConnectivity_ = false;
   bool visualizeQualityCriteria_ = false;
   bool visualizeRemoveCloseVertices_ = false;
-  bool visualizeVoronoiDiagram_ = true;
-  bool visualizeVoronoiDiagramAnimated_ = true;
   bool visualizeNodePopularity_ = false;
-
-  /** \brief Method for ordering of vertex insertion */
-  std::size_t sparseCreationInsertionOrder_ = 0;
-
 };  // end SparseCriteria
 
 }  // namespace bolt

@@ -48,6 +48,7 @@ add_library(${PROJECT_NAME}
   src/ompl/tools/bolt/src/Bolt.cpp
   src/ompl/tools/bolt/src/BoltPlanner.cpp
   src/ompl/tools/bolt/src/SparseGraph.cpp
+  src/ompl/tools/bolt/src/SparseGenerator.cpp
   src/ompl/tools/bolt/src/SparseCriteria.cpp
   src/ompl/tools/bolt/src/SparseStorage.cpp
   src/ompl/tools/bolt/src/TaskGraph.cpp

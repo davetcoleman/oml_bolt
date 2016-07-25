@@ -42,7 +42,6 @@
 
 #include <ompl/tools/bolt/SparseGraph.h>
 #include <ompl/tools/bolt/TaskGraph.h>
-#include <ompl/tools/bolt/SparseCriteria.h>
 #include <ompl/tools/debug/Visualizer.h>
 #include <ompl/tools/bolt/BoltPlanner.h>
 
@@ -74,6 +73,8 @@ namespace bolt
 
 /// @cond IGNORE
 OMPL_CLASS_FORWARD(Bolt);
+OMPL_CLASS_FORWARD(SparseGenerator);
+OMPL_CLASS_FORWARD(SparseCriteria);
 /// @endcond
 
 /** \class BoltPtr
@@ -184,6 +185,11 @@ public:
   TaskGraphPtr getTaskGraph();
   SparseCriteriaPtr getSparseCriteria();
 
+  SparseGeneratorPtr getSparseGenerator()
+  {
+    return sparseGenerator_;
+  }
+
   /** \brief Allow accumlated experiences to be processed */
   bool doPostProcessing();
 
@@ -197,8 +203,11 @@ protected:
   /** \brief The graph that contains a sparse roadmap of the space */
   SparseGraphPtr sparseGraph_;
 
-  /** \brief Generator of sparse vertices and edges */
+  /** \brief Various tests to determine if a vertex/edge should be added to the graph, based on SPARS */
   SparseCriteriaPtr sparseCriteria_;
+
+  /** \brief Generator of sparse vertices and edges */
+  SparseGeneratorPtr sparseGenerator_;
 
   /** \brief Graph used for combining multiple layers of sparse graph */
   TaskGraphPtr taskGraph_;

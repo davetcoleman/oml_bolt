@@ -258,6 +258,15 @@ public:
   bool isEmpty() const;
 
   /* ---------------------------------------------------------------------------------
+   * Sampling Properties
+   * --------------------------------------------------------------------------------- */
+
+  double getObstacleClearance()
+  {
+    return obstacleClearance_;
+  }
+
+  /* ---------------------------------------------------------------------------------
    * Error checking
    * --------------------------------------------------------------------------------- */
 
@@ -492,6 +501,9 @@ public:  // user settings from other applications
   int numSamplesAddedForInterface_ = 0;
   int numSamplesAddedForQuality_ = 0;
 
+  /** \brief Clearance of obstacles in order to be considered "cl-robust" as described in paper */
+  double obstacleClearance_;
+
   /** \brief Allow the database to save to file (new experiences) */
   bool savingEnabled_ = true;
 
@@ -518,6 +530,9 @@ public:  // user settings from other applications
   bool visualizeDatabaseCoverage_ = true;
   bool visualizeGraphAfterLoading_ = true;
   bool visualizeProjection_ = false;
+  bool visualizeVoronoiDiagram_ = true;
+  bool visualizeVoronoiDiagramAnimated_ = true;
+
 };  // end class SparseGraph
 
 ////////////////////////////////////////////////////////////////////////////////////////

@@ -728,7 +728,7 @@ SparseVertex SparseGraph::addVertex(base::State *state, const VertexType &type, 
   SparseVertex v = boost::add_vertex(g_);
 
   // Feedback
-  BOLT_FUNC(indent, vAdd_, "addVertex(): v: " << v << ", type " << type);
+  BOLT_FUNC(indent, vAdd_, "addVertex(): new_vertex: " << v << ", type " << type);
 
   // Add properties
   vertexTypeProperty_[v] = type;
@@ -736,7 +736,7 @@ SparseVertex SparseGraph::addVertex(base::State *state, const VertexType &type, 
   vertexPopularity_[v] = MAX_POPULARITY_WEIGHT;  // 100 means the vertex is very unpopular
 
   // Clear all nearby interface data whenever a new vertex is added
-  if (sparseCriteria_->useFourthCriteria_)
+  if (sparseCriteria_->getUseFourthCriteria())
     clearInterfaceData(state);
 
   // Connected component tracking
@@ -786,8 +786,8 @@ SparseVertex SparseGraph::addVertex(base::State *state, const VertexType &type, 
   }
 
   // Optional Voronoi Diagram
-  if (sparseCriteria_->visualizeVoronoiDiagramAnimated_ ||
-      (sparseCriteria_->visualizeVoronoiDiagram_ && sparseCriteria_->useFourthCriteria_))
+  if (visualizeVoronoiDiagramAnimated_ ||
+      (visualizeVoronoiDiagram_ && sparseCriteria_->getUseFourthCriteria()))
     visual_->vizVoronoiDiagram();
 
   // Enable saving
@@ -1044,7 +1044,7 @@ void SparseGraph::clearInterfaceData(base::State *state)
 
   // Search
   queryStates_[threadID] = state;
-  nn_->nearestR(queryVertices_[threadID], 2.0 * sparseCriteria_->sparseDelta_, graphNeighbors);
+  nn_->nearestR(queryVertices_[threadID], 2.0 * sparseCriteria_->getSparseDelta(), graphNeighbors);
   queryStates_[threadID] = nullptr;
 
   // For each of the vertices
@@ -1070,7 +1070,7 @@ void SparseGraph::clearEdgesNearVertex(SparseVertex vertex, std::size_t indent)
   std::vector<SparseVertex> graphNeighbors;
 
   // Search
-  nn_->nearestR(vertex, sparseCriteria_->sparseDelta_, graphNeighbors);
+  nn_->nearestR(vertex, sparseCriteria_->getSparseDelta(), graphNeighbors);
 
   std::size_t origNumEdges = getNumEdges();
   // For each of the vertices
@@ -1177,7 +1177,7 @@ void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
 
   // Show visibility region around vertex
   if (visualizeDatabaseCoverage_)
-    visual_->viz1()->state(getState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseCriteria_->sparseDelta_);
+    visual_->viz1()->state(getState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseCriteria_->getSparseDelta());
 
   // Show vertex
   visual_->viz1()->state(getState(v), vertexSize_, color, 0);
@@ -1187,7 +1187,7 @@ void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
     // Show visibility region around vertex
     if (visualizeDatabaseCoverage_)
       visual_->viz7()->state(getState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
-                             sparseCriteria_->sparseDelta_ * 2.0);
+                             sparseCriteria_->getSparseDelta() * 2.0);
 
     // Show vertex
     visual_->viz7()->state(getState(v), vertexSize_, color, 0);
@@ -1315,9 +1315,9 @@ void SparseGraph::printGraphStats()
   BOLT_DEBUG(indent, 1, "      Max:                 " << maxEdgeLength);
   BOLT_DEBUG(indent, 1, "      Min:                 " << minEdgeLength);
   BOLT_DEBUG(indent, 1, "      Average:             " << averageEdgeLength);
-  BOLT_DEBUG(indent, 1, "      SparseDelta:         " << sparseCriteria_->sparseDelta_);
-  BOLT_DEBUG(indent, 1, "      Difference:          " << averageEdgeLength - sparseCriteria_->sparseDelta_);
-  BOLT_DEBUG(indent, 1, "      Penetration:         " << sparseCriteria_->discretizePenetrationDist_);
+  BOLT_DEBUG(indent, 1, "      SparseDelta:         " << sparseCriteria_->getSparseDelta());
+  BOLT_DEBUG(indent, 1, "      Difference:          " << averageEdgeLength - sparseCriteria_->getSparseDelta());
+  BOLT_DEBUG(indent, 1, "      Penetration:         " << sparseCriteria_->getDiscretizePenetrationDist());
   BOLT_DEBUG(indent, 1, "------------------------------------------------------");
 }
 

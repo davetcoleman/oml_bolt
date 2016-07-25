@@ -55,14 +55,15 @@ namespace tools
 namespace bolt
 {
 OMPL_CLASS_FORWARD(CandidateQueue);
-OMPL_CLASS_FORWARD(SparseGraph);
+//OMPL_CLASS_FORWARD(SparseGraph);
 OMPL_CLASS_FORWARD(SparseCriteria);
+OMPL_CLASS_FORWARD(SparseGenerator);
 
 class CandidateQueue
 {
 public:
   /** \brief Constructor */
-  CandidateQueue(SparseGraphPtr sg);
+  CandidateQueue(SparseGraphPtr sg, SamplingQueuePtr samplingQueue, SparseGeneratorPtr sparseGenerator);
 
   ~CandidateQueue();
 
@@ -94,15 +95,15 @@ private:
   bool findGraphNeighbors(CandidateData &candidateD, std::size_t threadID, std::size_t indent);
 
   SparseGraphPtr sg_;
-  SparseCriteriaPtr sc_;
+  SparseCriteriaPtr sparseCriteria_;
+  SparseGeneratorPtr sparseGenerator_;
+  SamplingQueuePtr samplingQueue_;
 
   /** \brief The created space information */
   base::SpaceInformationPtr si_;
 
   /** \brief Class for managing various visualization features */
   VisualizerPtr visual_;
-
-  SamplingQueuePtr samplingQueue_;
 
   std::queue<CandidateData> queue_;
 
