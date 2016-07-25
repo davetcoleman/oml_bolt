@@ -241,7 +241,7 @@ bool SparseGraph::save(std::size_t indent)
 
   // Benchmark
   double loadTime = time::seconds(time::now() - start);
-  BOLT_DEBUG(indent, true, "Saved database to file in " << loadTime
+  BOLT_INFO(indent, true, "Saved database to file in " << loadTime
                                                         << " seconds. Time: " << time::as_string(time::now()));
   return true;
 }

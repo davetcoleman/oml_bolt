@@ -92,8 +92,6 @@ public:
   bool addRandomSamples(std::size_t indent);
   bool addRandomSamplesOneThread(std::size_t indent);
   bool addRandomSamplesTwoThread(std::size_t indent);
-  bool addRandomSamplesThreaded(std::size_t indent);
-  void addRandomSampleThread(std::size_t threadID, base::SpaceInformationPtr si, std::size_t indent);
 
   /**
    * \brief Add state to sparse graph
@@ -115,7 +113,6 @@ public:
   bool checkAddCoverage(CandidateData& candidateD, std::size_t indent);
   bool checkAddConnectivity(CandidateData& candidateD, std::size_t indent);
   bool checkAddInterface(CandidateData& candidateD, std::size_t indent);
-  bool checkAddDiscretized(CandidateData& candidateD, std::size_t indent);
   bool checkAddQuality(CandidateData& candidateD, std::size_t threadID, std::size_t indent);
   void visualizeCheckAddQuality(base::State* candidateState, SparseVertex candidateRep);
 
@@ -233,11 +230,6 @@ public:
     return numRandSamplesAdded_;
   }
 
-  std::size_t getNumGraphGenerations()
-  {
-    return numGraphGenerations_;
-  }
-
   double getObstacleClearance()
   {
     return obstacleClearance_;
@@ -290,7 +282,7 @@ protected:
   /** \brief Cache the maximum extent for later re-use */
   double maxExtent_;
 
-  /** \brief Distance between nodes for 1st pass, the offset and reused again for 2nd pass */
+  /** \brief Granuality of the discretized graph */
   double discretization_;
 
   /** \brief Distance to the nearest possible vertex in the grid, referred to as z */
@@ -299,6 +291,8 @@ protected:
   bool useFourthCriteria_ = false;
 
   std::size_t numConsecutiveFailures_;
+  std::size_t maxConsecutiveFailures_ = 0; // find the closest to completion the process has gotten
+  std::size_t maxPercentComplete_; // the whole number percentage presented to user
 
   VertexDiscretizerPtr vertexDiscretizer_;
 
@@ -306,8 +300,8 @@ protected:
   std::vector<base::State*> closeRepSampledState_;
 
   /** \brief For statistics */
-  std::size_t numGraphGenerations_ = 0;
   std::size_t numRandSamplesAdded_ = 0;
+  time::point timeRandSamplesStarted_; // calculate rate at which the graph is being built
   std::size_t numVerticesMoved_ = 0;
 
 public:

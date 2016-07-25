@@ -249,11 +249,10 @@ void SparseCriteria::createSPARS()
   // Finish the graph with random samples
   if (useRandomSamples_)
   {
-    //addRandomSamples(indent);
-    //addRandomSamplesOneThread(indent);
     BOLT_INFO(indent, true, "Adding random samples states");
+    // addRandomSamples(indent);
+    // addRandomSamplesOneThread(indent);
     addRandomSamplesTwoThread(indent);
-    //addRandomSamplesThreaded(indent);
   }
 
   // Profiler
@@ -270,9 +269,6 @@ void SparseCriteria::createSPARS()
 
   // Benchmark runtime
   double duration = time::seconds(time::now() - startTime);
-
-  // Statistics
-  numGraphGenerations_++;
 
   // Check how many connected components exist, possibly throw error
   std::size_t numSets = sg_->getDisjointSetsCount();
@@ -299,13 +295,14 @@ void SparseCriteria::createSPARS()
   BOLT_INFO(indent, 1, "  Vertices:                  " << sg_->getNumRealVertices());
   BOLT_INFO(indent, 1, "  Edges:                     " << sg_->getNumEdges());
   BOLT_INFO(indent, 1, "  Generation time:           " << duration);
-  BOLT_INFO(indent, 1, "  Total generations:         " << numGraphGenerations_);
   BOLT_INFO(indent, 1, "  Disjoint sets:             " << numSets);
+  BOLT_INFO(indent, 1, "  Sparse Criteria:           ");
+  BOLT_INFO(indent, 1, "     SparseDelta:            " << sparseDelta_);
+  BOLT_INFO(indent, 1, "     Discretization:         " << discretization_);
   BOLT_INFO(indent, 1, "  Edge Lengths:              ");
   BOLT_INFO(indent, 1, "     Max:                    " << maxEdgeLength);
   BOLT_INFO(indent, 1, "     Min:                    " << minEdgeLength);
   BOLT_INFO(indent, 1, "     Average:                " << averageEdgeLength);
-  BOLT_INFO(indent, 1, "     SparseDelta:            " << sparseDelta_);
   BOLT_INFO(indent, 1, "     Difference:             " << averageEdgeLength - sparseDelta_);
   BOLT_INFO(indent, 1, "     Penetration:            " << discretizePenetrationDist_);
   BOLT_INFO(indent, 1, "  Criteria additions:        ");
@@ -321,6 +318,12 @@ void SparseCriteria::createSPARS()
   BOLT_INFO(indent, 1, "    Missing interfaces:      " << interfaceStats.second);
   BOLT_INFO(indent, 1, "-----------------------------------------");
 
+  // Copy-paste data
+  std::cout << sparseDeltaFraction_ << ", " << sparseDelta_ << ", " << discretization_ << ", "
+            << fourthCriteriaAfterFailures_ << ", " << terminateAfterFailures_ << ", " << maxConsecutiveFailures_
+            << ", " << sg_->getNumRealVertices() << ", " << sg_->getNumEdges() << ", " << numSets << ", " << duration
+            << std::endl;
+
   // if (!sg_->visualizeSparseGraph_)
   // sg_->displayDatabase(true, indent);
 
@@ -331,7 +334,7 @@ void SparseCriteria::addDiscretizedStates(std::size_t indent)
 {
   BOLT_FUNC(indent, true, "addDiscretizedStates()");
   bool vAdd = sg_->vAdd_;
-  sg_->vAdd_ = false; // only do this for random sampling
+  sg_->vAdd_ = false;  // only do this for random sampling
 
   // This only runs if the graph is empty
   if (!sg_->isEmpty())
@@ -341,89 +344,11 @@ void SparseCriteria::addDiscretizedStates(std::size_t indent)
   }
 
   // Generate discretization
-  vertexDiscretizer_->generateLattice(indent);
-
-  return;
-
-  if (visual_->viz1()->shutdownRequested())  // Check if shutdown requested
-  {
-    BOLT_INFO(indent, true, "Shutdown requested");
-    sg_->saveIfChanged(indent);
-    exit(0);
-  }
-
-  // this tells SPARS to always add the vertex, no matter what
-  discretizedSamplesInsertion_ = true;
-
-  // this tells SPARS to not attempt to remove close vertices, even if user requested it
-  bool useCheckRemoveCloseVerticesTemp = useCheckRemoveCloseVertices_;
-  useCheckRemoveCloseVertices_ = false;
-
-  std::size_t sucessfulInsertions = 0;
-
-  const std::size_t threadID = 0;  // TODO(davetcoleman): multi-thread
-
-  // Get the generated states
-  std::vector<base::State *> &candidateStates = vertexDiscretizer_->getFailedStates();
-  // Status feedback
-  std::size_t debugFrequency = std::max(std::size_t(10), static_cast<std::size_t>(candidateStates.size() / 20));
-  for (std::size_t i = 0; i < candidateStates.size(); ++i)
-  {
-    base::State *candidateState = candidateStates[i];
-
-    // Run SPARS checks
-    VertexType addReason;  // returns why the state was added
-
-    // Find nearby nodes
-    CandidateData candidateD(candidateState);
-    findGraphNeighbors(candidateD, threadID, indent);
-
-    if (!addStateToRoadmap(candidateD, addReason, threadID, indent))
-    {
-      // std::cout << "Failed AGAIN to add state to roadmap------" << std::endl;
-
-      // Visualize the failed vertex as a small red dot
-      if (sg_->visualizeSparseGraph_ && false)
-      {
-        visual_->viz1()->state(candidateState, tools::SMALL, tools::RED, 0);
-      }
-
-      si_->freeState(candidateState);
-      // Erase the state eventually
-      // samplingQueue_->recycleState(candidateState);
-    }
-    else
-    {
-      sucessfulInsertions++;
-    }
-
-    // User feedback
-    if (i % debugFrequency == 0)
-    {
-      std::cout << ANSI_COLOR_BLUE;
-      std::cout << "Sparse vertex insertion progress: "
-                << static_cast<int>(static_cast<double>(i) / candidateStates.size() * 100.0) << "%" << std::endl;
-      std::cout << ANSI_COLOR_RESET;
-
-      // Check if shutdown requested
-      if (visual_->viz1()->shutdownRequested())
-      {
-        BOLT_INFO(indent, true, "Shutdown requested");
-        sg_->saveIfChanged(indent);
-        exit(0);
-      }
-    }
-  }  // for each candidateStates
-
-  // Undo settings changes
-  discretizedSamplesInsertion_ = false;
-  useCheckRemoveCloseVertices_ = useCheckRemoveCloseVerticesTemp;
+  vertexDiscretizer_->generateGrid(indent);
 
   // Make sure discretization doesn't have any bugs
   if (sg_->superDebug_)
     sg_->errorCheckDuplicateStates(indent);
-
-  sg_->vAdd_ = vAdd; // only do this for random sampling
 }
 
 bool SparseCriteria::addRandomSamples(std::size_t indent)
@@ -432,6 +357,9 @@ bool SparseCriteria::addRandomSamples(std::size_t indent)
 
   // Clear stats
   numRandSamplesAdded_ = 0;
+  timeRandSamplesStarted_ = time::now();
+  maxConsecutiveFailures_ = 0;
+  maxPercentComplete_ = 0;
 
   base::State *candidateState = si_->allocState();
   const std::size_t threadID = 0;
@@ -478,6 +406,9 @@ bool SparseCriteria::addRandomSamplesOneThread(std::size_t indent)
 
   // Clear stats
   numRandSamplesAdded_ = 0;
+  timeRandSamplesStarted_ = time::now();
+  maxConsecutiveFailures_ = 0;
+  maxPercentComplete_ = 0;
 
   samplingQueue_->startSampling(indent);
 
@@ -500,7 +431,7 @@ bool SparseCriteria::addRandomSamplesOneThread(std::size_t indent)
     }
 
     // Tell other thread whether the state should be re-used
-    //samplingQueue_->setNextStateUsed(usedState);
+    // samplingQueue_->setNextStateUsed(usedState);
   }  // while(true) create random sample
 
   return true;  // program should never reach here
@@ -512,6 +443,9 @@ bool SparseCriteria::addRandomSamplesTwoThread(std::size_t indent)
 
   // Clear stats
   numRandSamplesAdded_ = 0;
+  timeRandSamplesStarted_ = time::now();
+  maxConsecutiveFailures_ = 0;
+  maxPercentComplete_ = 0;
 
   samplingQueue_->startSampling(indent);
 
@@ -520,17 +454,16 @@ bool SparseCriteria::addRandomSamplesTwoThread(std::size_t indent)
   const std::size_t threadID = 0;
   while (!visual_->viz1()->shutdownRequested())
   {
-    //time::point startTime2 = time::now(); // Benchmark
+    // time::point startTime2 = time::now(); // Benchmark
 
     // Find nearby nodes
-    CandidateData& candidateD = candidateQueue_->getNextCandidate(indent);
+    CandidateData &candidateD = candidateQueue_->getNextCandidate(indent);
 
     bool usedState = false;
 
-
-    //time::point startTime = time::now(); // Benchmark
+    // time::point startTime = time::now(); // Benchmark
     bool result = addSample(candidateD, threadID, usedState, indent);
-    //BOLT_GREEN_DEBUG(0, 1, time::seconds(time::now() - startTime) << " add sample"); // Benchmark
+    // BOLT_GREEN_DEBUG(0, 1, time::seconds(time::now() - startTime) << " add sample"); // Benchmark
 
     if (!result)
     {
@@ -540,89 +473,17 @@ bool SparseCriteria::addRandomSamplesTwoThread(std::size_t indent)
       return true;  // no more states needed
     }
 
-    //BOLT_DEBUG(indent, true, "SparseCriteria: used: " << usedState << " numRandSamplesAdded: " << numRandSamplesAdded_);
+    // BOLT_DEBUG(indent, true, "SparseCriteria: used: " << usedState << " numRandSamplesAdded: " <<
+    // numRandSamplesAdded_);
 
     // Tell other thread whether the candidate was used
     candidateQueue_->setCandidateUsed(usedState, indent);
 
-
-    //BOLT_DEBUG(0, 1, time::seconds(time::now() - startTime2) << " whole sampling loop"); // Benchmark
+    // BOLT_DEBUG(0, 1, time::seconds(time::now() - startTime2) << " whole sampling loop"); // Benchmark
   }  // while(true) create random sample
 
   return true;  // program should never reach here
 }
-
-/*
-bool SparseCriteria::addRandomSamplesThreaded(std::size_t indent)
-{
-  // Set number threads
-  std::size_t numThreads = 1; // sg_->getNumQueryVertices();
-
-  BOLT_FUNC(indent, true, "addRandomSamplesThreaded() - starting " << numThreads << " threads");
-
-  // Clear stats
-  numRandSamplesAdded_ = 0;
-
-  // Create threads
-  std::vector<std::thread*> samplingThreads(numThreads);
-
-  for (std::size_t i = 0; i < samplingThreads.size(); ++i)
-  {
-    // Create new collision checker
-    base::SpaceInformationPtr si(new base::SpaceInformation(si_->getStateSpace()));
-    si->setStateValidityChecker(si_->getStateValidityChecker());
-    si->setMotionValidator(si_->getMotionValidator());
-
-    samplingThreads[i] = new std::thread(std::bind(&SparseCriteria::addRandomSampleThread, this, i, si, indent));
-  }
-
-  // Join threads
-  for (std::size_t i = 0; i < samplingThreads.size(); ++i)
-  {
-    samplingThreads[i]->join();
-    delete samplingThreads[i];
-  }
-
-  return true;
-}
-
-void SparseCriteria::addRandomSampleThread(std::size_t threadID, base::SpaceInformationPtr si, std::size_t indent)
-{
-  BOLT_FUNC(indent, true, "addRandomSampleThread() threadID: " << threadID);
-
-  base::State* candidateState = si_->allocState();
-
-  // Start sampling
-  while (true)
-  {
-    // Sample randomly
-    if (!clearanceSampler_->sample(candidateState))
-    {
-      OMPL_ERROR("Unable to find valid sample");
-      exit(-1);  // this should never happen
-    }
-
-    // Debug
-    if (false)
-    {
-      BOLT_DEBUG(indent, vCriteria_, "Randomly sampled state: " << candidateState);
-      sg_->debugState(candidateState);
-    }
-
-    bool usedState = false;
-    if (!addSample(candidateState, threadID, usedState, indent))
-    {
-      return; // no more states needed, end thread
-    }
-
-    if (usedState)
-    {
-      // State was used, so allocate new state
-      candidateState = si_->allocState();
-    }
-  }
-}
-*/
 
 bool SparseCriteria::addSample(CandidateData &candidateD, std::size_t threadID, bool &usedState, std::size_t indent)
 {
@@ -634,7 +495,11 @@ bool SparseCriteria::addSample(CandidateData &candidateD, std::size_t threadID, 
   {
     // Save on interval of new state addition
     if ((numRandSamplesAdded_ + 1) % saveInterval_ == 0)
+    {
       sg_->saveIfChanged(indent);
+      double duration = time::seconds(time::now() - timeRandSamplesStarted_);
+      BOLT_DEBUG(indent, true, "Adding samples at rate: " << numRandSamplesAdded_ / duration << " hz");
+    }
 
     // Increment statistics
     numRandSamplesAdded_++;
@@ -652,16 +517,35 @@ bool SparseCriteria::addSample(CandidateData &candidateD, std::size_t threadID, 
       exit(0);
     }
   }
-  else if (numConsecutiveFailures_ % 500 == 0)
+  else
   {
-    BOLT_INFO(indent, true, "Random sample failed, consecutive failures: " << numConsecutiveFailures_);
+    if (numConsecutiveFailures_ > maxConsecutiveFailures_)
+    {
+      maxConsecutiveFailures_ = numConsecutiveFailures_;
+      std::size_t percentComplete;
+      if (!useFourthCriteria_)
+        percentComplete = ceil(maxConsecutiveFailures_ / double(fourthCriteriaAfterFailures_) / 2.0 * 100.0);
+      else
+        percentComplete = ceil(maxConsecutiveFailures_ / double(terminateAfterFailures_) * 100.0);
+
+      // Every time the whol number of percent compelete changes, show to user
+      if (percentComplete > maxPercentComplete_)
+      {
+        maxPercentComplete_ = percentComplete;
+        BOLT_INFO(indent, true, "Termination progress: " << percentComplete << "% consecutive failures: " << numConsecutiveFailures_);
+      }
+    }
+    // if (numConsecutiveFailures_ % 500 == 0)
+    // {
+    //   BOLT_INFO(indent, true, "Random sample failed, consecutive failures: " << numConsecutiveFailures_);
+    // }
   }
 
   // Check consecutive failures to determine if quality criteria needs to be enabled
   if (!useFourthCriteria_ && numConsecutiveFailures_ >= fourthCriteriaAfterFailures_)
   {
     BOLT_INFO(indent, true, "Starting to check for 4th quality criteria because "
-              << numConsecutiveFailures_ << " consecutive failures have occured");
+                                << numConsecutiveFailures_ << " consecutive failures have occured");
     bool disableFourth = false;
     if (disableFourth)
     {
@@ -673,6 +557,7 @@ bool SparseCriteria::addSample(CandidateData &candidateD, std::size_t threadID, 
 
     visualizeOverlayNodes_ = true;  // visualize all added nodes in a separate window
     numConsecutiveFailures_ = 0;    // reset for new criteria
+    maxConsecutiveFailures_ = 0;    // reset for new criteria
 
     // Show it just once if it has not already been animated
     if (!visualizeVoronoiDiagramAnimated_ && visualizeVoronoiDiagram_)
@@ -682,8 +567,8 @@ bool SparseCriteria::addSample(CandidateData &candidateD, std::size_t threadID, 
   // Check consequitive failures to determine termination
   if (useFourthCriteria_ && numConsecutiveFailures_ > terminateAfterFailures_)
   {
-    BOLT_WARN(indent, true, "SPARS creation finished because " << terminateAfterFailures_
-                                                                       << " consecutive insertion failures reached");
+    BOLT_WARN(indent, true, "SPARS creation finished because " << terminateAfterFailures_ << " consecutive insertion "
+                                                                                             "failures reached");
     return false;  // stop inserting states
   }
 
@@ -717,47 +602,38 @@ bool SparseCriteria::addStateToRoadmap(CandidateData &candidateD, VertexType &ad
   // Always add a node if no other nodes around it are visible (GUARD)
   if (checkAddCoverage(candidateD, indent))
   {
-    BOLT_DEBUG(indent, vAddedReason_,
-               "Graph updated: COVERAGE, RandSamplesAdded: " << numRandSamplesAdded_
-                                                  << " ConsecutiveFailures: " << numConsecutiveFailures_
-                                                  << " Fourth: " << useFourthCriteria_);
+    BOLT_DEBUG(indent, vAddedReason_, "Graph updated: COVERAGE, RandSamplesAdded: "
+                                          << numRandSamplesAdded_ << " ConsecutiveFailures: " << numConsecutiveFailures_
+                                          << " Fourth: " << useFourthCriteria_);
 
     addReason = COVERAGE;
     stateAdded = true;
   }
   else if (checkAddConnectivity(candidateD, indent + 4))
   {
-    BOLT_MAGENTA_DEBUG(indent, vAddedReason_, "Graph updated: CONNECTIVITY, RandSamplesAdded: " << numRandSamplesAdded_
-                                                  << " ConsecutiveFailures: " << numConsecutiveFailures_
-                                                  << " Fourth: " << useFourthCriteria_);
+    BOLT_MAGENTA_DEBUG(indent, vAddedReason_, "Graph updated: CONNECTIVITY, RandSamplesAdded: "
+                                                  << numRandSamplesAdded_ << " ConsecutiveFailures: "
+                                                  << numConsecutiveFailures_ << " Fourth: " << useFourthCriteria_);
 
     addReason = CONNECTIVITY;
     stateAdded = true;
   }
   else if (checkAddInterface(candidateD, indent + 8))
   {
-    BOLT_BLUE_DEBUG(indent, vAddedReason_, "Graph updated: INTERFACE, RandSamplesAdded: " << numRandSamplesAdded_
-                                               << " ConsecutiveFailures: " << numConsecutiveFailures_
-                                               << " Fourth: " << useFourthCriteria_);
+    BOLT_BLUE_DEBUG(indent, vAddedReason_, "Graph updated: INTERFACE, RandSamplesAdded: "
+                                               << numRandSamplesAdded_ << " ConsecutiveFailures: "
+                                               << numConsecutiveFailures_ << " Fourth: " << useFourthCriteria_);
 
     addReason = INTERFACE;
     stateAdded = true;
   }
   else if (checkAddQuality(candidateD, threadID, indent + 12))
   {
-    BOLT_GREEN_DEBUG(indent, vAddedReason_, "Graph updated: QUALITY, RandSamplesAdded: " << numRandSamplesAdded_
-                                                << " ConsecutiveFailures: " << numConsecutiveFailures_
-                                                << " Fourth: " << useFourthCriteria_);
+    BOLT_GREEN_DEBUG(indent, vAddedReason_, "Graph updated: QUALITY, RandSamplesAdded: "
+                                                << numRandSamplesAdded_ << " ConsecutiveFailures: "
+                                                << numConsecutiveFailures_ << " Fourth: " << useFourthCriteria_);
 
     addReason = QUALITY;
-    stateAdded = true;
-  }
-  else if (checkAddDiscretized(candidateD, indent + 16))
-  {
-    BOLT_DEBUG(indent, vAddedReason_, "Graph updated: DISCRETIZED, RandSamplesAdded: " << numRandSamplesAdded_
-                                          << " ConsecutiveFailures: " << numConsecutiveFailures_
-                                          << " Fourth: " << useFourthCriteria_);
-    addReason = DISCRETIZED;
     stateAdded = true;
   }
   else
@@ -769,7 +645,7 @@ bool SparseCriteria::addStateToRoadmap(CandidateData &candidateD, VertexType &ad
   if (stateAdded)
   {
     numConsecutiveFailures_ = 0;
-    //visual_->waitForUserFeedback("attempted state");
+    // visual_->waitForUserFeedback("attempted state");
   }
 
   return stateAdded;
@@ -802,7 +678,7 @@ bool SparseCriteria::checkAddCoverage(CandidateData &candidateD, std::size_t ind
 bool SparseCriteria::checkAddConnectivity(CandidateData &candidateD, std::size_t indent)
 {
   BOLT_FUNC(indent, vCriteria_, "checkAddConnectivity() Does this node connect two disconnected components?");
-  //std::cout << "connectivity disabled " << std::endl;
+  // std::cout << "connectivity disabled " << std::endl;
   return false;
 
   // If less than 2 neighbors there is no way to find a pair of nodes in different connected components
@@ -949,13 +825,6 @@ bool SparseCriteria::checkAddInterface(CandidateData &candidateD, std::size_t in
         sg_->addEdge(v1, v2, eINTERFACE, indent);
         // if (!sg_->addEdgeThreaded(v1, v2, eINTERFACE, indent))
         //   return false;
-
-        // Also add the vertex if we are in a special mode where we know its desired
-        if (discretizedSamplesInsertion_)
-        {
-          // candidateD.newVertex_ = sg_->addVertex(candidateD.state_, DISCRETIZED, indent);
-          checkAddDiscretized(candidateD, indent);
-        }
       }
       else  // They cannot be directly connected
       {
@@ -980,7 +849,7 @@ bool SparseCriteria::checkAddInterface(CandidateData &candidateD, std::size_t in
         }
         else
         {
-           sg_->addEdge(candidateD.newVertex_, v1, eINTERFACE, indent);
+          sg_->addEdge(candidateD.newVertex_, v1, eINTERFACE, indent);
           // if (!sg_->addEdgeThreaded(candidateD.newVertex_, v1, eINTERFACE, indent))
           //   return false;
         }
@@ -1012,35 +881,6 @@ bool SparseCriteria::checkAddInterface(CandidateData &candidateD, std::size_t in
   return false;
 }
 
-bool SparseCriteria::checkAddDiscretized(CandidateData &candidateD, std::size_t indent)
-{
-  if (!discretizedSamplesInsertion_)
-    return false;
-
-  BOLT_FUNC(indent, vCriteria_, "checkAddDiscretized() Force vertex addition");
-
-  // Add the vertex, no matter what
-   candidateD.newVertex_ = sg_->addVertex(candidateD.state_, DISCRETIZED, indent);
-  // if (!sg_->addVertexThreaded(candidateD.state_, DISCRETIZED, candidateD.newVertex_, indent))
-  //   return false;
-
-  // If there is a nearby state, create an edge to it
-  if (!candidateD.visibleNeighborhood_.empty())
-  {
-    BOLT_DEBUG(indent, vCriteria_, "Discretized: forcing edge");
-    SparseVertex v1 = candidateD.visibleNeighborhood_[0];
-     sg_->addEdge(v1, candidateD.newVertex_, eDISCRETIZED, indent);
-    // if (!sg_->addEdgeThreaded(v1, candidateD.newVertex_, eDISCRETIZED, indent))
-    //   return false;
-  }
-  else
-  {
-    visual_->waitForUserFeedback("forced vertex but no edge to connect?");
-  }
-
-  return true;
-}
-
 bool SparseCriteria::checkAddQuality(CandidateData &candidateD, std::size_t threadID, std::size_t indent)
 {
   if (!useFourthCriteria_)
@@ -1060,9 +900,9 @@ bool SparseCriteria::checkAddQuality(CandidateData &candidateD, std::size_t thre
   bool added = false;
   std::map<SparseVertex, base::State *> closeRepresentatives;  // [nearSampledRep, nearSampledState]
 
-  //time::point startTime = time::now(); // Benchmark
+  // time::point startTime = time::now(); // Benchmark
   findCloseRepresentatives(candidateD.state_, candidateRep, closeRepresentatives, threadID, indent);
-  //BOLT_DEBUG(0, 1, time::seconds(time::now() - startTime) << " find close representatives");
+  // BOLT_DEBUG(0, 1, time::seconds(time::now() - startTime) << " find close representatives");
 
   BOLT_DEBUG(indent, vQuality_, "back in checkAddQuality(): Found " << closeRepresentatives.size()
                                                                     << " close representatives");
@@ -1308,7 +1148,8 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
     return true;
   }
 
-  BOLT_WARN(indent, visualizeQualityCriteria_, "Unable to connect directly - geometric path must be created for spanner");
+  BOLT_WARN(indent, visualizeQualityCriteria_, "Unable to connect directly - geometric path must be created for "
+                                               "spanner");
 
   if (visualizeQualityCriteria_)                           // TEMP
     visualizeCheckAddPath(v, vp, vpp, iData, indent + 4);  // TEMP
@@ -1342,9 +1183,9 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
     sg_->smoothQualityPathOriginal(path, indent + 4);
   else
   {
-    time::point startTime = time::now(); // Benchmark
+    time::point startTime = time::now();  // Benchmark
     sg_->smoothQualityPath(path, obstacleClearance_, indent + 4);
-    OMPL_INFORM("smooth quality path took %f seconds", time::seconds(time::now() - startTime)); // Benchmark
+    OMPL_INFORM("smooth quality path took %f seconds", time::seconds(time::now() - startTime));  // Benchmark
     visual_->waitForUserFeedback("smooth quality path");
   }
 
@@ -1398,7 +1239,7 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
 
     // no need to clone state, since we will destroy p; we just copy the pointer
     BOLT_DEBUG(indent + 2, vQuality_, "Adding node from shortcut path for QUALITY");
-     newVertex = sg_->addVertex(si_->cloneState(state), QUALITY, indent + 4);
+    newVertex = sg_->addVertex(si_->cloneState(state), QUALITY, indent + 4);
     // if (!sg_->addVertexThreaded(si_->cloneState(state), QUALITY, newVertex, indent))
     //   return false;
 
@@ -2057,7 +1898,7 @@ bool SparseCriteria::checkRemoveCloseVertices(SparseVertex v1, std::size_t inden
     if (!si_->checkMotion(sg_->getState(v1), sg_->getState(v3)))
     {
       BOLT_ERROR(indent + 2, vRemoveClose_,
-                     "checkRemoveCloseVertices: not collision free path from new vertex to potential neighbor " << v3);
+                 "checkRemoveCloseVertices: not collision free path from new vertex to potential neighbor " << v3);
       return false;
     }
   }

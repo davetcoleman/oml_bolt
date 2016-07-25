@@ -423,7 +423,6 @@ void Bolt::printLogs(std::ostream &out) const
   out << "    Vertices:                    " << sparseGraph_->getNumVertices() << " (" << vertPercent << "%)"
       << std::endl;
   out << "    Edges:                       " << sparseGraph_->getNumEdges() << " (" << edgePercent << "%)" << std::endl;
-  out << "    Regenerations:               " << sparseCriteria_->getNumGraphGenerations() << std::endl;
   out << "    Disjoint Samples Added:      " << sparseCriteria_->getNumRandSamplesAdded() << std::endl;
   out << "    Sparse Delta:                " << sparseCriteria_->getSparseDelta() << std::endl;
   out << "  Average planning time:         " << stats_.getAveragePlanningTime() << " seconds" << std::endl;

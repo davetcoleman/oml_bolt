@@ -70,21 +70,14 @@ public:
 
   ~VertexDiscretizer();
 
-  void freeMemory();
-
-  /**
-   * \brief Discretize the space into a diagonal lattice
-   */
-  bool generateLattice(std::size_t indent);
-
   /**
    * \brief Discretize the space into a simple grid
    */
   bool generateGrid(std::size_t indent);
 
-  std::vector<base::State*>& getFailedStates()
+  std::size_t getVerticesAddedCount()
   {
-    return failedStates_;
+    return verticesAdded_;
   }
 
   /** \brief Getter for Discretization */
@@ -165,7 +158,8 @@ private:
   /** \brief How many threads to use while generating vertices */
   std::size_t numThreads_;
 
-  std::vector<base::State*> failedStates_;
+  /** \brief Track total vertices added to graph */
+  std::size_t verticesAdded_;
 
   /** \brief Distance between grid points (discretization level) */
   double discretization_ = 2.0;
