@@ -1086,7 +1086,8 @@ void SparseCriteria::findCloseRepresentatives(const base::State *candidateState,
     {
       BOLT_DEBUG(indent + 2, vQuality_, "Sample attempt " << attempt);
 
-      regularSampler_->sampleNear(sampledState, candidateState, denseDelta_);
+      clearanceSampler_->sampleNear(sampledState, candidateState, denseDelta_);
+      //regularSampler_->sampleNear(sampledState, candidateState, denseDelta_);
 
       if (!si_->isValid(sampledState))
       {
