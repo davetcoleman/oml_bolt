@@ -480,40 +480,6 @@ bool Bolt::doPostProcessing()
   OMPL_INFORM("Performing post-processing for %i queued solution paths", queuedSolutionPaths_.size());
   OMPL_INFORM("TODO post-processing");
 
-  /*
-  // Benchmark runtime
-  time::point startTime = time::now();
-
-  for (std::size_t i = 0; i < queuedSolutionPaths_.size(); ++i)
-  {
-    if (sparseGraph_->snapPathVerbose_)
-      std::cout << "post processing path " << i << " of " << queuedSolutionPaths_.size() << " -------------------------"
-        "- " << std::endl;
-
-    // Time to add a path to experience database
-    if (!sparseGraph_->postProcessPath(queuedSolutionPaths_[i]))
-    {
-      OMPL_ERROR("Unable to save path");
-    }
-  }
-  OMPL_INFORM("Finished inserting %u experience paths", queuedSolutionPaths_.size());
-
-  // Remove all inserted paths from the queue
-  queuedSolutionPaths_.clear();
-
-  // Ensure graph doesn't get too popular
-  if (sparseGraph_->getPopularityBiasEnabled())
-    sparseGraph_->normalizeGraphEdgeWeights();
-
-  // Recreate the sparse graph, too
-
-  // Benchmark runtime
-  double duration = time::seconds(time::now() - startTime);
-  OMPL_INFORM(" - doPostProcessing() took %f seconds (%f hz)", duration, 1.0 / duration);
-
-  stats_.totalInsertionTime_ += duration;  // used for averaging
-  */
-
   return true;
 }
 

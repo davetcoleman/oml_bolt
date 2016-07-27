@@ -111,7 +111,7 @@ void SparseGenerator::createSPARS()
   sparseCriteria_->setUseFourthCriteria(false);  // initially we do not do this step
 
   // Benchmark runtime
-  time::point startTime = time::now();
+  timeDiscretizeAndRandomStarted_ = time::now();
 
   // Profiler
   CALLGRIND_TOGGLE_COLLECT;
@@ -149,7 +149,7 @@ void SparseGenerator::createSPARS()
   sg_->removeDeletedVertices(indent);
 
   // Benchmark runtime
-  double duration = time::seconds(time::now() - startTime);
+  double duration = time::seconds(time::now() - timeDiscretizeAndRandomStarted_);
 
   // Check how many connected components exist
   std::size_t numSets = sg_->getDisjointSetsCount();
@@ -200,10 +200,27 @@ void SparseGenerator::createSPARS()
   BOLT_INFO(indent, 1, "-----------------------------------------");
 
   // Copy-paste data
+  copyPasteState(numSets);
+
+  // if (!sg_->visualizeSparseGraph_)
+  // sg_->displayDatabase(true, indent);
+
+  OMPL_INFORM("Finished creating sparse database");
+}
+
+void SparseGenerator::copyPasteState(std::size_t numSets)
+{
+  double duration = time::seconds(time::now() - timeDiscretizeAndRandomStarted_);
+
   // clang-format off
-  std::cout << sparseCriteria_->sparseDeltaFraction_ << ", "
+  std::cout << "=SPLIT(\"Bolt, "
+            << sparseCriteria_->sparseDeltaFraction_ << ", "
             << sparseCriteria_->getSparseDelta() << ", "
             << sparseCriteria_->getDiscretization() << ", "
+            << sparseCriteria_->getStretchFactor() << ", "
+            << sparseCriteria_->getNearSamplePointsMultiple() << ", "
+            << useDiscretizedSamples_ << ", "
+            << useRandomSamples_ << ", "
             << sparseCriteria_->useCheckRemoveCloseVertices_ << ", "
             << sparseCriteria_->useClearEdgesNearVertex_ << ", "
             << sparseCriteria_->useOriginalSmoother_ << ", "
@@ -213,13 +230,8 @@ void SparseGenerator::createSPARS()
             << sg_->getNumRealVertices() << ", "
             << sg_->getNumEdges() << ", "
             << numSets << ", "
-            << duration << std::endl;
+            << duration << "\", \",\")" << std::endl;
   // clang-format on
-
-  // if (!sg_->visualizeSparseGraph_)
-  // sg_->displayDatabase(true, indent);
-
-  OMPL_INFORM("Finished creating sparse database");
 }
 
 void SparseGenerator::addDiscretizedStates(std::size_t indent)
@@ -396,6 +408,7 @@ bool SparseGenerator::addSample(CandidateData &candidateD, std::size_t threadID,
       sg_->saveIfChanged(indent);
       double duration = time::seconds(time::now() - timeRandSamplesStarted_);
       BOLT_DEBUG(indent, true, "Adding samples at rate: " << numRandSamplesAdded_ / duration << " hz");
+      copyPasteState();
     }
 
     // Increment statistics
@@ -419,6 +432,7 @@ bool SparseGenerator::addSample(CandidateData &candidateD, std::size_t threadID,
     if (numConsecutiveFailures_ > maxConsecutiveFailures_)
     {
       maxConsecutiveFailures_ = numConsecutiveFailures_;
+
       std::size_t percentComplete;
       if (!sparseCriteria_->getUseFourthCriteria())
         percentComplete = ceil(maxConsecutiveFailures_ / double(fourthCriteriaAfterFailures_) / 2.0 * 100.0);
@@ -433,7 +447,11 @@ bool SparseGenerator::addSample(CandidateData &candidateD, std::size_t threadID,
         // Show varying granularity based on number of dimensions
         static const std::size_t showEvery = std::max(1, int(12 - si_->getStateDimension() * 2));
         if (percentComplete % showEvery == 0)
-          BOLT_INFO(indent, true, "Termination progress: " << percentComplete << "%");
+        {
+          BOLT_WARN(indent, true, "------------------------------------------------");
+          BOLT_WARN(indent, true, "Termination progress: " << percentComplete << "%");
+          copyPasteState();
+        }
       }
     }
     // if (numConsecutiveFailures_ % 500 == 0)

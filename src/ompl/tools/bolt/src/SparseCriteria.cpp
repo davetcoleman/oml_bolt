@@ -76,7 +76,6 @@ SparseCriteria::SparseCriteria(SparseGraphPtr sg)
 SparseCriteria::~SparseCriteria(void)
 {
   clearanceSampler_.reset();
-  regularSampler_.reset();
 
   for (std::size_t i = 0; i < sg_->getNumQueryVertices(); ++i)
   {
@@ -119,13 +118,6 @@ bool SparseCriteria::setup(std::size_t indent)
   {
     BOLT_DEBUG(indent, true, "Using L1 Norm for discretization");
     // L1 Norm
-    // discretization_ = (sparseDelta_ - discretizePenetrationDist_) / dim;
-    // discretization_ = (sparseDelta_ - discretizePenetrationDist_);
-    // discretization_ = (sparseDelta_ - discretizePenetrationDist_) / 1.414; // works
-    // discretization_ = (sparseDelta_ - discretizePenetrationDist_) / 1.42; // works
-    // discretization_ = (sparseDelta_ - discretizePenetrationDist_) / 1.4; // works
-    // discretization_ = (sparseDelta_ - discretizePenetrationDist_) / 1.3; // bad
-
     discretization_ = 2 * sparseDelta_ / dim - discretizePenetrationDist_;
   }
 
@@ -183,12 +175,6 @@ bool SparseCriteria::setup(std::size_t indent)
   clearanceSampler_ = ob::MinimumClearanceValidStateSamplerPtr(new ob::MinimumClearanceValidStateSampler(si_.get()));
   clearanceSampler_->setMinimumObstacleClearance(sg_->getObstacleClearance());
   si_->getStateValidityChecker()->setClearanceSearchDistance(sg_->getObstacleClearance());
-
-  // Load regular state sampler
-  if (!regularSampler_)
-  {
-    regularSampler_ = si_->allocValidStateSampler();
-  }
 
   if (si_->getStateValidityChecker()->getClearanceSearchDistance() < sg_->getObstacleClearance())
     OMPL_WARN("State validity checker clearance search distance %f is less than the required obstacle clearance %f for "
@@ -1087,7 +1073,6 @@ void SparseCriteria::findCloseRepresentatives(const base::State *candidateState,
       BOLT_DEBUG(indent + 2, vQuality_, "Sample attempt " << attempt);
 
       clearanceSampler_->sampleNear(sampledState, candidateState, denseDelta_);
-      //regularSampler_->sampleNear(sampledState, candidateState, denseDelta_);
 
       if (!si_->isValid(sampledState))
       {

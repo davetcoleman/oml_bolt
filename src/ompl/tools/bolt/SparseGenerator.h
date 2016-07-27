@@ -80,6 +80,8 @@ public:
   /** \brief Create a SPARS graph */
   void createSPARS();
 
+  void copyPasteState(std::size_t numSets = 0);
+
   void addDiscretizedStates(std::size_t indent);
 
   /** \brief Randomly sample */
@@ -149,7 +151,7 @@ protected:
   /** \brief For statistics */
   std::size_t numRandSamplesAdded_ = 0;
   time::point timeRandSamplesStarted_; // calculate rate at which the graph is being built
-
+  time::point timeDiscretizeAndRandomStarted_;
 public:
   /** \brief Number of failed state insertion attempts before stopping the algorithm */
   std::size_t terminateAfterFailures_ = 1000;

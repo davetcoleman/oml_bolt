@@ -196,6 +196,16 @@ public:
     return discretizePenetrationDist_;
   }
 
+  std::size_t getNearSamplePoints()
+  {
+    return nearSamplePoints_;
+  }
+
+  std::size_t getNearSamplePointsMultiple()
+  {
+    return nearSamplePointsMultiple_;
+  }
+
   std::size_t getNumVerticesMoved()
   {
     return numVerticesMoved_;
@@ -215,7 +225,6 @@ protected:
   VisualizerPtr visual_;
 
   /** \brief Sampler user for generating valid samples in the state space */
-  base::ValidStateSamplerPtr regularSampler_;
   base::MinimumClearanceValidStateSamplerPtr clearanceSampler_;
 
   /** \brief Amount of sub-optimality allowed */
@@ -261,7 +270,7 @@ public:
   double nearSamplePointsMultiple_ = 2.0;
 
   /** \brief The stretch factor in terms of graph spanners for SPARS to check against */
-  double stretchFactor_ = 0.0;
+  double stretchFactor_;
 
   /** \brief Percent of sparse fraction that should overlap via the discretization  */
   double penetrationOverlapFraction_ = 0.1;
