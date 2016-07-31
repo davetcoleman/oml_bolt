@@ -344,7 +344,8 @@ public:
    * --------------------------------------------------------------------------------- */
 
   /** \brief Show in visualizer the sparse graph */
-  void displayDatabase(bool showVertices = true, bool showEdges = true, std::size_t windowID = 1, std::size_t indent = 0);
+  void displayDatabase(bool showVertices = true, bool showEdges = true, std::size_t windowID = 1,
+                       std::size_t indent = 0);
 
   /** \brief Display in viewer */
   void visualizeVertex(SparseVertex v, const VertexType& type);

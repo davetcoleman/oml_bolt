@@ -48,7 +48,6 @@ namespace tools
 {
 namespace bolt
 {
-
 /// @cond IGNORE
 OMPL_CLASS_FORWARD(SparseCriteria);
 /// @endcond

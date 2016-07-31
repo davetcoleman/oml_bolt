@@ -61,10 +61,7 @@ namespace tools
 {
 namespace bolt
 {
-SparseCriteria::SparseCriteria(SparseGraphPtr sg)
-  : sg_(sg)
-  , si_(sg_->getSpaceInformation())
-  , visual_(sg_->getVisual())
+SparseCriteria::SparseCriteria(SparseGraphPtr sg) : sg_(sg), si_(sg_->getSpaceInformation()), visual_(sg_->getVisual())
 {
   // We really only need one, but this is setup to be threaded for future usage
   for (std::size_t i = 0; i < sg_->getNumQueryVertices(); ++i)
@@ -126,17 +123,17 @@ bool SparseCriteria::setup(std::size_t indent)
     BOLT_DEBUG(indent, 1, "Auto settings stretch factor because input value was 0");
 
     // 2D case without estimated interface amount - old
-    //nearestDiscretizedV_ = sqrt(dim * std::pow(0.5 * discretization_, 2));  // z in my calculations
-    //stretchFactor_ = 2.0 * discretization_ / (nearestDiscretizedV_) + stretchFactor_;
+    // nearestDiscretizedV_ = sqrt(dim * std::pow(0.5 * discretization_, 2));  // z in my calculations
+    // stretchFactor_ = 2.0 * discretization_ / (nearestDiscretizedV_) + stretchFactor_;
 
     // N-D case - old
     // stretchFactor_ = discretization_ / (discretization_ - 2.0 * denseDelta_); // N-D case
 
     // 2D: New version July 30th
-    //stretchFactor_ = 2.0*discretization_/(discretization_ - 2*denseDelta_);
+    // stretchFactor_ = 2.0*discretization_/(discretization_ - 2*denseDelta_);
 
     // 3D: New version July 30th
-    stretchFactor_ = (5./2.)*discretization_/(discretization_ - 2 * denseDelta_);
+    stretchFactor_ = 3 * discretization_ / (discretization_ - 2 * denseDelta_);
   }
 
   // Estimate size of graph
@@ -688,7 +685,7 @@ void SparseCriteria::visualizeCheckAddPath(SparseVertex v, SparseVertex vp, Spar
 
   // Show nearby vertices 'x' that could also be used to find the path to v''
   // Note: this section of code is copied from maxSpannerPath
-  std::size_t color = 9; // orange
+  std::size_t color = 9;  // orange
   foreach (SparseVertex x, boost::adjacent_vertices(vpp, sg_->getGraph()))
   {
     if (sg_->hasEdge(x, v) && !sg_->hasEdge(x, vp))
@@ -698,7 +695,8 @@ void SparseCriteria::visualizeCheckAddPath(SparseVertex v, SparseVertex vp, Spar
       // Check if we previously had found a pair of points that support this interface
       if ((vpp < x && iData.getInterface1Inside()) || (x < vpp && iData.getInterface2Inside()))
       {
-        BOLT_INFO(indent+2, vQuality_ || true, "Visualizing (orange, purple, red, pink, white) additional qualified vertex " << x);
+        BOLT_INFO(indent + 2, vQuality_ || true,
+                  "Visualizing (orange, purple, red, pink, white) additional qualified vertex " << x);
         visual_->viz5()->state(sg_->getState(x), tools::XLARGE, static_cast<tools::VizColors>(color++), 0);
       }
     }
@@ -737,14 +735,14 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
       visual_->waitForUserFeedback("maxMidpoint");
       pauseAfterAddEdge_ = false;
     }
-    else // regular
+    else  // regular
       sg_->addEdge(vp, vpp, eQUALITY, indent + 2);
 
     return true;
   }
 
   BOLT_WARN(indent, vQuality_, "Unable to connect directly - geometric path must be created for "
-                                               "spanner");
+                               "spanner");
 
   geometric::PathGeometric *path = new geometric::PathGeometric(si_);
 
@@ -885,18 +883,18 @@ bool SparseCriteria::spannerTestOriginal(SparseVertex v, SparseVertex vp, Sparse
   // }
   if (stretchFactor_ * iData.getLastDistance() < midpointPathLength)
   {
-
     // Debug
-    static double maxMidpoint = 33.5;
+    static double maxMidpoint = 41.8;
     if (midpointPathLength > maxMidpoint)
     {
-      BOLT_WARN(indent + 6, vQuality_ || 1, "Spanner property violated");
-      BOLT_DEBUG(indent + 8, vQuality_ || 1, "Sparse Graph Midpoint Length  = " << midpointPathLength);
-      BOLT_DEBUG(indent + 8, vQuality_ || 1, "Spanner Path Length * Stretch = " << (stretchFactor_ * iData.getLastDistance()));
-      BOLT_DEBUG(indent + 10, vQuality_ || 1, "last distance = " << iData.getLastDistance());
-      BOLT_DEBUG(indent + 10, vQuality_ || 1, "stretch factor = " << stretchFactor_);
+      BOLT_WARN(indent, vQuality_ || 1, "Spanner property violated");
+      BOLT_DEBUG(indent + 2, vQuality_ || 1, "Sparse Graph Midpoint Length  = " << midpointPathLength);
+      BOLT_DEBUG(indent + 2, vQuality_ || 1,
+                 "Spanner Path Length * Stretch = " << (stretchFactor_ * iData.getLastDistance()));
+      BOLT_DEBUG(indent + 2, vQuality_ || 1, "last distance = " << iData.getLastDistance());
+      BOLT_DEBUG(indent + 2, vQuality_ || 1, "stretch factor = " << stretchFactor_);
       double rejectStretchFactor = midpointPathLength / iData.getLastDistance();
-      BOLT_DEBUG(indent + 10, vQuality_ || 1, "to reject, stretch factor > " << rejectStretchFactor);
+      BOLT_DEBUG(indent + 2, vQuality_ || 1, "to reject, stretch factor > " << rejectStretchFactor);
 
       maxMidpoint = midpointPathLength;
       std::cout << "midpointPathLength: " << maxMidpoint << std::endl;
@@ -906,7 +904,7 @@ bool SparseCriteria::spannerTestOriginal(SparseVertex v, SparseVertex vp, Sparse
     return true;  // spanner property was violated
   }
 
-  BOLT_DEBUG(indent + 6, vQuality_, "Spanner property not violated");
+  BOLT_DEBUG(indent + 4, vQuality_, "Spanner property not violated");
   return false;  // spanner property was NOT violated
 }
 
@@ -1091,8 +1089,9 @@ void SparseCriteria::findCloseRepresentatives(const base::State *candidateState,
       }
       if (si_->distance(candidateState, sampledState) > denseDelta_)
       {
-        BOLT_DEBUG(indent + 4, vQuality_ && false, "Sample attempt " << attempt << " Distance too far " << si_->distance(candidateState, sampledState)
-                                                              << " needs to be less than " << denseDelta_);
+        BOLT_DEBUG(indent + 4, vQuality_ && false, "Sample attempt " << attempt << " Distance too far "
+                                                                     << si_->distance(candidateState, sampledState)
+                                                                     << " needs to be less than " << denseDelta_);
 
         if (visualizeQualityCriteriaSampler_)
           visual_->viz3()->state(sampledState, tools::SMALL, tools::RED, 0);
@@ -1265,9 +1264,10 @@ double SparseCriteria::maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVer
     double tempDist = (si_->distance(sg_->getState(vp), sg_->getState(v)) +
                        si_->distance(sg_->getState(v), sg_->getState(qualifiedVertex))) /
                       2.0;
-    BOLT_DEBUG(indent + 2, vQualityMaxSpanner_, "Checking vertex: " << qualifiedVertex << " distance: " << tempDist
-               << " dist1: " << si_->distance(sg_->getState(vp), sg_->getState(v)) << " dist2: " <<
-               si_->distance(sg_->getState(v), sg_->getState(qualifiedVertex)));
+    BOLT_DEBUG(indent + 2, vQualityMaxSpanner_,
+               "Checking vertex: " << qualifiedVertex << " distance: " << tempDist
+                                   << " dist1: " << si_->distance(sg_->getState(vp), sg_->getState(v))
+                                   << " dist2: " << si_->distance(sg_->getState(v), sg_->getState(qualifiedVertex)));
 
     // Compare with previous max
     if (tempDist > maxDist)
@@ -1480,7 +1480,7 @@ bool SparseCriteria::checkRemoveCloseVertices(SparseVertex v1, std::size_t inden
     sg_->displayDatabase(true, indent + 2);
 
   // if (visualizeRemoveCloseVertices_)
-  //visual_->waitForUserFeedback("finished moving vertex");
+  // visual_->waitForUserFeedback("finished moving vertex");
 
   if (visualizeRemoveCloseVertices_)
   {

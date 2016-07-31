@@ -388,9 +388,9 @@ bool Bolt::load()
   // Load from file
   if (!sparseGraph_->isEmpty())
   {
-    BOLT_WARN(indent, 1, "Database already loaded, vertices: "
-                                     << sparseGraph_->getNumVertices() << ", edges: " << sparseGraph_->getNumEdges()
-                                     << ", queryV: " << sparseGraph_->getNumQueryVertices());
+    BOLT_WARN(indent, 1, "Database already loaded, vertices: " << sparseGraph_->getNumVertices()
+                                                               << ", edges: " << sparseGraph_->getNumEdges()
+                                                               << ", queryV: " << sparseGraph_->getNumQueryVertices());
     return false;
   }
 

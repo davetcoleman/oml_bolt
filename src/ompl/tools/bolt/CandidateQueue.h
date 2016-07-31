@@ -55,7 +55,7 @@ namespace tools
 namespace bolt
 {
 OMPL_CLASS_FORWARD(CandidateQueue);
-//OMPL_CLASS_FORWARD(SparseGraph);
+// OMPL_CLASS_FORWARD(SparseGraph);
 OMPL_CLASS_FORWARD(SparseCriteria);
 OMPL_CLASS_FORWARD(SparseGenerator);
 
@@ -75,7 +75,7 @@ public:
   void getNextState(base::State *&candidateState, ClearanceSamplerPtr clearanceSampler, std::size_t indent);
 
   /** \brief This function is called from the parent thread */
-  CandidateData& getNextCandidate(std::size_t indent);
+  CandidateData &getNextCandidate(std::size_t indent);
 
   /** \brief This function is called from the parent thread */
   void setCandidateUsed(bool wasUsed, std::size_t indent);
@@ -86,8 +86,8 @@ public:
   }
 
 private:
-
-  void generatingThread(std::size_t threadID, base::SpaceInformationPtr si, ClearanceSamplerPtr clearanceSampler, std::size_t indent);
+  void generatingThread(std::size_t threadID, base::SpaceInformationPtr si, ClearanceSamplerPtr clearanceSampler,
+                        std::size_t indent);
 
   /** \brief Do not add more states if queue is full */
   void waitForQueueNotFull(std::size_t indent);
@@ -126,10 +126,10 @@ private:
 
 public:
   bool verbose_ = false;      // general program direction
-  bool vNeighbor_ = false;   // nearest neighbor search
+  bool vNeighbor_ = false;    // nearest neighbor search
   bool vClear_ = false;       // when queue is being cleared because of change
-  bool vQueueFull_ = false;  // status of queue
-  bool vQueueEmpty_ = false; // alert when queue is empty and holding up process
+  bool vQueueFull_ = false;   // status of queue
+  bool vQueueEmpty_ = false;  // alert when queue is empty and holding up process
   bool vThread_ = false;
 
 };  // end of class CandidateQueue

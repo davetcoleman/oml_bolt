@@ -111,12 +111,13 @@ void CandidateQueue::startGenerating(std::size_t indent)
 
     // Load minimum clearance state sampler
     ob::MinimumClearanceValidStateSamplerPtr clearanceSampler =
-      ob::MinimumClearanceValidStateSamplerPtr(new ob::MinimumClearanceValidStateSampler(si.get()));
+        ob::MinimumClearanceValidStateSamplerPtr(new ob::MinimumClearanceValidStateSampler(si.get()));
     clearanceSampler->setMinimumObstacleClearance(sg_->getObstacleClearance());
     si->getStateValidityChecker()->setClearanceSearchDistance(sg_->getObstacleClearance());
 
-    std::size_t threadID = i + 1; // the first thread (0) is reserved for the parent process for use of samplingQuery
-    generatorThreads_[i] = new boost::thread(boost::bind(&CandidateQueue::generatingThread, this, threadID, si, clearanceSampler, indent));
+    std::size_t threadID = i + 1;  // the first thread (0) is reserved for the parent process for use of samplingQuery
+    generatorThreads_[i] =
+        new boost::thread(boost::bind(&CandidateQueue::generatingThread, this, threadID, si, clearanceSampler, indent));
   }
 
   // Wait for first sample to be found
@@ -142,7 +143,8 @@ void CandidateQueue::stopGenerating(std::size_t indent)
   BOLT_FUNC(indent, true, "CandidateQueue.stopGenerating() Generating threads have stopped");
 }
 
-void CandidateQueue::generatingThread(std::size_t threadID, base::SpaceInformationPtr si, ClearanceSamplerPtr clearanceSampler, std::size_t indent)
+void CandidateQueue::generatingThread(std::size_t threadID, base::SpaceInformationPtr si,
+                                      ClearanceSamplerPtr clearanceSampler, std::size_t indent)
 {
   BOLT_FUNC(indent, verbose_, "generatingThread() " << threadID);
 
@@ -161,13 +163,13 @@ void CandidateQueue::generatingThread(std::size_t threadID, base::SpaceInformati
 
     BOLT_DEBUG(indent + 2, vThread_, "New candidateState: " << candidateState << " on thread " << threadID);
 
-    if (!threadsRunning_) // Check for thread ending
+    if (!threadsRunning_)  // Check for thread ending
       break;
 
     // Find nearby nodes
     CandidateData candidateD(candidateState);
 
-    //time::point startTime = time::now(); // Benchmark
+    // time::point startTime = time::now(); // Benchmark
 
     findGraphNeighbors(candidateD, threadID, indent + 2);
 
@@ -176,20 +178,23 @@ void CandidateQueue::generatingThread(std::size_t threadID, base::SpaceInformati
     // totalTime_ += time;
     // totalCandidates_ ++;
     // double average = totalTime_ / totalCandidates_;
-    // BOLT_MAGENTA_DEBUG(0, true,  time << " CandidateQueue, average: " << average << " queue: " << queue_.size()); // Benchmark
+    // BOLT_MAGENTA_DEBUG(0, true,  time << " CandidateQueue, average: " << average << " queue: " << queue_.size()); //
+    // Benchmark
 
     // Add to queue - thread-safe
     if (candidateD.graphVersion_ == sparseGenerator_->getNumRandSamplesAdded())
     {
-      //std::cout << "pushCandidate: waiting for lock, " << candidateD.graphVersion_ << " =========================== " << std::endl;
+      // std::cout << "pushCandidate: waiting for lock, " << candidateD.graphVersion_ << " =========================== "
+      // << std::endl;
       boost::lock_guard<boost::shared_mutex> lock(candidateQueueMutex_);
       queue_.push(candidateD);
-      //std::cout << "pushCandidate: added candidate ==================================" << std::endl;
+      // std::cout << "pushCandidate: added candidate ==================================" << std::endl;
     }
   }
 }
 
-void CandidateQueue::getNextState(base::State *&candidateState, ClearanceSamplerPtr clearanceSampler, std::size_t indent)
+void CandidateQueue::getNextState(base::State *&candidateState, ClearanceSamplerPtr clearanceSampler,
+                                  std::size_t indent)
 {
   // First attempt to get state from queue, otherwise we do it ourselves
   if (!samplingQueue_->getNextState(candidateState, indent + 2))
@@ -206,36 +211,39 @@ void CandidateQueue::getNextState(base::State *&candidateState, ClearanceSampler
   }
 }
 
-CandidateData& CandidateQueue::getNextCandidate(std::size_t indent)
+CandidateData &CandidateQueue::getNextCandidate(std::size_t indent)
 {
-  BOLT_CYAN_DEBUG(indent, false, "CandidateQueue.getNextCanidate(): queue size: " << queue_.size() << " num samples added: " << sparseGenerator_->getNumRandSamplesAdded());
+  BOLT_CYAN_DEBUG(indent, false, "CandidateQueue.getNextCanidate(): queue size: "
+                                     << queue_.size()
+                                     << " num samples added: " << sparseGenerator_->getNumRandSamplesAdded());
   // This function is run in the parent thread
 
   // Keep looping until a non-expired candidate exists or the thread ends
   while (threadsRunning_)
   {
     // Clear all expired candidates
-    //std::cout << "getNextCandidate: waiting for lock ++++++++++++++++++++++++++++" << std::endl;
+    // std::cout << "getNextCandidate: waiting for lock ++++++++++++++++++++++++++++" << std::endl;
     {
       boost::lock_guard<boost::shared_mutex> lock(candidateQueueMutex_);
       std::size_t numCleared = 0;
-      while (!queue_.empty() && queue_.front().graphVersion_ != sparseGenerator_->getNumRandSamplesAdded() && threadsRunning_)
+      while (!queue_.empty() && queue_.front().graphVersion_ != sparseGenerator_->getNumRandSamplesAdded() &&
+             threadsRunning_)
       {
         // Next Candidate state is expired, delete
         si_->freeState(queue_.front().state_);
         queue_.pop();
-        numCleared ++;
+        numCleared++;
       }
       BOLT_ERROR(indent, vClear_ && numCleared > 0, "Cleared " << numCleared << " states from CandidateQueue");
 
       // Return the first non-expired candidate if one exists
       if (!queue_.empty() && queue_.front().graphVersion_ == sparseGenerator_->getNumRandSamplesAdded())
       {
-        //std::cout << "getNextCandidate: free lock ++++++++++++++++++++++++++" << std::endl;
+        // std::cout << "getNextCandidate: free lock ++++++++++++++++++++++++++" << std::endl;
         break;
       }
     }
-    //std::cout << "getNextCandidate: free lock ++++++++++++++++++++++++++" << std::endl;
+    // std::cout << "getNextCandidate: free lock ++++++++++++++++++++++++++" << std::endl;
 
     // Wait for queue to not be empty
     bool oneTimeFlag = true;
@@ -245,7 +253,7 @@ CandidateData& CandidateQueue::getNextCandidate(std::size_t indent)
       if (oneTimeFlag)
       {
         BOLT_WARN(indent, vQueueEmpty_, "CandidateQueue: Queue is empty, waiting for next generated "
-                  "CandidateData");
+                                        "CandidateData");
         oneTimeFlag = false;
       }
       usleep(100);
@@ -264,10 +272,10 @@ void CandidateQueue::setCandidateUsed(bool wasUsed, std::size_t indent)
   if (!wasUsed)  // if was used the state is now in use elsewhere
     si_->freeState(queue_.front().state_);
 
-  //std::cout << "setCandidateUsed: waiting for lock ------------------------" << std::endl;
+  // std::cout << "setCandidateUsed: waiting for lock ------------------------" << std::endl;
   boost::lock_guard<boost::shared_mutex> lock(candidateQueueMutex_);
   queue_.pop();
-  //std::cout << "setCandidateUsed: free lock ----------------------------- " << std::endl;
+  // std::cout << "setCandidateUsed: free lock ----------------------------- " << std::endl;
 }
 
 void CandidateQueue::waitForQueueNotFull(std::size_t indent)
@@ -280,7 +288,7 @@ void CandidateQueue::waitForQueueNotFull(std::size_t indent)
       BOLT_DEBUG(indent, vQueueFull_, "CandidateQueue: Queue is full, generator is waiting");
       oneTimeFlag = false;
     }
-    usleep(0.001*1000000);
+    usleep(0.001 * 1000000);
   }
   if (!oneTimeFlag)
     BOLT_DEBUG(indent, vQueueFull_, "CandidateQueue: No longer waiting on full queue");
@@ -299,11 +307,12 @@ bool CandidateQueue::findGraphNeighbors(CandidateData &candidateD, std::size_t t
   // Note that the main thread could be modifying the NN, so we have to lock it
   sg_->getQueryStateNonConst(threadID) = candidateD.state_;
   {
-    //std::cout << "getting nn lock " << std::endl;
+    // std::cout << "getting nn lock " << std::endl;
     std::lock_guard<std::mutex> lock(sg_->getNNGuard());
-    sg_->getNN()->nearestR(sg_->getQueryVertices(threadID), sparseCriteria_->getSparseDelta(), candidateD.graphNeighborhood_);
+    sg_->getNN()->nearestR(sg_->getQueryVertices(threadID), sparseCriteria_->getSparseDelta(),
+                           candidateD.graphNeighborhood_);
   }
-  //std::cout << "released nn lock " << std::endl;
+  // std::cout << "released nn lock " << std::endl;
   sg_->getQueryStateNonConst(threadID) = nullptr;
 
   // Now that we got the neighbors from the NN, we must remove any we can't see

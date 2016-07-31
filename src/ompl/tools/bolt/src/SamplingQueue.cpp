@@ -50,12 +50,8 @@ namespace tools
 {
 namespace bolt
 {
-
 SamplingQueue::SamplingQueue(SparseGraphPtr sg)
-  : sg_(sg)
-  , sc_(sg_->getSparseCriteria())
-  , si_(sg_->getSpaceInformation())
-  , visual_(sg_->getVisual())
+  : sg_(sg), sc_(sg_->getSparseCriteria()), si_(sg_->getSpaceInformation()), visual_(sg_->getVisual())
 {
   // statesQueue_.reserve(targetQueueSize_);
 }
@@ -87,7 +83,7 @@ void SamplingQueue::startSampling(std::size_t indent)
 
   // Load minimum clearance state sampler
   ob::MinimumClearanceValidStateSamplerPtr clearanceSampler =
-    ob::MinimumClearanceValidStateSamplerPtr(new ob::MinimumClearanceValidStateSampler(si.get()));
+      ob::MinimumClearanceValidStateSamplerPtr(new ob::MinimumClearanceValidStateSampler(si.get()));
   clearanceSampler->setMinimumObstacleClearance(sg_->getObstacleClearance());
   si->getStateValidityChecker()->setClearanceSearchDistance(sg_->getObstacleClearance());
 
@@ -125,7 +121,7 @@ bool SamplingQueue::getNextState(base::State *&state, std::size_t indent)
     {
       return false;
     }
-    //waitForQueueNotEmpty(indent + 2);
+    // waitForQueueNotEmpty(indent + 2);
 
     boost::lock_guard<boost::shared_mutex> lock(sampleQueueMutex_);
     // Something changed before we got the mutex
@@ -138,13 +134,15 @@ bool SamplingQueue::getNextState(base::State *&state, std::size_t indent)
 
     state = statesQueue_.front();
     statesQueue_.pop();
-    //totalProvided++;
-    //BOLT_DEBUG(indent, true, "SamplingQueue percent provided: " << (totalProvided/double(totalAttempted)*100.0) << "%");
+    // totalProvided++;
+    // BOLT_DEBUG(indent, true, "SamplingQueue percent provided: " << (totalProvided/double(totalAttempted)*100.0) <<
+    // "%");
     return true;
   }
 }
 
-void SamplingQueue::samplingThread(base::SpaceInformationPtr si, ClearanceSamplerPtr clearanceSampler, std::size_t indent)
+void SamplingQueue::samplingThread(base::SpaceInformationPtr si, ClearanceSamplerPtr clearanceSampler,
+                                   std::size_t indent)
 {
   BOLT_FUNC(indent, verbose_, "samplingThread()");
 
@@ -153,8 +151,7 @@ void SamplingQueue::samplingThread(base::SpaceInformationPtr si, ClearanceSample
     // Do not add more states if queue is full
     waitForQueueNotFull(indent);
 
-
-    //time::point startTime = time::now(); // Benchmark
+    // time::point startTime = time::now(); // Benchmark
 
     // Create new state
     base::State *candidateState = si_->allocState();
@@ -165,7 +162,8 @@ void SamplingQueue::samplingThread(base::SpaceInformationPtr si, ClearanceSample
       OMPL_ERROR("Unable to find valid sample");
       exit(-1);  // this should never happen
     }
-    //BOLT_CYAN_DEBUG(0, true, time::seconds(time::now() - startTime) << " SamplingQueue, total queue: " << statesQueue_.size()); // Benchmark
+    // BOLT_CYAN_DEBUG(0, true, time::seconds(time::now() - startTime) << " SamplingQueue, total queue: " <<
+    // statesQueue_.size()); // Benchmark
 
     {
       boost::lock_guard<boost::shared_mutex> lock(sampleQueueMutex_);
@@ -185,7 +183,7 @@ void SamplingQueue::waitForQueueNotFull(std::size_t indent)
       BOLT_DEBUG(indent, vQueueFull_, "SamplingQueue: Queue is full, sampler is waiting");
       oneTimeFlag = false;
     }
-    usleep(0.001*1000000);
+    usleep(0.001 * 1000000);
   }
   if (!oneTimeFlag)
     BOLT_DEBUG(indent, vQueueFull_ && false, "SamplingQueue: No longer waiting on full queue");

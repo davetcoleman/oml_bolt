@@ -64,7 +64,6 @@ namespace tools
 {
 namespace bolt
 {
-
 typedef ompl::base::MinimumClearanceValidStateSamplerPtr ClearanceSamplerPtr;
 
 // TODO(davetcoleman): maybe make all popularity use ints instead of doubles for memory efficiency?

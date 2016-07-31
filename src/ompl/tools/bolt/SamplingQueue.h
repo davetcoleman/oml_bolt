@@ -87,7 +87,7 @@ public:
   /** \brief This function is called from the parent thread
       \return false if queue is currently empty
    */
-  bool getNextState(base::State*& state, std::size_t indent);
+  bool getNextState(base::State *&state, std::size_t indent);
 
   void setTargetQueue(std::size_t targetQueueSize)
   {
@@ -101,7 +101,6 @@ public:
   }
 
 private:
-
   void samplingThread(base::SpaceInformationPtr si, ClearanceSamplerPtr clearanceSampler, std::size_t indent);
 
   /** \brief Do not add more states if queue is full */
@@ -134,8 +133,8 @@ private:
 
 public:
   bool verbose_ = false;
-  bool vQueueFull_ = false; // when queue is full
-  bool vQueueEmpty_ = false; // when queue is empty and holding up process
+  bool vQueueFull_ = false;   // when queue is full
+  bool vQueueEmpty_ = false;  // when queue is empty and holding up process
 
 };  // end of class SamplingQueue
 

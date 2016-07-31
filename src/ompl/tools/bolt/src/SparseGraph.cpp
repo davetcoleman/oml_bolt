@@ -242,7 +242,7 @@ bool SparseGraph::save(std::size_t indent)
   // Benchmark
   double loadTime = time::seconds(time::now() - start);
   BOLT_INFO(indent, true, "Saved database to file in " << loadTime
-                                                        << " seconds. Time: " << time::as_string(time::now()));
+                                                       << " seconds. Time: " << time::as_string(time::now()));
   return true;
 }
 
@@ -767,8 +767,7 @@ SparseVertex SparseGraph::addVertex(base::State *state, const VertexType &type, 
   }
 
   // Optional Voronoi Diagram
-  if (visualizeVoronoiDiagramAnimated_ ||
-      (visualizeVoronoiDiagram_ && sparseCriteria_->getUseFourthCriteria()))
+  if (visualizeVoronoiDiagramAnimated_ || (visualizeVoronoiDiagram_ && sparseCriteria_->getUseFourthCriteria()))
     visual_->vizVoronoiDiagram();
 
   // Enable saving
@@ -941,7 +940,6 @@ SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type,
     //   std::cout << "edgeWeightProperty_[e]: " << edgeWeightProperty_[e] << std::endl;
     //   visual_->waitForUserFeedback("add edge");
     // }
-
   }
 
   // Enable saving
@@ -1138,7 +1136,6 @@ void SparseGraph::displayDatabase(bool showVertices, bool showEdges, std::size_t
 
     // Create marker and push to queue
     visual_->viz(windowID)->states(states, colors, vertexSize_);
-
   }
 
   // Publish remaining edges
@@ -1153,7 +1150,8 @@ void SparseGraph::visualizeVertex(SparseVertex v, const VertexType &type)
 
   // Show visibility region around vertex
   if (visualizeDatabaseCoverage_)
-    visual_->viz1()->state(getState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT, sparseCriteria_->getSparseDelta());
+    visual_->viz1()->state(getState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
+                           sparseCriteria_->getSparseDelta());
 
   // Show vertex
   visual_->viz1()->state(getState(v), vertexSize_, color, 0);
@@ -1202,11 +1200,11 @@ tools::VizColors SparseGraph::vertexTypeToColor(VertexType type)
 
 void SparseGraph::visualizeEdge(SparseEdge e, EdgeType type, std::size_t windowID)
 {
-  //TODO remove
+  // TODO remove
   // if (edgeWeightProperty_[e] <= sparseCriteria_->getDiscretization() * 2.1)
   //   return;
-  // if (type != eCONNECTIVITY)
-  //   return;
+  if (type != eCONNECTIVITY)
+    return;
 
   // Add edge
   SparseVertex v1 = boost::source(e, g_);

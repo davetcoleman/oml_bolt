@@ -154,7 +154,6 @@ public:
   }
 
 private:
-
   void samplingThread(base::SpaceInformationPtr si, std::size_t indent)
   {
     BOLT_FUNC(indent, true, "samplingThread()");

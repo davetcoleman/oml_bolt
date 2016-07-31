@@ -50,7 +50,6 @@ namespace tools
 {
 namespace bolt
 {
-
 /// @cond IGNORE
 OMPL_CLASS_FORWARD(SparseGenerator);
 /// @endcond
@@ -143,15 +142,16 @@ protected:
   CandidateQueuePtr candidateQueue_;
 
   std::size_t numConsecutiveFailures_;
-  std::size_t maxConsecutiveFailures_ = 0; // find the closest to completion the process has gotten
-  std::size_t maxPercentComplete_; // the whole number percentage presented to user
+  std::size_t maxConsecutiveFailures_ = 0;  // find the closest to completion the process has gotten
+  std::size_t maxPercentComplete_;          // the whole number percentage presented to user
 
   VertexDiscretizerPtr vertexDiscretizer_;
 
   /** \brief For statistics */
   std::size_t numRandSamplesAdded_ = 0;
-  time::point timeRandSamplesStarted_; // calculate rate at which the graph is being built
+  time::point timeRandSamplesStarted_;  // calculate rate at which the graph is being built
   time::point timeDiscretizeAndRandomStarted_;
+
 public:
   /** \brief Number of failed state insertion attempts before stopping the algorithm */
   std::size_t terminateAfterFailures_ = 1000;
