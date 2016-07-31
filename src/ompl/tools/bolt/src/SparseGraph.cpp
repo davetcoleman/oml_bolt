@@ -703,25 +703,6 @@ bool SparseGraph::sameComponent(SparseVertex v1, SparseVertex v2)
   return boost::same_component(v1, v2, disjointSets_);
 }
 
-bool SparseGraph::addVertexThreaded(base::State *state, const VertexType &type, SparseVertex &newVertex,
-                                    std::size_t indent)
-{
-  BOLT_FUNC(indent, vAdd_, "addVertexThreaded()");
-
-  // TODO(davetcoleman): check if sample is expired
-
-  // Only one thing can modify graph at a time
-  {
-    // std::lock_guard<std::mutex> guard(modifyGraphMutex_);
-    newVertex = addVertex(state, type, indent);
-
-    // timestamp of the last graph modification - any sample taken before that is invalid
-    // lastSampledModTime_ = time::now();
-  }
-
-  return true;
-}
-
 SparseVertex SparseGraph::addVertex(base::State *state, const VertexType &type, std::size_t indent)
 {
   // Create vertex
@@ -940,8 +921,8 @@ SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type,
   // Visualize
   if (visualizeSparseGraph_)
   {
-    visualizeEdge(v1, v2, type, /*windowID*/ 1);
-    visualizeEdge(v1, v2, type, /*windowID*/ 7);  // projection to 2D space
+    visualizeEdge(e, type, /*windowID*/ 1);
+    visualizeEdge(e, type, /*windowID*/ 7);  // projection to 2D space
 
     if (visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
     {
@@ -952,6 +933,15 @@ SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type,
 
       usleep(visualizeSparseGraphSpeed_ * 1000000);
     }
+
+    // if (edgeWeightProperty_[e] <= sparseCriteria_->getDiscretization() * 2.1)
+    // {} // for copy-paste ease
+    // else
+    // {
+    //   std::cout << "edgeWeightProperty_[e]: " << edgeWeightProperty_[e] << std::endl;
+    //   visual_->waitForUserFeedback("add edge");
+    // }
+
   }
 
   // Enable saving
@@ -1059,7 +1049,7 @@ void SparseGraph::clearInterfaceData(base::State *state)
 
 void SparseGraph::clearEdgesNearVertex(SparseVertex vertex, std::size_t indent)
 {
-  BOLT_FUNC(indent, true, "clearEdgesNearVertex()");
+  BOLT_FUNC(indent, false, "clearEdgesNearVertex()");
 
   // Optionally disable this feature
   if (!sparseCriteria_->useClearEdgesNearVertex_)
@@ -1080,7 +1070,7 @@ void SparseGraph::clearEdgesNearVertex(SparseVertex vertex, std::size_t indent)
     boost::clear_vertex(v, g_);
   }
 
-  BOLT_DEBUG(indent, true, "clearEdgesNearVertex() removed " << origNumEdges - getNumEdges());
+  BOLT_DEBUG(indent, false, "clearEdgesNearVertex() removed " << origNumEdges - getNumEdges());
 
   // Only display database if enabled
   if (visualizeSparseGraph_ && visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
@@ -1091,7 +1081,7 @@ void SparseGraph::clearEdgesNearVertex(SparseVertex vertex, std::size_t indent)
   }
 }
 
-void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
+void SparseGraph::displayDatabase(bool showVertices, bool showEdges, std::size_t windowID, std::size_t indent)
 {
   BOLT_FUNC(indent, vVisualize_ || true, "displayDatabase() - Display Sparse Database");
 
@@ -1103,29 +1093,20 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
   }
 
   // Clear previous visualization
-  visual_->viz1()->deleteAllMarkers();
-  if (visualizeProjection_)  // For joint-space robots: project to 2D space
-    visual_->viz7()->deleteAllMarkers();
+  visual_->viz(windowID)->deleteAllMarkers();
 
   // Edges
-  if (visualizeDatabaseEdges_)
+  if (visualizeDatabaseEdges_ && showEdges)
   {
     // Loop through each edge
     foreach (SparseEdge e, boost::edges(g_))
     {
-      // Get edge endpoints
-      SparseVertex v1 = boost::source(e, g_);
-      SparseVertex v2 = boost::target(e, g_);
-
-      visualizeEdge(v1, v2, edgeTypeProperty_[e], /*windowID*/ 1);
-
-      if (visualizeProjection_)                                       // For joint-space robots: project to 2D space
-        visualizeEdge(v1, v2, edgeTypeProperty_[e], /*windowID*/ 7);  // projection to 2D space
+      visualizeEdge(e, edgeTypeProperty_[e], windowID);
     }
   }
 
   // Vertices
-  if (visualizeDatabaseVertices_)
+  if (visualizeDatabaseVertices_ && showVertices)
   {
     std::vector<const ompl::base::State *> states;
     std::vector<ot::VizColors> colors;
@@ -1156,17 +1137,12 @@ void SparseGraph::displayDatabase(bool showVertices, std::size_t indent)
     }
 
     // Create marker and push to queue
-    visual_->viz1()->states(states, colors, vertexSize_);
+    visual_->viz(windowID)->states(states, colors, vertexSize_);
 
-    if (visualizeProjection_)  // For joint-space robots: project to 2D space
-      visual_->viz7()->states(states, colors, vertexSize_);
   }
 
   // Publish remaining edges
-  visual_->viz1()->trigger();
-
-  if (visualizeProjection_)  // For joint-space robots: project to 2D space
-    visual_->viz7()->trigger();
+  visual_->viz(windowID)->trigger();
 
   usleep(0.001 * 1000000);
 }
@@ -1226,6 +1202,12 @@ tools::VizColors SparseGraph::vertexTypeToColor(VertexType type)
 
 void SparseGraph::visualizeEdge(SparseEdge e, EdgeType type, std::size_t windowID)
 {
+  //TODO remove
+  // if (edgeWeightProperty_[e] <= sparseCriteria_->getDiscretization() * 2.1)
+  //   return;
+  // if (type != eCONNECTIVITY)
+  //   return;
+
   // Add edge
   SparseVertex v1 = boost::source(e, g_);
   SparseVertex v2 = boost::target(e, g_);

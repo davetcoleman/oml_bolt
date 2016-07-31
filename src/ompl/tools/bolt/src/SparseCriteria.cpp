@@ -107,8 +107,6 @@ bool SparseCriteria::setup(std::size_t indent)
   if (useL2Norm_)  // this is for the 2D world
   {
     BOLT_WARN(indent, true, "Using L2 Norm for discretization");
-    // const double discFactor = sparseDelta_ - discretizePenetrationDist_;
-    // discretization_ = 2.0 * sqrt(std::pow(discFactor, 2) / dim);
 
     // const double discFactor = 2 * sparseDelta_;
     // discretization_ = sqrt(std::pow(discFactor, 2) / dim) - discretizePenetrationDist_;
@@ -121,23 +119,24 @@ bool SparseCriteria::setup(std::size_t indent)
     discretization_ = 2 * sparseDelta_ / dim - discretizePenetrationDist_;
   }
 
-  // std::cout << "hack here at disc " << std::endl;
-  // discretization_ /= 2.0; // TODO(davetcoleman):hack
-
   // Calculate optimum stretch factor
   bool autoStretchFactor = stretchFactor_ < std::numeric_limits<double>::epsilon();
   if (autoStretchFactor)  // if stretchFactor is zero, auto set it
   {
     BOLT_DEBUG(indent, 1, "Auto settings stretch factor because input value was 0");
-    // stretchFactor_ = discretization_ / (0.5 * discretization_ * sqrt(2) - 2.0 * denseDelta_);
-    nearestDiscretizedV_ = sqrt(dim * std::pow(0.5 * discretization_, 2));  // z in my calculations
-    // stretchFactor_ = 2.0 * discretization_ / ( nearestDiscretizedV_ - 2.0 * denseDelta_) + stretchFactor_; // 2D ca
-    // but not 3D
-    stretchFactor_ =
-        2.0 * discretization_ / (nearestDiscretizedV_) + stretchFactor_;  // 2D case without estimated interface amoun
-    // stretchFactor_ = (discretization_ + nearestDiscretizedV_) / ( 2 * (nearestDiscretizedV_ - 2.0 * denseDelta_));
-    // N-D case
+
+    // 2D case without estimated interface amount - old
+    //nearestDiscretizedV_ = sqrt(dim * std::pow(0.5 * discretization_, 2));  // z in my calculations
+    //stretchFactor_ = 2.0 * discretization_ / (nearestDiscretizedV_) + stretchFactor_;
+
+    // N-D case - old
     // stretchFactor_ = discretization_ / (discretization_ - 2.0 * denseDelta_); // N-D case
+
+    // 2D: New version July 30th
+    //stretchFactor_ = 2.0*discretization_/(discretization_ - 2*denseDelta_);
+
+    // 3D: New version July 30th
+    stretchFactor_ = (5./2.)*discretization_/(discretization_ - 2 * denseDelta_);
   }
 
   // Estimate size of graph
@@ -208,20 +207,20 @@ bool SparseCriteria::addStateToRoadmap(CandidateData &candidateD, VertexType &ad
     addReason = COVERAGE;
     stateAdded = true;
   }
-  else if (checkAddConnectivity(candidateD, indent + 4))
+  else if (checkAddConnectivity(candidateD, indent + 2))
   {
     BOLT_MAGENTA_DEBUG(indent, vAddedReason_, "Graph updated: CONNECTIVITY Fourth: " << useFourthCriteria_);
 
     addReason = CONNECTIVITY;
     stateAdded = true;
   }
-  else if (checkAddInterface(candidateD, indent + 8))
+  else if (checkAddInterface(candidateD, indent + 4))
   {
     BOLT_BLUE_DEBUG(indent, vAddedReason_, "Graph updated: INTERFACE Fourth: " << useFourthCriteria_);
     addReason = INTERFACE;
     stateAdded = true;
   }
-  else if (checkAddQuality(candidateD, threadID, indent + 12))
+  else if (checkAddQuality(candidateD, threadID, indent + 6))
   {
     BOLT_GREEN_DEBUG(indent, vAddedReason_, "Graph updated: QUALITY Fourth: " << useFourthCriteria_);
     addReason = QUALITY;
@@ -250,8 +249,6 @@ bool SparseCriteria::checkAddCoverage(CandidateData &candidateD, std::size_t ind
   BOLT_DEBUG(indent, vCriteria_, "Adding node for COVERAGE ");
 
   candidateD.newVertex_ = sg_->addVertex(candidateD.state_, COVERAGE, indent + 4);
-  // if (!sg_->addVertexThreaded(candidateD.state_, COVERAGE, candidateD.newVertex_, indent))
-  //   return false;
 
   // Note: we do not connect this node with any edges because we have already determined
   // it is too far away from any nearby nodes
@@ -262,7 +259,7 @@ bool SparseCriteria::checkAddCoverage(CandidateData &candidateD, std::size_t ind
 bool SparseCriteria::checkAddConnectivity(CandidateData &candidateD, std::size_t indent)
 {
   BOLT_FUNC(indent, vCriteria_, "checkAddConnectivity() Does this node connect two disconnected components?");
-  // std::cout << "connectivity disabled " << std::endl;
+  BOLT_DEBUG(indent, vCriteria_, "NOT adding node for connectivity - disabled ");
   return false;
 
   // If less than 2 neighbors there is no way to find a pair of nodes in different connected components
@@ -313,8 +310,6 @@ bool SparseCriteria::checkAddConnectivity(CandidateData &candidateD, std::size_t
 
   // Add the node
   candidateD.newVertex_ = sg_->addVertex(candidateD.state_, CONNECTIVITY, indent + 2);
-  // if (!sg_->addVertexThreaded(candidateD.state_, CONNECTIVITY, candidateD.newVertex_, indent))
-  //   return false;
 
   // Check if there are really close vertices nearby which should be merged
   checkRemoveCloseVertices(candidateD.newVertex_, indent);
@@ -351,8 +346,6 @@ bool SparseCriteria::checkAddConnectivity(CandidateData &candidateD, std::size_t
     {
       // Connect
       sg_->addEdge(candidateD.newVertex_, *vertexIt, eCONNECTIVITY, indent + 4);
-      // if (!sg_->addEdgeThreaded(candidateD.newVertex_, *vertexIt, eCONNECTIVITY, indent))
-      //   return false;
     }
     else
     {
@@ -407,8 +400,6 @@ bool SparseCriteria::checkAddInterface(CandidateData &candidateD, std::size_t in
 
         // Connect them
         sg_->addEdge(v1, v2, eINTERFACE, indent);
-        // if (!sg_->addEdgeThreaded(v1, v2, eINTERFACE, indent))
-        //   return false;
       }
       else  // They cannot be directly connected
       {
@@ -416,8 +407,6 @@ bool SparseCriteria::checkAddInterface(CandidateData &candidateD, std::size_t in
         BOLT_DEBUG(indent, vCriteria_, "Adding node for INTERFACE");
 
         candidateD.newVertex_ = sg_->addVertex(candidateD.state_, INTERFACE, indent);
-        // if (!sg_->addVertexThreaded(candidateD.state_, INTERFACE, candidateD.newVertex_, indent))
-        //   return false;
 
         // Check if there are really close vertices nearby which should be merged
         if (checkRemoveCloseVertices(candidateD.newVertex_, indent))
@@ -434,8 +423,6 @@ bool SparseCriteria::checkAddInterface(CandidateData &candidateD, std::size_t in
         else
         {
           sg_->addEdge(candidateD.newVertex_, v1, eINTERFACE, indent);
-          // if (!sg_->addEdgeThreaded(candidateD.newVertex_, v1, eINTERFACE, indent))
-          //   return false;
         }
 
         if (sg_->getState(v2) == NULL)
@@ -446,8 +433,6 @@ bool SparseCriteria::checkAddInterface(CandidateData &candidateD, std::size_t in
         else
         {
           sg_->addEdge(candidateD.newVertex_, v2, eINTERFACE, indent);
-          // if (!sg_->addEdgeThreaded(candidateD.newVertex_, v2, eINTERFACE, indent))
-          //   return false;
         }
 
         BOLT_DEBUG(indent, vCriteria_, "INTERFACE: connected two neighbors through new interface node");
@@ -484,9 +469,7 @@ bool SparseCriteria::checkAddQuality(CandidateData &candidateD, std::size_t thre
   bool added = false;
   std::map<SparseVertex, base::State *> closeRepresentatives;  // [nearSampledRep, nearSampledState]
 
-  // time::point startTime = time::now(); // Benchmark
   findCloseRepresentatives(candidateD.state_, candidateRep, closeRepresentatives, threadID, indent);
-  // BOLT_DEBUG(0, 1, time::seconds(time::now() - startTime) << " find close representatives");
 
   BOLT_DEBUG(indent, vQuality_, "back in checkAddQuality(): Found " << closeRepresentatives.size()
                                                                     << " close representatives");
@@ -501,7 +484,7 @@ bool SparseCriteria::checkAddQuality(CandidateData &candidateD, std::size_t thre
     base::State *nearSampledState = it->second;  // paper: q'
     SparseVertex nearSampledRep = it->first;     // paper: v'
 
-    if (visualizeQualityCriteria_ && false)  // Visualization
+    if (visualizeQualityCriteriaCloseReps_)  // Visualization
     {
       visual_->viz3()->edge(sg_->getState(nearSampledRep), nearSampledState, tools::MEDIUM, tools::RED);
 
@@ -656,6 +639,12 @@ void SparseCriteria::visualizeCheckAddPath(SparseVertex v, SparseVertex vp, Spar
   BOLT_FUNC(indent, vQuality_, "visualizeCheckAddPath()");
   visual_->viz5()->deleteAllMarkers();
 
+  // Show all the vertices
+  const bool showVertices = true;
+  const bool showEdges = false;
+  const std::size_t windowID = 5;
+  sg_->displayDatabase(showVertices, showEdges, windowID, indent);
+
   // Show candidate rep
   visual_->viz5()->state(sg_->getState(v), tools::LARGE, tools::BLUE, 0);
 
@@ -672,20 +661,13 @@ void SparseCriteria::visualizeCheckAddPath(SparseVertex v, SparseVertex vp, Spar
 
   // Show edge between them
   visual_->viz5()->edge(sg_->getState(vpp), sg_->getState(v), tools::MEDIUM, tools::ORANGE);
-  visual_->viz5()->trigger();
-  usleep(0.001 * 1000000);
 
   // Show iData
   if (iData.hasInterface1())
   {
-    // std::cout << "hasInterface1 " << std::flush;
     visual_->viz5()->state(iData.getInterface1Inside(), tools::MEDIUM, tools::ORANGE, 0);
-    // std::cout << "1 " << std::flush;
-    // std::cout << "state: " << iData.getInterface1Outside() << std::flush;
     visual_->viz5()->state(iData.getInterface1Outside(), tools::MEDIUM, tools::GREEN, 0);
-    // std::cout << " 2 " << std::flush;
     visual_->viz5()->edge(iData.getInterface1Inside(), iData.getInterface1Outside(), tools::MEDIUM, tools::RED);
-    // std::cout << "3 " << std::endl;
 
     if (vp < vpp)
       visual_->viz5()->edge(sg_->getState(vp), iData.getInterface1Outside(), tools::MEDIUM, tools::RED);
@@ -702,6 +684,24 @@ void SparseCriteria::visualizeCheckAddPath(SparseVertex v, SparseVertex vp, Spar
       visual_->viz5()->edge(sg_->getState(vpp), iData.getInterface2Outside(), tools::MEDIUM, tools::RED);
     else
       visual_->viz5()->edge(sg_->getState(vp), iData.getInterface2Outside(), tools::MEDIUM, tools::RED);
+  }
+
+  // Show nearby vertices 'x' that could also be used to find the path to v''
+  // Note: this section of code is copied from maxSpannerPath
+  std::size_t color = 9; // orange
+  foreach (SparseVertex x, boost::adjacent_vertices(vpp, sg_->getGraph()))
+  {
+    if (sg_->hasEdge(x, v) && !sg_->hasEdge(x, vp))
+    {
+      InterfaceData &iData = sg_->getInterfaceData(v, vpp, x, indent + 2);
+
+      // Check if we previously had found a pair of points that support this interface
+      if ((vpp < x && iData.getInterface1Inside()) || (x < vpp && iData.getInterface2Inside()))
+      {
+        BOLT_INFO(indent+2, vQuality_ || true, "Visualizing (orange, purple, red, pink, white) additional qualified vertex " << x);
+        visual_->viz5()->state(sg_->getState(x), tools::XLARGE, static_cast<tools::VizColors>(color++), 0);
+      }
+    }
   }
 
   visual_->viz5()->trigger();
@@ -721,22 +721,30 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
     if (sg_->hasEdge(vp, vpp) || sg_->hasEdge(vpp, vp))
     {
       OMPL_ERROR("Already has an edge!");
-      visual_->waitForUserFeedback("has edge");
       exit(-1);
     }
 
-    sg_->addEdge(vp, vpp, eQUALITY, indent + 2);
-    // if (!sg_->addEdgeThreaded(vp, vpp, eQUALITY, indent))
-    //   return false;
+    // if (visualizeQualityCriteria_)                           // TEMP
+    //   visualizeCheckAddPath(v, vp, vpp, iData, indent + 4);  // TEMP
+
+    if (pauseAfterAddEdge_)
+    {
+      sg_->addEdge(vp, vpp, eCONNECTIVITY, indent + 2);
+
+      if (visualizeQualityCriteria_)                           // TEMP
+        visualizeCheckAddPath(v, vp, vpp, iData, indent + 4);  // TEMP
+
+      visual_->waitForUserFeedback("maxMidpoint");
+      pauseAfterAddEdge_ = false;
+    }
+    else // regular
+      sg_->addEdge(vp, vpp, eQUALITY, indent + 2);
 
     return true;
   }
 
-  BOLT_WARN(indent, visualizeQualityCriteria_, "Unable to connect directly - geometric path must be created for "
+  BOLT_WARN(indent, vQuality_, "Unable to connect directly - geometric path must be created for "
                                                "spanner");
-
-  if (visualizeQualityCriteria_)                           // TEMP
-    visualizeCheckAddPath(v, vp, vpp, iData, indent + 4);  // TEMP
 
   geometric::PathGeometric *path = new geometric::PathGeometric(si_);
 
@@ -767,10 +775,7 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
     sg_->smoothQualityPathOriginal(path, indent + 4);
   else
   {
-    time::point startTime = time::now();  // Benchmark
     sg_->smoothQualityPath(path, sg_->getObstacleClearance(), indent + 4);
-    OMPL_INFORM("smooth quality path took %f seconds", time::seconds(time::now() - startTime));  // Benchmark
-    visual_->waitForUserFeedback("smooth quality path");
   }
 
   // Insert simplified path into graph
@@ -783,7 +788,7 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
   if (states.size() < 3)
   {
     BOLT_ERROR(indent + 2, true, "Somehow path was shrunk to less than three vertices: " << states.size());
-    // visual_->waitForUserFeedback("path shrunk to two");
+    exit(-1);
     delete path;
     return false;
   }
@@ -798,7 +803,7 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
     {
       BOLT_ERROR(indent + 2, vQuality_, "Add path state is too similar to v!");
 
-      if (visualizeQualityCriteria_)
+      if (visualizeQualityCriteria_ && false)
       {
         visual_->viz2()->deleteAllMarkers();
         visual_->viz2()->path(path, tools::SMALL, tools::RED);
@@ -824,8 +829,6 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
     // no need to clone state, since we will destroy p; we just copy the pointer
     BOLT_DEBUG(indent + 2, vQuality_, "Adding node from shortcut path for QUALITY");
     newVertex = sg_->addVertex(si_->cloneState(state), QUALITY, indent + 4);
-    // if (!sg_->addVertexThreaded(si_->cloneState(state), QUALITY, newVertex, indent))
-    //   return false;
 
     // Check if there are really close vertices nearby which should be merged
     if (checkRemoveCloseVertices(newVertex, indent + 4))
@@ -847,8 +850,6 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
     {
       assert(prior != newVertex);
       sg_->addEdge(prior, newVertex, eQUALITY, indent + 2);
-      // if (!sg_->addEdgeThreaded(prior, newVertex, eQUALITY, indent))
-      //   return false;
       prior = newVertex;
     }
   }
@@ -860,8 +861,6 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
   {
     assert(prior != vpp);
     sg_->addEdge(prior, vpp, eQUALITY, indent + 2);
-    // if (!sg_->addEdgeThreaded(prior, vpp, eQUALITY, indent))
-    //   return false;
   }
 
   delete path;
@@ -875,25 +874,34 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
 bool SparseCriteria::spannerTestOriginal(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
                                          std::size_t indent)
 {
-  const bool verbose = vQuality_;
-
+  BOLT_FUNC(indent, vQuality_, "spannerTestOriginal()");
   // Computes all nodes which qualify as a candidate x for v, v', and v"
-  double midpointPathLength = maxSpannerPath(v, vp, vpp, indent + 6);
+  double midpointPathLength = maxSpannerPath(v, vp, vpp, indent + 2);
 
   // Check if spanner property violated
   // if (iData.getLastDistance() == 0)  // DTC added zero check
   // {
-  //   BOLT_ERROR(indent + 6, verbose, "iData.getLastDistance() is 0");
+  //   BOLT_ERROR(indent + 6, vQuality_, "iData.getLastDistance() is 0");
   // }
   if (stretchFactor_ * iData.getLastDistance() < midpointPathLength)
   {
-    BOLT_WARN(indent + 6, verbose, "Spanner property violated");
-    BOLT_DEBUG(indent + 8, verbose, "Sparse Graph Midpoint Length  = " << midpointPathLength);
-    BOLT_DEBUG(indent + 8, verbose, "Spanner Path Length * Stretch = " << (stretchFactor_ * iData.getLastDistance()));
-    BOLT_DEBUG(indent + 10, verbose, "last distance = " << iData.getLastDistance());
-    BOLT_DEBUG(indent + 10, verbose, "stretch factor = " << stretchFactor_);
-    double rejectStretchFactor = midpointPathLength / iData.getLastDistance();
-    BOLT_DEBUG(indent + 10, verbose, "to reject, stretch factor > " << rejectStretchFactor);
+
+    // Debug
+    static double maxMidpoint = 33.5;
+    if (midpointPathLength > maxMidpoint)
+    {
+      BOLT_WARN(indent + 6, vQuality_ || 1, "Spanner property violated");
+      BOLT_DEBUG(indent + 8, vQuality_ || 1, "Sparse Graph Midpoint Length  = " << midpointPathLength);
+      BOLT_DEBUG(indent + 8, vQuality_ || 1, "Spanner Path Length * Stretch = " << (stretchFactor_ * iData.getLastDistance()));
+      BOLT_DEBUG(indent + 10, vQuality_ || 1, "last distance = " << iData.getLastDistance());
+      BOLT_DEBUG(indent + 10, vQuality_ || 1, "stretch factor = " << stretchFactor_);
+      double rejectStretchFactor = midpointPathLength / iData.getLastDistance();
+      BOLT_DEBUG(indent + 10, vQuality_ || 1, "to reject, stretch factor > " << rejectStretchFactor);
+
+      maxMidpoint = midpointPathLength;
+      std::cout << "midpointPathLength: " << maxMidpoint << std::endl;
+      pauseAfterAddEdge_ = true;
+    }
 
     return true;  // spanner property was violated
   }
@@ -905,8 +913,9 @@ bool SparseCriteria::spannerTestOriginal(SparseVertex v, SparseVertex vp, Sparse
 bool SparseCriteria::spannerTestOuter(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData &iData,
                                       std::size_t indent)
 {
+  BOLT_FUNC(indent, vCriteria_, "spannerTestOuter()");
   // Computes all nodes which qualify as a candidate x for v, v', and v"
-  double midpointPathLength = maxSpannerPath(v, vp, vpp, indent + 6);
+  double midpointPathLength = maxSpannerPath(v, vp, vpp, indent + 2);
 
   // Must have both interfaces to continue
   if (!iData.hasInterface1() || !iData.hasInterface2())
@@ -920,21 +929,21 @@ bool SparseCriteria::spannerTestOuter(SparseVertex v, SparseVertex vp, SparseVer
   // Check if spanner property violated
   if (newDistance == 0)  // DTC added zero check
   {
-    BOLT_ERROR(indent + 6, vQuality_, "new distance is 0");
+    BOLT_ERROR(indent + 2, vQuality_, "new distance is 0");
     exit(-1);
   }
   else if (stretchFactor_ * newDistance < midpointPathLength)
   {
-    BOLT_WARN(indent + 6, vQuality_, "Spanner property violated");
-    BOLT_DEBUG(indent + 8, vQuality_, "Sparse Graph Midpoint Length  = " << midpointPathLength);
-    BOLT_DEBUG(indent + 8, vQuality_, "Spanner Path Length * Stretch = " << (stretchFactor_ * newDistance));
-    BOLT_DEBUG(indent + 10, vQuality_, "new distance = " << newDistance);
-    BOLT_DEBUG(indent + 10, vQuality_, "stretch factor = " << stretchFactor_);
+    BOLT_WARN(indent + 2, vQuality_, "Spanner property violated");
+    BOLT_DEBUG(indent + 4, vQuality_, "Sparse Graph Midpoint Length  = " << midpointPathLength);
+    BOLT_DEBUG(indent + 4, vQuality_, "Spanner Path Length * Stretch = " << (stretchFactor_ * newDistance));
+    BOLT_DEBUG(indent + 6, vQuality_, "new distance = " << newDistance);
+    BOLT_DEBUG(indent + 6, vQuality_, "stretch factor = " << stretchFactor_);
 
     return true;  // spannerPropertyWasViolated
   }
   else
-    BOLT_DEBUG(indent + 6, vQuality_, "Spanner property not violated");
+    BOLT_DEBUG(indent + 4, vQuality_, "Spanner property not violated");
 
   return false;  // spannerPropertyWasViolated = false
 }
@@ -957,7 +966,7 @@ bool SparseCriteria::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVer
     }
     else
     {
-      if (visualizeQualityCriteria_)
+      if (visualizeQualityCriteria_ && false)
       {
         visual_->viz6()->deleteAllMarkers();
         assert(vertexPath.size() > 1);
@@ -972,7 +981,7 @@ bool SparseCriteria::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVer
       double connector1 = si_->distance(sg_->getState(vp), iData.getOutsideInterfaceOfV1(vp, vpp));
       // TODO(davetcoleman): may want to include the dist from inside to outside of interface
       BOLT_DEBUG(indent + 6, vQuality_, "connector1 " << connector1);
-      if (visualizeQualityCriteria_)
+      if (visualizeQualityCriteria_ && false)
       {
         visual_->viz6()->edge(sg_->getState(vp), iData.getOutsideInterfaceOfV1(vp, vpp), tools::MEDIUM, tools::ORANGE);
       }
@@ -980,7 +989,7 @@ bool SparseCriteria::spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVer
       double connector2 = si_->distance(sg_->getState(vpp), iData.getOutsideInterfaceOfV2(vp, vpp));
       // TODO(davetcoleman): may want to include the dist from inside to outside of interface
       BOLT_DEBUG(indent + 6, vQuality_, "connector2 " << connector2);
-      if (visualizeQualityCriteria_)
+      if (visualizeQualityCriteria_ && false)
       {
         visual_->viz6()->edge(sg_->getState(vpp), iData.getOutsideInterfaceOfV2(vp, vpp), tools::MEDIUM, tools::YELLOW);
       }
@@ -1055,7 +1064,6 @@ void SparseCriteria::findCloseRepresentatives(const base::State *candidateState,
 {
   BOLT_FUNC(indent, vQuality_, "findCloseRepresentatives()");
   BOLT_DEBUG(indent, vQuality_, "nearSamplePoints: " << nearSamplePoints_ << " denseDelta: " << denseDelta_);
-  const bool visualizeSampler = false;
 
   base::State *sampledState = closeRepSampledState_[threadID];  // alias the var name
 
@@ -1070,45 +1078,45 @@ void SparseCriteria::findCloseRepresentatives(const base::State *candidateState,
     static const std::size_t MAX_SAMPLE_ATTEMPT = 1000;
     for (std::size_t attempt = 0; attempt < MAX_SAMPLE_ATTEMPT; ++attempt)
     {
-      BOLT_DEBUG(indent + 2, vQuality_, "Sample attempt " << attempt);
-
       clearanceSampler_->sampleNear(sampledState, candidateState, denseDelta_);
 
       if (!si_->isValid(sampledState))
       {
-        BOLT_DEBUG(indent + 4, vQuality_, "notValid ");
+        BOLT_DEBUG(indent + 4, vQuality_ && false, "Sample attempt " << attempt << " notValid ");
 
-        if (visualizeQualityCriteria_ && visualizeSampler)
+        if (visualizeQualityCriteriaSampler_)
           visual_->viz3()->state(sampledState, tools::SMALL, tools::RED, 0);
 
         continue;
       }
       if (si_->distance(candidateState, sampledState) > denseDelta_)
       {
-        BOLT_DEBUG(indent + 4, vQuality_, "Distance too far " << si_->distance(candidateState, sampledState)
+        BOLT_DEBUG(indent + 4, vQuality_ && false, "Sample attempt " << attempt << " Distance too far " << si_->distance(candidateState, sampledState)
                                                               << " needs to be less than " << denseDelta_);
 
-        if (visualizeQualityCriteria_ && visualizeSampler)
+        if (visualizeQualityCriteriaSampler_)
           visual_->viz3()->state(sampledState, tools::SMALL, tools::RED, 0);
         continue;
       }
       if (!si_->checkMotion(candidateState, sampledState))
       {
-        BOLT_DEBUG(indent + 4, vQuality_, "Motion invalid ");
+        BOLT_DEBUG(indent + 4, vQuality_ && false, "Sample attempt " << attempt << " motion invalid ");
 
-        if (visualizeQualityCriteria_ && visualizeSampler)
+        if (visualizeQualityCriteriaSampler_)
           visual_->viz3()->state(sampledState, tools::SMALL, tools::RED, 0);
         continue;
       }
 
-      if (visualizeQualityCriteria_ && visualizeSampler)
+      if (visualizeQualityCriteriaSampler_)
         visual_->viz3()->state(sampledState, tools::SMALL, tools::GREEN, 0);
+
+      BOLT_DEBUG(indent + 4, vQuality_ && false, "Sample attempt " << attempt << " valid ");
 
       foundValidSample = true;
       break;
     }  // for each attempt
 
-    if (visualizeQualityCriteria_ && visualizeSampler)
+    if (visualizeQualityCriteriaSampler_)
     {
       visual_->viz3()->trigger();
       usleep(0.001 * 1000000);
@@ -1136,9 +1144,6 @@ void SparseCriteria::findCloseRepresentatives(const base::State *candidateState,
       {
         BOLT_DEBUG(indent + 2, vQuality_, "Adding node for COVERAGE");
         sg_->addVertex(si_->cloneState(sampledState), COVERAGE, indent + 2);
-        // SparseVertex newVertex;  // TODO: we don't use this anywhere
-        // if (!sg_->addVertexThreaded(si_->cloneState(sampledState), COVERAGE, newVertex, indent))
-        //   BOLT_WARN(indent, true, "Unable to add close rep state that we found");
       }
 
       BOLT_DEBUG(indent + 2, vQuality_, "STOP EFFORTS TO ADD A DENSE PATH");
@@ -1217,68 +1222,61 @@ void SparseCriteria::getAdjVerticesOfV1UnconnectedToV2(SparseVertex v1, SparseVe
 
 double SparseCriteria::maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent)
 {
-  BOLT_FUNC(indent, vQuality_, "maxSpannerPath()");
+  BOLT_FUNC(indent, vQualityMaxSpanner_, "maxSpannerPath()");
 
   // Candidate x vertices as described in paper in Max_Spanner_Path
   std::vector<SparseVertex> qualifiedVertices;
 
   // Get nearby vertices 'x' that could also be used to find the path to v''
-  if (true)
+  foreach (SparseVertex x, boost::adjacent_vertices(vpp, sg_->getGraph()))
   {
-    foreach (SparseVertex x, boost::adjacent_vertices(vpp, sg_->getGraph()))
+    if (sg_->hasEdge(x, v) && !sg_->hasEdge(x, vp))
     {
-      if (sg_->hasEdge(x, v) && !sg_->hasEdge(x, vp))
+      InterfaceData &iData = sg_->getInterfaceData(v, vpp, x, indent + 2);
+
+      // Check if we previously had found a pair of points that support this interface
+      if ((vpp < x && iData.getInterface1Inside()) || (x < vpp && iData.getInterface2Inside()))
       {
-        InterfaceData &iData = sg_->getInterfaceData(v, vpp, x, indent + 2);
+        BOLT_WARN(indent, vQualityMaxSpanner_, "Found an additional qualified vertex " << x);
+        // This is a possible alternative path to v''
+        qualifiedVertices.push_back(x);
 
-        // Check if we previously had found a pair of points that support this interface
-        if ((vpp < x && iData.getInterface1Inside()) || (x < vpp && iData.getInterface2Inside()))
+        if (visualizeQualityCriteria_ && false)
         {
-          BOLT_ERROR(indent, vQuality_, "Found an additional qualified vertex " << x);
-          // This is a possible alternative path to v''
-          qualifiedVertices.push_back(x);
-
-          if (visualizeQualityCriteria_)
-          {
-            visual_->viz5()->state(sg_->getState(x), tools::LARGE, tools::BLACK, 0);
-
-            // Temp?
-            // visual_->viz6()->deleteAllMarkers();
-            // visual_->viz6()->state(sg_->getState(x), tools::LARGE, tools::BLACK, 0);
-            // visual_->viz6()->trigger();
-          }
+          visual_->viz5()->state(sg_->getState(x), tools::LARGE, tools::BLACK, 0);
         }
       }
     }
   }
-  else
-    BOLT_WARN(indent, vQuality_, "Disabled nearby vertices in maxSpannerPath");
 
   // vpp is always qualified because of its previous checks
   qualifiedVertices.push_back(vpp);
-  BOLT_DEBUG(indent, vQuality_, "Total qualified vertices found: " << qualifiedVertices.size());
+  BOLT_DEBUG(indent, vQualityMaxSpanner_, "Total qualified vertices found: " << qualifiedVertices.size());
 
   // Find the maximum spanner distance
-  BOLT_DEBUG(indent, vQuality_, "Finding the maximum spanner distance between v' and v''");
+  BOLT_DEBUG(indent, vQualityMaxSpanner_, "Finding the maximum spanner distance between v' and v''");
   double maxDist = 0.0;
   foreach (SparseVertex qualifiedVertex, qualifiedVertices)
   {
-    if (visualizeQualityCriteria_)
+    if (visualizeQualityCriteria_ && false)
       visual_->viz5()->state(sg_->getState(qualifiedVertex), tools::SMALL, tools::PINK, 0);
 
     // Divide by 2 because of the midpoint path 'M'
     double tempDist = (si_->distance(sg_->getState(vp), sg_->getState(v)) +
                        si_->distance(sg_->getState(v), sg_->getState(qualifiedVertex))) /
                       2.0;
-    BOLT_DEBUG(indent + 2, vQuality_, "Checking vertex: " << qualifiedVertex << " distance: " << tempDist);
+    BOLT_DEBUG(indent + 2, vQualityMaxSpanner_, "Checking vertex: " << qualifiedVertex << " distance: " << tempDist
+               << " dist1: " << si_->distance(sg_->getState(vp), sg_->getState(v)) << " dist2: " <<
+               si_->distance(sg_->getState(v), sg_->getState(qualifiedVertex)));
 
+    // Compare with previous max
     if (tempDist > maxDist)
     {
-      BOLT_DEBUG(indent + 4, vQuality_, "Is larger than previous");
+      BOLT_DEBUG(indent + 4, vQualityMaxSpanner_, "Is larger than previous");
       maxDist = tempDist;
     }
   }
-  BOLT_DEBUG(indent, vQuality_, "Max distance: " << maxDist);
+  BOLT_DEBUG(indent, vQualityMaxSpanner_, "Max distance: " << maxDist);
 
   return maxDist;
 }
@@ -1468,8 +1466,6 @@ bool SparseCriteria::checkRemoveCloseVertices(SparseVertex v1, std::size_t inden
     SparseVertex v3 = boost::target(edge, sg_->getGraph());
     BOLT_DEBUG(indent + 2, vRemoveClose_, "Connecting v1= " << v1 << " to v3=" << v3);
     sg_->addEdge(v1, v3, eINTERFACE, indent + 4);
-    // if (!sg_->addEdgeThreaded(v1, v3, eINTERFACE, indent))
-    //   return false;
   }
 
   // Delete old vertex
@@ -1484,7 +1480,7 @@ bool SparseCriteria::checkRemoveCloseVertices(SparseVertex v1, std::size_t inden
     sg_->displayDatabase(true, indent + 2);
 
   // if (visualizeRemoveCloseVertices_)
-  visual_->waitForUserFeedback("finished moving vertex");
+  //visual_->waitForUserFeedback("finished moving vertex");
 
   if (visualizeRemoveCloseVertices_)
   {

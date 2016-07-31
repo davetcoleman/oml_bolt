@@ -179,6 +179,7 @@ void SparseGenerator::createSPARS()
   BOLT_INFO(indent, 1, "  Disjoint sets:             " << numSets);
   BOLT_INFO(indent, 1, "  Sparse Criteria:           ");
   BOLT_INFO(indent, 1, "     SparseDelta:            " << sparseCriteria_->getSparseDelta());
+  BOLT_INFO(indent, 1, "     Stretch Factor:         " << sparseCriteria_->getStretchFactor());
   BOLT_INFO(indent, 1, "     Discretization:         " << sparseCriteria_->getDiscretization());
   BOLT_INFO(indent, 1, "  Edge Lengths:              ");
   BOLT_INFO(indent, 1, "     Max:                    " << maxEdgeLength);
@@ -448,7 +449,6 @@ bool SparseGenerator::addSample(CandidateData &candidateD, std::size_t threadID,
         static const std::size_t showEvery = std::max(1, int(12 - si_->getStateDimension() * 2));
         if (percentComplete % showEvery == 0)
         {
-          BOLT_WARN(indent, true, "------------------------------------------------");
           BOLT_WARN(indent, true, "Termination progress: " << percentComplete << "%");
           copyPasteState();
         }

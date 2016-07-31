@@ -285,6 +285,7 @@ public:
   /** \brief Verbose flags */
   bool vCriteria_ = false;
   bool vQuality_ = false;
+  bool vQualityMaxSpanner_ = false;
   bool vRemoveClose_ = false;
   bool vAddedReason_ = false;  // print why each vertex or edge was added
 
@@ -292,8 +293,11 @@ public:
   bool visualizeAttemptedStates_ = false;
   bool visualizeConnectivity_ = false;
   bool visualizeQualityCriteria_ = false;
+  bool visualizeQualityCriteriaCloseReps_ = false;
+  bool visualizeQualityCriteriaSampler_ = false;
   bool visualizeRemoveCloseVertices_ = false;
-  bool visualizeNodePopularity_ = false;
+
+  bool pauseAfterAddEdge_ = false;
 };  // end SparseCriteria
 
 }  // namespace bolt
