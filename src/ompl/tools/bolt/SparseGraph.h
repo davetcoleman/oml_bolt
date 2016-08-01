@@ -281,8 +281,9 @@ public:
    * --------------------------------------------------------------------------------- */
 
   /** \brief Path smoothing helpers */
-  bool smoothQualityPathOriginal(geometric::PathGeometric* path, std::size_t indent) const;
-  bool smoothQualityPath(geometric::PathGeometric* path, double clearance, std::size_t indent) const;
+  bool smoothQualityPathOriginal(geometric::PathGeometric* path, std::size_t indent);
+  bool smoothQualityPath(geometric::PathGeometric* path, double clearance, bool debug, std::size_t indent);
+  bool reduceVertices(geometric::PathGeometric &path, unsigned int maxSteps = 0, unsigned int maxEmptySteps = 0, double rangeRatio = 0.33, std::size_t indent = 0);
 
   /* ---------------------------------------------------------------------------------
    * Disjoint Sets
@@ -307,7 +308,7 @@ public:
   SparseVertex addVertexFromFile(base::State* state, const VertexType& type, std::size_t indent);
 
   /** \brief Remove vertex from graph */
-  void removeVertex(SparseVertex v);
+  void removeVertex(SparseVertex v, std::size_t indent);
 
   /** \brief Cleanup graph because we leave deleted vertices in graph during construction */
   void removeDeletedVertices(std::size_t indent);
@@ -328,6 +329,9 @@ public:
   /** \brief Shortcut function for getting the state of a vertex */
   base::State*& getStateNonConst(SparseVertex v);
   const base::State* getState(SparseVertex v) const;
+
+  /** \brief Determine if a vertex has been deleted (but not fully removed yet) */
+  bool stateDeleted(SparseVertex v) const;
 
   /** \brief Used for creating a voronoi diagram */
   SparseVertex getSparseRepresentative(base::State* state);
@@ -462,6 +466,9 @@ protected:
   std::mutex modifyGraphMutex_;
   time::point lastSampledModTime_;  // timestamp of the last graph modification - any sample taken before that is
                                     // invalid
+
+  /** \brief Instance of random number generator */
+  RNG rng_;
 
 public:  // user settings from other applications
   /** \brief For statistics */

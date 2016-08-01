@@ -456,7 +456,7 @@ void SparseGraph::errorCheckDuplicateStates(std::size_t indent)
   //   throw Exception(name_, "Duplicate state found");
 }
 
-bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent) const
+bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std::size_t indent)
 {
   BOLT_ERROR(indent, visualizeQualityPathSimp_, "smoothQualityPathOriginal()");
 
@@ -486,14 +486,22 @@ bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std:
   return true;
 }
 
-bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clearance, std::size_t indent) const
+bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clearance, bool debug, std::size_t indent)
 {
   BOLT_FUNC(indent, visualizeQualityPathSimp_, "smoothQualityPath()");
+
+  // TODO: only for testing
+  base::State* startCopy = si_->cloneState(path->getState(0));
+  base::State* goalCopy = si_->cloneState(path->getState(path->getStateCount() - 1));
 
   // Visualize path
   if (visualizeQualityPathSimp_)
   {
     visual_->viz2()->deleteAllMarkers();
+    visual_->viz3()->deleteAllMarkers();
+    visual_->viz4()->deleteAllMarkers();
+    visual_->viz6()->deleteAllMarkers();
+
     visual_->viz2()->path(path, tools::SMALL, tools::BLUE);
     visual_->viz2()->trigger();
     usleep(0.001 * 1000000);
@@ -515,44 +523,163 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
 
     if (visualizeQualityPathSimp_)
     {
-      visual_->viz2()->deleteAllMarkers();
-      visual_->viz2()->path(path, tools::SMALL, tools::ORANGE);
-      visual_->viz2()->trigger();
+      // visual_->viz3()->deleteAllMarkers();
+      visual_->viz3()->path(path, tools::SMALL, tools::ORANGE);
+      visual_->viz3()->trigger();
       usleep(0.1 * 1000000);
-      // visual_->waitForUserFeedback("optimizing path");
+      BOLT_DEBUG(indent, true, "simplify max");
+      visual_->waitForUserFeedback("optimizing path");
+
+      if (!si_->equalStates(path->getState(0),startCopy))
+        throw Exception(name_, "Start state is no longer the same");
+      if (!si_->equalStates(path->getState(path->getStateCount() - 1),goalCopy))
+        throw Exception(name_, "Goal state is no longer the same");
+
+      // if (path->getStateCount() < 3)
+      //   throw Exception(name_, "less than 3 states remaining after smoothing");
     }
 
+    // TODO: this sometimes moves the start/goal vertices!
+    //reduceVertices(*path, 1000, path->getStateCount() * 4, /*rangeRatio*/ 0.33, indent);
     pathSimplifier_->reduceVertices(*path, 1000, path->getStateCount() * 4);
 
     if (visualizeQualityPathSimp_)
     {
-      visual_->viz2()->deleteAllMarkers();
-      visual_->viz2()->path(path, tools::SMALL, tools::BLUE);
-      visual_->viz2()->trigger();
+      // visual_->viz4()->deleteAllMarkers();
+      visual_->viz4()->path(path, tools::SMALL, tools::BLUE);
+      visual_->viz4()->trigger();
       usleep(0.1 * 1000000);
-      // visual_->waitForUserFeedback("optimizing path");
+      BOLT_DEBUG(indent, true, "reduce vertices");
+      visual_->waitForUserFeedback("optimizing path");
+
+      if (!si_->equalStates(path->getState(0),startCopy))
+        throw Exception(name_, "Start state is no longer the same");
+      if (!si_->equalStates(path->getState(path->getStateCount() - 1),goalCopy))
+        throw Exception(name_, "Goal state is no longer the same");
+
+      // if (path->getStateCount() < 3)
+      //   throw Exception(name_, "less than 3 states remaining after smoothing");
     }
   }
   // Turn off the clearance requirement
   dmv->setRequiredStateClearance(0.0);
 
+  BOLT_DEBUG(indent, true, "reduceVertices no clearance");
+
+  //reduceVertices(*path, 1000, path->getStateCount() * 4, /*rangeRatio*/ 0.33, indent);
   pathSimplifier_->reduceVertices(*path, 1000, path->getStateCount() * 4);
 
   if (visualizeQualityPathSimp_)
   {
-    visual_->viz2()->deleteAllMarkers();
-    visual_->viz2()->path(path, tools::SMALL, tools::GREEN);
-    visual_->viz2()->trigger();
+    // visual_->viz6()->deleteAllMarkers();
+    visual_->viz6()->path(path, tools::SMALL, tools::GREEN);
+    visual_->viz6()->trigger();
     visual_->waitForUserFeedback("finished quality path");
+
+    if (!si_->equalStates(path->getState(0),startCopy))
+      throw Exception(name_, "Start state is no longer the same");
+    if (!si_->equalStates(path->getState(path->getStateCount() - 1),goalCopy))
+      throw Exception(name_, "Goal state is no longer the same");
+
+    // if (path->getStateCount() < 3)
+    //   throw Exception(name_, "less than 3 states remaining after smoothing");
+
+    BOLT_ERROR(indent, true, "State count: "<< path->getStateCount());
   }
 
   std::pair<bool, bool> repairResult = path->checkAndRepair(100);
+
+  if (!si_->equalStates(path->getState(0),startCopy))
+    throw Exception(name_, "Start state is no longer the same");
+  if (!si_->equalStates(path->getState(path->getStateCount() - 1),goalCopy))
+    throw Exception(name_, "Goal state is no longer the same");
+
+
+  // if (path->getStateCount() < 3)
+  //   throw Exception(name_, "less than 3 states remaining after 'checkAndRepair'");
 
   if (!repairResult.second)  // Repairing was not successful
   {
     throw Exception(name_, "check and repair failed?");
   }
   return true;
+}
+
+bool SparseGraph::reduceVertices(geometric::PathGeometric &path, unsigned int maxSteps, unsigned int maxEmptySteps,
+                                 double rangeRatio, std::size_t indent)
+{
+  BOLT_FUNC(indent, true, "reduceVertices(): maxSteps: " << maxSteps << ", maxEmptySteps " << maxEmptySteps
+                                                         << " rangeRatio: " << rangeRatio);
+
+  if (path.getStateCount() < 3)
+    return false;
+
+  if (maxSteps == 0)
+    maxSteps = path.getStateCount();
+
+  if (maxEmptySteps == 0)
+    maxEmptySteps = path.getStateCount();
+
+  unsigned int nochange = 0;
+  const base::SpaceInformationPtr &si = path.getSpaceInformation();
+  std::vector<base::State *> &states = path.getStates();
+
+  if (si->checkMotion(states.front(), states.back()))
+  {
+    BOLT_ERROR(indent, 1, "directly short-cutting front to back ");
+    for (std::size_t i = 2; i < states.size(); ++i)
+      si->freeState(states[i - 1]);
+    std::vector<base::State *> newStates(2);
+    newStates[0] = states.front();
+    newStates[1] = states.back();
+    states.swap(newStates);
+
+    return true;
+  }
+
+  for (unsigned int i = 0; i < maxSteps && nochange < maxEmptySteps; ++i, ++nochange)
+  {
+    BOLT_DEBUG(indent + 2, true, "Vertex reduce attempt " << i);
+
+    int count = states.size();
+    int maxN = count - 1;
+    int range = 1 + (int)(floor(0.5 + (double)count * rangeRatio));
+
+    // Get random pair of states
+    int p1 = rng_.uniformInt(0, maxN);
+    int p2 = rng_.uniformInt(std::max(p1 - range, 0), std::min(maxN, p1 + range));
+    BOLT_DEBUG(indent+4, true, "p1: " << p1 << " p2: " << p2);
+
+    if (abs(p1 - p2) < 2)
+    {
+      if (p1 < maxN - 1)
+        p2 = p1 + 2;
+      else if (p1 > 1)
+        p2 = p1 - 2;
+      else
+        continue;
+    }
+
+    // Ensure p1 is the smaller(first) state in the path
+    if (p1 > p2)
+      std::swap(p1, p2);
+
+    // Attempt to shortcut
+    if (si->checkMotion(states[p1], states[p2]))
+    {
+      for (int j = p1 + 1; j < p2; ++j)
+        si->freeState(states[j]);
+      states.erase(states.begin() + p1 + 1, states.begin() + p2);
+      nochange = 0;  // reset counter
+
+      BOLT_DEBUG(indent + 2, true, "Finished reduceVertices - true");
+      return true;
+    }
+  }
+
+  BOLT_DEBUG(indent + 2, true, "Finished reduceVertices - false");
+
+  return false;
 }
 
 std::size_t SparseGraph::getDisjointSetsCount(bool verbose) const
@@ -797,8 +924,10 @@ SparseVertex SparseGraph::addVertexFromFile(base::State *state, const VertexType
   return v;
 }
 
-void SparseGraph::removeVertex(SparseVertex v)
+void SparseGraph::removeVertex(SparseVertex v, std::size_t indent)
 {
+  BOLT_FUNC(indent, true, "removeVertex = " << v);
+
   // Remove from nearest neighbor
   {
     std::lock_guard<std::mutex> guard(nearestNeighborMutex_);
@@ -1007,6 +1136,11 @@ const base::State *SparseGraph::getState(SparseVertex v) const
   return vertexStateProperty_[v];
 }
 
+bool SparseGraph::stateDeleted(SparseVertex v) const
+{
+  return vertexStateProperty_[v] == NULL;
+}
+
 SparseVertex SparseGraph::getSparseRepresentative(base::State *state)
 {
   std::vector<SparseVertex> graphNeighbors;
@@ -1081,7 +1215,7 @@ void SparseGraph::clearEdgesNearVertex(SparseVertex vertex, std::size_t indent)
 
 void SparseGraph::displayDatabase(bool showVertices, bool showEdges, std::size_t windowID, std::size_t indent)
 {
-  BOLT_FUNC(indent, vVisualize_ || true, "displayDatabase() - Display Sparse Database");
+  BOLT_FUNC(indent, vVisualize_, "displayDatabase() - Display Sparse Database");
 
   // Error check
   if (getNumVertices() == 0 && getNumEdges() == 0)
@@ -1203,8 +1337,8 @@ void SparseGraph::visualizeEdge(SparseEdge e, EdgeType type, std::size_t windowI
   // TODO remove
   // if (edgeWeightProperty_[e] <= sparseCriteria_->getDiscretization() * 2.1)
   //   return;
-  if (type != eCONNECTIVITY)
-    return;
+  // if (type != eCONNECTIVITY)
+  //   return;
 
   // Add edge
   SparseVertex v1 = boost::source(e, g_);

@@ -616,7 +616,22 @@ bool SparseCriteria::checkAddPath(SparseVertex v, std::size_t indent)
       {
         // Actually add the vertices and possibly edges
         if (addQualityPath(v, vp, vpp, iData, indent + 6))
+        {
           spannerPropertyWasViolated = true;
+
+          // Check if by chance v was removed during process
+          if (sg_->stateDeleted(v))
+          {
+            BOLT_INFO(indent, vQuality_, "State v=" << v << " was deleted, skipping quality checks");
+            return spannerPropertyWasViolated;
+          }
+
+          if (sg_->stateDeleted(vp))
+          {
+            BOLT_INFO(indent, vQuality_, "State vp=" << vp << " was deleted, skipping quality checks");
+            return spannerPropertyWasViolated;
+          }
+        }
       }
 
     }  // foreach vpp
@@ -741,8 +756,7 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
     return true;
   }
 
-  BOLT_WARN(indent, vQuality_, "Unable to connect directly - geometric path must be created for "
-                               "spanner");
+  BOLT_WARN(indent, vQuality_, "Unable to connect directly - geometric path must be created for spanner");
 
   geometric::PathGeometric *path = new geometric::PathGeometric(si_);
 
@@ -768,12 +782,16 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
     path->append(sg_->getState(vpp));
   }
 
+  // TODO: remove this copy
+  geometric::PathGeometric errorAnalysisPath = *path;
+
   // Create path and simplify
   if (useOriginalSmoother_)
     sg_->smoothQualityPathOriginal(path, indent + 4);
   else
   {
-    sg_->smoothQualityPath(path, sg_->getObstacleClearance(), indent + 4);
+    const bool debug = false;
+    sg_->smoothQualityPath(path, sg_->getObstacleClearance(), debug, indent + 4);
   }
 
   // Insert simplified path into graph
@@ -786,6 +804,10 @@ bool SparseCriteria::addQualityPath(SparseVertex v, SparseVertex vp, SparseVerte
   if (states.size() < 3)
   {
     BOLT_ERROR(indent + 2, true, "Somehow path was shrunk to less than three vertices: " << states.size());
+    sg_->visualizeQualityPathSimp_ = true;
+    const bool debug = true;
+    sg_->smoothQualityPath(&errorAnalysisPath, sg_->getObstacleClearance(), debug, indent + 4);
+
     exit(-1);
     delete path;
     return false;
@@ -899,6 +921,16 @@ bool SparseCriteria::spannerTestOriginal(SparseVertex v, SparseVertex vp, Sparse
       maxMidpoint = midpointPathLength;
       std::cout << "midpointPathLength: " << maxMidpoint << std::endl;
       pauseAfterAddEdge_ = true;
+    }
+
+    // Experimental:
+    double newEdgeDistance = si_->distance(sg_->getState(vp), sg_->getState(vpp)) / 2.0;
+    //std::cout << "newEdgeDistance/2: " << newEdgeDistance<< std::endl;
+
+    if (newEdgeDistance <= midpointPathLength + std::numeric_limits<double>::epsilon())
+    {
+      //std::cout << "skipping because new edge wouldn't help anything " << std::endl;
+      //return false; // skip because new edge wouldn't help anything
     }
 
     return true;  // spanner property was violated
@@ -1229,6 +1261,13 @@ double SparseCriteria::maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVer
   // Get nearby vertices 'x' that could also be used to find the path to v''
   foreach (SparseVertex x, boost::adjacent_vertices(vpp, sg_->getGraph()))
   {
+    // Check if vertex is deleted
+    if (sg_->getState(x) == NULL)
+    {
+      BOLT_ERROR(indent, true, "State is deleted in maxSpannerPath!");
+      throw Exception(name_, "error");
+    }
+
     if (sg_->hasEdge(x, v) && !sg_->hasEdge(x, vp))
     {
       InterfaceData &iData = sg_->getInterfaceData(v, vpp, x, indent + 2);
@@ -1469,7 +1508,7 @@ bool SparseCriteria::checkRemoveCloseVertices(SparseVertex v1, std::size_t inden
   }
 
   // Delete old vertex
-  sg_->removeVertex(v2);
+  sg_->removeVertex(v2, indent);
   BOLT_DEBUG(indent, vRemoveClose_, "REMOVING VERTEX " << v2 << " which was replaced with " << v1 << " with state ");
 
   // Statistics

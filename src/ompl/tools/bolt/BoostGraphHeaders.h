@@ -97,7 +97,6 @@ enum EdgeType
 };
 
 /** \brief The type used internally for representing vertex IDs */
-// typedef unsigned long int VertexIndexType;  // TODO(davetcoleman): just use size_t?
 typedef std::size_t VertexIndexType;
 
 /** \brief Pair of vertices which support an interface. */
