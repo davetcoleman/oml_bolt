@@ -42,6 +42,7 @@
 #include <ompl/tools/bolt/Bolt.h>
 #include <ompl/tools/bolt/SparseGenerator.h>
 #include <ompl/tools/bolt/SparseCriteria.h>
+#include <ompl/base/samplers/MinimumClearanceValidStateSampler.h>
 
 //#include <ompl/geometric/planners/rrt/RRTConnect.h>
 
@@ -520,6 +521,67 @@ void Bolt::benchmarkRandValidSampling()
   OMPL_INFORM("  sampleUniform() took %f seconds (%f per run)", totalDurationSampler,
               totalDurationSampler / benchmarkRuns);
   OMPL_INFORM("  Percent valid: %f", validCount / double(benchmarkRuns) * 100);
+  std::cout << "-------------------------------------------------------" << std::endl;
+  std::cout << std::endl;
+}
+
+void Bolt::benchmarkVisualizeSampling()
+{
+  std::cout << "-------------------------------------------------------" << std::endl;
+  OMPL_INFORM("Running system performance benchmark");
+
+  base::MinimumClearanceValidStateSamplerPtr clearanceSampler(new ob::MinimumClearanceValidStateSampler(si_.get()));
+  clearanceSampler->setMinimumObstacleClearance(sparseGraph_->getObstacleClearance());
+
+  base::StateSamplerPtr sampler;
+  sampler = si_->allocStateSampler();
+
+  const std::size_t benchmarkRuns = 100000;
+  std::size_t debugIncrement = std::max(benchmarkRuns, std::size_t(benchmarkRuns / 100.0));
+
+  // Pre-allocate state
+  std::vector<ompl::base::State*> stateMemory(debugIncrement);
+
+  for (base::State*& state : stateMemory)
+    state = si_->getStateSpace()->allocState();
+
+  std::vector<const ompl::base::State*> states;
+  states.reserve(debugIncrement);
+  std::vector<ot::VizColors> colors;
+  colors.reserve(debugIncrement);
+
+  // Allow time to reset image
+  visual_->viz1()->trigger();
+  usleep(0.1*1000000);
+
+  // Benchmark runtime
+  for (std::size_t i = 0; i < benchmarkRuns; ++i)
+  {
+    base::State *candidateState = stateMemory[i % debugIncrement];
+    clearanceSampler->sample(candidateState);
+
+    states.push_back(candidateState);
+    colors.push_back(tools::GREEN);
+
+    if ((i+1) % debugIncrement == 0 || i == benchmarkRuns - 1)
+    {
+      visual_->viz1()->states(states, colors, tools::SMALL);
+      visual_->viz1()->trigger();
+      usleep(0.1*1000000);
+
+      states.clear();
+      colors.clear();
+      if (visual_->viz1()->shutdownRequested())
+        break;
+    }
+  }
+
+  for (base::State* state : stateMemory)
+    si_->freeState(state);
+
+  // Benchmark runtime
+  OMPL_INFORM("Done");
+  exit(0);
   std::cout << "-------------------------------------------------------" << std::endl;
   std::cout << std::endl;
 }

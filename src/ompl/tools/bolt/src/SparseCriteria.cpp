@@ -923,14 +923,19 @@ bool SparseCriteria::spannerTestOriginal(SparseVertex v, SparseVertex vp, Sparse
       pauseAfterAddEdge_ = true;
     }
 
-    // Experimental:
-    double newEdgeDistance = si_->distance(sg_->getState(vp), sg_->getState(vpp)) / 2.0;
-    //std::cout << "newEdgeDistance/2: " << newEdgeDistance<< std::endl;
-
-    if (newEdgeDistance <= midpointPathLength + std::numeric_limits<double>::epsilon())
+    if (useEdgeImprovementRule_)
     {
-      //std::cout << "skipping because new edge wouldn't help anything " << std::endl;
-      //return false; // skip because new edge wouldn't help anything
+      // Experimental:
+      double newEdgeDistance = si_->distance(sg_->getState(vp), sg_->getState(vpp)) / 2.0;
+      // std::cout << "newEdgeDistance/2: " << newEdgeDistance<< std::endl;
+      // std::cout << "midpointPathLength: " << midpointPathLength << std::endl;
+
+      //if (newEdgeDistance < midpointPathLength + std::numeric_limits<double>::epsilon())
+      if (newEdgeDistance >= midpointPathLength - 0.01)
+      {
+        //std::cout << "skipping because new edge wouldn't help anything " << std::endl;
+        return false; // skip because new edge wouldn't help anything
+      }
     }
 
     return true;  // spanner property was violated

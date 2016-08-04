@@ -194,6 +194,7 @@ public:
   bool doPostProcessing();
 
   void benchmarkRandValidSampling();
+  void benchmarkVisualizeSampling();
   void benchmarkSparseGraphGeneration();
 
 protected:

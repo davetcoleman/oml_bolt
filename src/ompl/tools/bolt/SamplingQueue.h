@@ -49,7 +49,6 @@
 // Boost
 #include <boost/thread/shared_mutex.hpp>
 #include <boost/thread.hpp>
-#include <boost/thread/shared_mutex.hpp>
 
 // C++
 #include <queue>

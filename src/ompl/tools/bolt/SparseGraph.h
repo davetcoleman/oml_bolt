@@ -42,6 +42,7 @@
 #include <ompl/base/StateSpace.h>
 #include <ompl/geometric/PathGeometric.h>
 #include <ompl/geometric/PathSimplifier.h>
+//#include <ompl/tools/bolt/PathSimplifier.h>
 
 #include <ompl/base/SpaceInformation.h>
 #include <ompl/datastructures/NearestNeighbors.h>
@@ -283,7 +284,6 @@ public:
   /** \brief Path smoothing helpers */
   bool smoothQualityPathOriginal(geometric::PathGeometric* path, std::size_t indent);
   bool smoothQualityPath(geometric::PathGeometric* path, double clearance, bool debug, std::size_t indent);
-  bool reduceVertices(geometric::PathGeometric &path, unsigned int maxSteps = 0, unsigned int maxEmptySteps = 0, double rangeRatio = 0.33, std::size_t indent = 0);
 
   /* ---------------------------------------------------------------------------------
    * Disjoint Sets
@@ -391,6 +391,9 @@ public:
 
   /** \brief Information about the loaded graph */
   void printGraphStats();
+
+  /** \brief Verify graph is not in collision */
+  bool verifyGraph(std::size_t indent);
 
 protected:
   /** \brief Short name of this class */

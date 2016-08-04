@@ -131,6 +131,7 @@ bool SparseGraph::setup()
   // Initialize path simplifier
   if (!pathSimplifier_)
   {
+    //pathSimplifier_.reset(new PathSimplifier(si_));
     pathSimplifier_.reset(new geometric::PathSimplifier(si_));
     pathSimplifier_->freeStates(false);
   }
@@ -474,6 +475,7 @@ bool SparseGraph::smoothQualityPathOriginal(geometric::PathGeometric *path, std:
   if (visualizeQualityPathSimp_)
     visual_->waitForUserFeedback("path simplification");
 
+  OMPL_ERROR("The results of this comparison may be wrong");
   pathSimplifier_->reduceVertices(*path, 10);
   pathSimplifier_->shortcutPath(*path, 50);
 
@@ -519,7 +521,9 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
 
   for (std::size_t i = 0; i < 3; ++i)
   {
-    pathSimplifier_->simplifyMax(*path);
+    ompl::base::PlannerTerminationCondition neverTerminate = base::plannerNonTerminatingCondition();
+    //pathSimplifier_->simplify(*path, neverTerminate, indent);
+    pathSimplifier_->simplify(*path, neverTerminate);
 
     if (visualizeQualityPathSimp_)
     {
@@ -527,21 +531,11 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
       visual_->viz3()->path(path, tools::SMALL, tools::ORANGE);
       visual_->viz3()->trigger();
       usleep(0.1 * 1000000);
-      BOLT_DEBUG(indent, true, "simplify max");
+
       visual_->waitForUserFeedback("optimizing path");
-
-      if (!si_->equalStates(path->getState(0),startCopy))
-        throw Exception(name_, "Start state is no longer the same");
-      if (!si_->equalStates(path->getState(path->getStateCount() - 1),goalCopy))
-        throw Exception(name_, "Goal state is no longer the same");
-
-      // if (path->getStateCount() < 3)
-      //   throw Exception(name_, "less than 3 states remaining after smoothing");
     }
 
-    // TODO: this sometimes moves the start/goal vertices!
-    //reduceVertices(*path, 1000, path->getStateCount() * 4, /*rangeRatio*/ 0.33, indent);
-    pathSimplifier_->reduceVertices(*path, 1000, path->getStateCount() * 4);
+    pathSimplifier_->reduceVertices(*path, 1000, path->getStateCount() * 4); // /*rangeRatio*/ 0.33, indent);
 
     if (visualizeQualityPathSimp_)
     {
@@ -549,25 +543,16 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
       visual_->viz4()->path(path, tools::SMALL, tools::BLUE);
       visual_->viz4()->trigger();
       usleep(0.1 * 1000000);
-      BOLT_DEBUG(indent, true, "reduce vertices");
+
       visual_->waitForUserFeedback("optimizing path");
-
-      if (!si_->equalStates(path->getState(0),startCopy))
-        throw Exception(name_, "Start state is no longer the same");
-      if (!si_->equalStates(path->getState(path->getStateCount() - 1),goalCopy))
-        throw Exception(name_, "Goal state is no longer the same");
-
-      // if (path->getStateCount() < 3)
-      //   throw Exception(name_, "less than 3 states remaining after smoothing");
     }
   }
+  BOLT_DEBUG(indent, true, "Finished loop - now removing clearance");
+
   // Turn off the clearance requirement
   dmv->setRequiredStateClearance(0.0);
 
-  BOLT_DEBUG(indent, true, "reduceVertices no clearance");
-
-  //reduceVertices(*path, 1000, path->getStateCount() * 4, /*rangeRatio*/ 0.33, indent);
-  pathSimplifier_->reduceVertices(*path, 1000, path->getStateCount() * 4);
+  pathSimplifier_->reduceVertices(*path, 1000, path->getStateCount() * 4); //, /*rangeRatio*/ 0.33, indent);
 
   if (visualizeQualityPathSimp_)
   {
@@ -576,110 +561,19 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
     visual_->viz6()->trigger();
     visual_->waitForUserFeedback("finished quality path");
 
-    if (!si_->equalStates(path->getState(0),startCopy))
-      throw Exception(name_, "Start state is no longer the same");
-    if (!si_->equalStates(path->getState(path->getStateCount() - 1),goalCopy))
-      throw Exception(name_, "Goal state is no longer the same");
-
-    // if (path->getStateCount() < 3)
-    //   throw Exception(name_, "less than 3 states remaining after smoothing");
-
     BOLT_ERROR(indent, true, "State count: "<< path->getStateCount());
   }
 
   std::pair<bool, bool> repairResult = path->checkAndRepair(100);
 
-  if (!si_->equalStates(path->getState(0),startCopy))
-    throw Exception(name_, "Start state is no longer the same");
-  if (!si_->equalStates(path->getState(path->getStateCount() - 1),goalCopy))
-    throw Exception(name_, "Goal state is no longer the same");
-
-
-  // if (path->getStateCount() < 3)
-  //   throw Exception(name_, "less than 3 states remaining after 'checkAndRepair'");
+  BOOST_ASSERT_MSG(si_->equalStates(path->getState(0),startCopy), "Start state is no longer the same");
+  BOOST_ASSERT_MSG(si_->equalStates(path->getState(path->getStateCount() - 1),goalCopy), "Goal state is no longer the same");
 
   if (!repairResult.second)  // Repairing was not successful
   {
     throw Exception(name_, "check and repair failed?");
   }
   return true;
-}
-
-bool SparseGraph::reduceVertices(geometric::PathGeometric &path, unsigned int maxSteps, unsigned int maxEmptySteps,
-                                 double rangeRatio, std::size_t indent)
-{
-  BOLT_FUNC(indent, true, "reduceVertices(): maxSteps: " << maxSteps << ", maxEmptySteps " << maxEmptySteps
-                                                         << " rangeRatio: " << rangeRatio);
-
-  if (path.getStateCount() < 3)
-    return false;
-
-  if (maxSteps == 0)
-    maxSteps = path.getStateCount();
-
-  if (maxEmptySteps == 0)
-    maxEmptySteps = path.getStateCount();
-
-  unsigned int nochange = 0;
-  const base::SpaceInformationPtr &si = path.getSpaceInformation();
-  std::vector<base::State *> &states = path.getStates();
-
-  if (si->checkMotion(states.front(), states.back()))
-  {
-    BOLT_ERROR(indent, 1, "directly short-cutting front to back ");
-    for (std::size_t i = 2; i < states.size(); ++i)
-      si->freeState(states[i - 1]);
-    std::vector<base::State *> newStates(2);
-    newStates[0] = states.front();
-    newStates[1] = states.back();
-    states.swap(newStates);
-
-    return true;
-  }
-
-  for (unsigned int i = 0; i < maxSteps && nochange < maxEmptySteps; ++i, ++nochange)
-  {
-    BOLT_DEBUG(indent + 2, true, "Vertex reduce attempt " << i);
-
-    int count = states.size();
-    int maxN = count - 1;
-    int range = 1 + (int)(floor(0.5 + (double)count * rangeRatio));
-
-    // Get random pair of states
-    int p1 = rng_.uniformInt(0, maxN);
-    int p2 = rng_.uniformInt(std::max(p1 - range, 0), std::min(maxN, p1 + range));
-    BOLT_DEBUG(indent+4, true, "p1: " << p1 << " p2: " << p2);
-
-    if (abs(p1 - p2) < 2)
-    {
-      if (p1 < maxN - 1)
-        p2 = p1 + 2;
-      else if (p1 > 1)
-        p2 = p1 - 2;
-      else
-        continue;
-    }
-
-    // Ensure p1 is the smaller(first) state in the path
-    if (p1 > p2)
-      std::swap(p1, p2);
-
-    // Attempt to shortcut
-    if (si->checkMotion(states[p1], states[p2]))
-    {
-      for (int j = p1 + 1; j < p2; ++j)
-        si->freeState(states[j]);
-      states.erase(states.begin() + p1 + 1, states.begin() + p2);
-      nochange = 0;  // reset counter
-
-      BOLT_DEBUG(indent + 2, true, "Finished reduceVertices - true");
-      return true;
-    }
-  }
-
-  BOLT_DEBUG(indent + 2, true, "Finished reduceVertices - false");
-
-  return false;
 }
 
 std::size_t SparseGraph::getDisjointSetsCount(bool verbose) const
@@ -998,7 +892,7 @@ void SparseGraph::removeDeletedVertices(std::size_t indent)
   // Reinsert vertices into nearest neighbor
   foreach (SparseVertex v, boost::vertices(g_))
   {
-    if (v < numThreads_)  // Skip the query vertices
+    if (v <= queryVertices_.back()) // Ignore query vertices
       continue;
 
     nn_->add(v);
@@ -1029,6 +923,7 @@ SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type,
     BOOST_ASSERT_MSG(getState(v1) != getState(v2), "States on both sides of an edge are the same");
     BOOST_ASSERT_MSG(!si_->getStateSpace()->equalStates(getState(v1), getState(v2)), "Vertex IDs are different but "
                                                                                      "states are the equal");
+    //BOOST_ASSERT_MSG(si_->checkMotion(vertexStateProperty_[v1], vertexStateProperty_[v2]), "Edge is in collision");
   }
 
   // Create the new edge
@@ -1241,7 +1136,9 @@ void SparseGraph::displayDatabase(bool showVertices, bool showEdges, std::size_t
   if (visualizeDatabaseVertices_ && showVertices)
   {
     std::vector<const ompl::base::State *> states;
+    states.reserve(getNumVertices());
     std::vector<ot::VizColors> colors;
+    colors.reserve(getNumVertices());
 
     // Loop through each vertex
     foreach (SparseVertex v, boost::vertices(g_))
@@ -1252,9 +1149,7 @@ void SparseGraph::displayDatabase(bool showVertices, bool showEdges, std::size_t
 
       // Skip deleted vertices
       if (vertexStateProperty_[v] == 0)
-      {
         continue;
-      }
 
       // Check for null states
       if (!getState(v))
@@ -1262,6 +1157,12 @@ void SparseGraph::displayDatabase(bool showVertices, bool showEdges, std::size_t
         BOLT_ERROR(indent, true, "Null vertex found: " << v);
         continue;
       }
+
+      // If desired show coverage, but we can't add to the main states array
+      // TODO: add secondary array for this size spheres?
+      if (visualizeDatabaseCoverage_)
+        visual_->viz(windowID)->state(getState(v), tools::VARIABLE_SIZE, tools::TRANSLUCENT_LIGHT,
+                                      sparseCriteria_->getSparseDelta());
 
       // Populate properties
       colors.push_back(vertexTypeToColor(vertexTypeProperty_[v]));
@@ -1433,6 +1334,50 @@ void SparseGraph::printGraphStats()
   BOLT_DEBUG(indent, 1, "      Difference:          " << averageEdgeLength - sparseCriteria_->getSparseDelta());
   BOLT_DEBUG(indent, 1, "      Penetration:         " << sparseCriteria_->getDiscretizePenetrationDist());
   BOLT_DEBUG(indent, 1, "------------------------------------------------------");
+}
+
+bool SparseGraph::verifyGraph(std::size_t indent)
+{
+  BOLT_FUNC(indent, true, "verifyGraph()");
+
+  foreach (const SparseVertex v, boost::vertices(g_))
+  {
+    if (v <= queryVertices_.back()) // Ignore query vertices
+      continue;
+
+    // Skip deleted vertices
+    if (vertexStateProperty_[v] == 0)
+      continue;
+
+    // Check for null states
+    if (!getState(v))
+    {
+      BOLT_ERROR(indent, true, "Null vertex found: " << v);
+      return false;
+    }
+
+    // Collision check
+    if (!si_->isValid(vertexStateProperty_[v]))
+    {
+      BOLT_ERROR(indent, true, "Found invalid vertex " << v);
+      return false;
+    }
+  }
+
+  foreach (const SparseEdge e, boost::edges(g_))
+  {
+    SparseVertex v1 = boost::source(e, g_);
+    SparseVertex v2 = boost::target(e, g_);
+
+    // Collision check
+    if (!si_->checkMotion(vertexStateProperty_[v1], vertexStateProperty_[v2]))
+    {
+      BOLT_ERROR(indent, true, "Invalid edge found: " << v1 << " to " << v2);
+      return false;
+    }
+  }
+
+  return true;
 }
 
 }  // namespace bolt

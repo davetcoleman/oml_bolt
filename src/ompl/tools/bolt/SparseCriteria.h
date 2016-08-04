@@ -135,7 +135,7 @@ public:
                                          std::vector<SparseVertex>& adjVerticesUnconnected, std::size_t indent);
 
   /** \brief Computes all nodes which qualify as a candidate x for v, v', and v"
-   *  \return length of maximum path
+   *  \return length of maximum midpoint path
    */
   double maxSpannerPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, std::size_t indent);
 
@@ -275,6 +275,9 @@ public:
   double penetrationOverlapFraction_ = 0.1;
 
   bool useL2Norm_ = false;
+
+  /** \brief New Quality criteria rule */
+  bool useEdgeImprovementRule_ = true;
 
   /** \brief Experimental feature that allows very closeby vertices to be merged with newly added ones */
   bool useCheckRemoveCloseVertices_ = true;

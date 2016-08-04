@@ -203,6 +203,11 @@ void SparseGenerator::createSPARS()
   // Copy-paste data
   copyPasteState(numSets);
 
+  if (!sg_->verifyGraph(indent))
+  {
+    OMPL_ERROR("Sparse graph did not pass test");
+  }
+
   // if (!sg_->visualizeSparseGraph_)
   // sg_->displayDatabase(true, indent);
 
