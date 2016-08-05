@@ -315,6 +315,14 @@ bool SparseGraph::astarSearch(const SparseVertex start, const SparseVertex goal,
         vertexPath.push_back(v);
       }
 
+      // Debug
+      // for (auto v2 : vertexPath)
+      //   si_->printState(getState(v2));
+
+      // Ensure start and goal states are included in path
+      BOOST_ASSERT_MSG(si_->getStateSpace()->equalStates(getState(vertexPath.back()), getState(start)), "Start states are not the same");
+      BOOST_ASSERT_MSG(si_->getStateSpace()->equalStates(getState(vertexPath.front()), getState(goal)), "Goal states are not the same");
+
       foundGoal = true;
     }
   }
@@ -509,10 +517,12 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
     usleep(0.001 * 1000000);
   }
 
-  BOLT_DEBUG(indent, visualizeQualityPathSimp_, "Created 'quality path' candidate with " << path->getStateCount()
-                                                                                         << " states");
-  if (visualizeQualityPathSimp_)
-    visual_->waitForUserFeedback("path simplification");
+  // Ensure that the number of states always decreases
+  std::size_t minStatesFound = path->getStateCount();
+  BOLT_DEBUG(indent, visualizeQualityPathSimp_, "Original quality path has " << minStatesFound << " states");
+
+  // if (visualizeQualityPathSimp_)
+  //   visual_->waitForUserFeedback("path simplification");
 
   // Set the motion validator to use clearance, this way isValid() checks clearance before confirming valid
   base::DiscreteMotionValidator *dmv =
@@ -525,43 +535,52 @@ bool SparseGraph::smoothQualityPath(geometric::PathGeometric *path, double clear
     //pathSimplifier_->simplify(*path, neverTerminate, indent);
     pathSimplifier_->simplify(*path, neverTerminate);
 
+    //std::cout << "path->getStateCount(): " << path->getStateCount() << std::endl;
+
     if (visualizeQualityPathSimp_)
     {
-      // visual_->viz3()->deleteAllMarkers();
+      //visual_->viz3()->deleteAllMarkers();
       visual_->viz3()->path(path, tools::SMALL, tools::ORANGE);
       visual_->viz3()->trigger();
       usleep(0.1 * 1000000);
 
-      visual_->waitForUserFeedback("optimizing path");
+      //visual_->waitForUserFeedback("optimizing path");
     }
 
     pathSimplifier_->reduceVertices(*path, 1000, path->getStateCount() * 4); // /*rangeRatio*/ 0.33, indent);
 
+    if (minStatesFound > path->getStateCount())
+      minStatesFound = path->getStateCount();
+
     if (visualizeQualityPathSimp_)
     {
-      // visual_->viz4()->deleteAllMarkers();
+      //visual_->viz4()->deleteAllMarkers();
       visual_->viz4()->path(path, tools::SMALL, tools::BLUE);
       visual_->viz4()->trigger();
       usleep(0.1 * 1000000);
 
-      visual_->waitForUserFeedback("optimizing path");
+      //visual_->waitForUserFeedback("optimizing path");
     }
   }
-  BOLT_DEBUG(indent, true, "Finished loop - now removing clearance");
 
   // Turn off the clearance requirement
   dmv->setRequiredStateClearance(0.0);
 
   pathSimplifier_->reduceVertices(*path, 1000, path->getStateCount() * 4); //, /*rangeRatio*/ 0.33, indent);
+  //std::cout << "path->getStateCount(): " << path->getStateCount() << std::endl;
 
   if (visualizeQualityPathSimp_)
   {
-    // visual_->viz6()->deleteAllMarkers();
+    visual_->viz6()->deleteAllMarkers();
     visual_->viz6()->path(path, tools::SMALL, tools::GREEN);
     visual_->viz6()->trigger();
-    visual_->waitForUserFeedback("finished quality path");
+    //visual_->waitForUserFeedback("finished quality path");
+  }
 
-    BOLT_ERROR(indent, true, "State count: "<< path->getStateCount());
+  if (minStatesFound < path->getStateCount())
+  {
+    BOLT_ERROR(indent, true, "Min states found is less than finished path");
+    visual_->waitForUserFeedback("min states found");
   }
 
   std::pair<bool, bool> repairResult = path->checkAndRepair(100);
@@ -966,6 +985,18 @@ SparseEdge SparseGraph::addEdge(SparseVertex v1, SparseVertex v2, EdgeType type,
     // }
   }
 
+  // if (sparseCriteria_->getUseFourthCriteria() &&
+  //     vertexTypeProperty_[v1] == DISCRETIZED && vertexTypeProperty_[v2] == DISCRETIZED
+  //     && edgeWeightProperty_[e] > sparseCriteria_->getDiscretization() + 0.0001)
+  // {
+  //   visual_->viz2()->deleteAllMarkers();
+  //   visualizeEdge(e, type, /*windowID*/ 2);
+  //   visual_->viz2()->trigger();
+
+  //   std::cout << "just added edge where both are discretized " << std::endl;
+  //   visual_->waitForUserFeedback("just added edge where both are discretized");
+  // }
+
   // Enable saving
   graphUnsaved_ = true;
 
@@ -989,7 +1020,7 @@ VizColors SparseGraph::edgeTypeToColor(EdgeType edgeType)
       return ORANGE;
       break;
     case eINTERFACE:
-      return MAGENTA;
+      return GREEN;
       break;
     case eQUALITY:
       return RED;
@@ -1208,7 +1239,7 @@ tools::VizColors SparseGraph::vertexTypeToColor(VertexType type)
   switch (type)
   {
     case COVERAGE:
-      return tools::GREEN;
+      return tools::MAGENTA;
       break;
     case CONNECTIVITY:
       return tools::BROWN;

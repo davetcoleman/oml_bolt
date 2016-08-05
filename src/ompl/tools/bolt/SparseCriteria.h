@@ -102,16 +102,13 @@ public:
   void visualizeCheckAddPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData& iData,
                              std::size_t indent);
 
-  bool addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData& iData, std::size_t indent);
+  bool addQualityPath(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData& iData, const double shortestPathVpVpp, std::size_t indent);
 
   /** \brief As described in paper */
-  bool spannerTestOriginal(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData& iData, std::size_t indent);
+  bool spannerTestOriginal(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData& iData, double& shortestPathVpVpp, std::size_t indent);
 
-  /** \brief Slight modification */
-  bool spannerTestOuter(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData& iData, std::size_t indent);
-
-  /** \brief Using Astar to find shortest path */
-  bool spannerTestAStar(SparseVertex v, SparseVertex vp, SparseVertex vpp, InterfaceData& iData, std::size_t indent);
+  /** \brief Get shortest path between two vertices */
+  double qualityEdgeAstarTest(SparseVertex vp, SparseVertex vpp, InterfaceData & iData, std::size_t indent);
 
   /** \brief Finds the representative of the input state, st  */
   SparseVertex findGraphRepresentative(base::State* st, std::size_t threadID, std::size_t indent);
@@ -274,6 +271,9 @@ public:
   /** \brief Percent of sparse fraction that should overlap via the discretization  */
   double penetrationOverlapFraction_ = 0.1;
 
+  /** \brief Percent of SparseDelta to allow for moving nearby vertices */
+  double sparseDeltaFractionCheck_ = 0.5;
+
   bool useL2Norm_ = false;
 
   /** \brief New Quality criteria rule */
@@ -297,9 +297,9 @@ public:
   bool visualizeQualityCriteria_ = false;
   bool visualizeQualityCriteriaCloseReps_ = false;
   bool visualizeQualityCriteriaSampler_ = false;
+  bool visualizeQualityCriteriaAstar_ = true;
   bool visualizeRemoveCloseVertices_ = false;
 
-  bool pauseAfterAddEdge_ = false;
 };  // end SparseCriteria
 
 }  // namespace bolt

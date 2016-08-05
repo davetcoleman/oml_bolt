@@ -140,11 +140,6 @@ void SparseGenerator::createSPARS()
   CALLGRIND_TOGGLE_COLLECT;
   CALLGRIND_DUMP_STATS;
 
-  // Only display database if enabled
-  if (useRandomSamples_ && sg_->visualizeSparseGraph_ &&
-      sg_->visualizeSparseGraphSpeed_ > std::numeric_limits<double>::epsilon())
-    sg_->displayDatabase(true, indent);
-
   // Cleanup removed vertices
   sg_->removeDeletedVertices(indent);
 
@@ -208,8 +203,8 @@ void SparseGenerator::createSPARS()
     OMPL_ERROR("Sparse graph did not pass test");
   }
 
-  // if (!sg_->visualizeSparseGraph_)
-  // sg_->displayDatabase(true, indent);
+  if (!sg_->visualizeSparseGraph_)
+    sg_->displayDatabase(true, indent);
 
   OMPL_INFORM("Finished creating sparse database");
 }
@@ -230,6 +225,7 @@ void SparseGenerator::copyPasteState(std::size_t numSets)
             << sparseCriteria_->useCheckRemoveCloseVertices_ << ", "
             << sparseCriteria_->useClearEdgesNearVertex_ << ", "
             << sparseCriteria_->useOriginalSmoother_ << ", "
+            << sparseCriteria_->useEdgeImprovementRule_ << ", "
             << fourthCriteriaAfterFailures_ << ", "
             << terminateAfterFailures_ << ", "
             << maxConsecutiveFailures_ << ", "
